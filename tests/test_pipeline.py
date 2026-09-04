@@ -171,6 +171,7 @@ class TestPipeline:
             "output-validation",
             "scope",
             "mra-logo",
+            "conformity",
             "uncertainty",
             "traceability",
         ]

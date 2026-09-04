@@ -56,6 +56,9 @@ __all__ = [
     "calibration_certificate_credential",
     "test_report_credential",
     "product_conformity_credential",
+    "oiml_certificate_credential",
+    "type_approval_credential",
+    "verification_certificate_credential",
     "status_entry",
     "budget_to_json",
     "measurement_result_to_json",
@@ -724,3 +727,267 @@ def artefact_payload(document: dict[str, Any]) -> bytes | None:
         return base64.b64decode(data, validate=True)
     except (binascii.Error, ValueError):
         return None
+
+
+def oiml_certificate_credential(
+    *,
+    credential_id: str,
+    issuer: dict[str, Any],
+    valid_from: str,
+    valid_until: str,
+    certificate_number: str,
+    issued_on: str,
+    recommendation: str,
+    instrument_type: dict[str, Any],
+    applicant: dict[str, Any],
+    characteristics: dict[str, Any],
+    test_report: str,
+    capability_reference: dict[str, Any] | None = None,
+    credential_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build an OIML certificate of type evaluation.
+
+    An OIML certificate is real evidence and it is not an approval. It says that a
+    design was evaluated against an international Recommendation and met it, which is
+    exactly the technical work a national authority would otherwise have to repeat. What
+    it cannot do is make the instrument lawful anywhere, because a Recommendation is not
+    law. Only a national or regional authority can do that, and it does so in a separate
+    document.
+
+    The distinction is carried explicitly in ``legalEffect`` rather than left to be
+    inferred, so that a verifier can act on it instead of a reader having to know it.
+
+    Args:
+        credential_id: URL the certificate is published at.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        valid_from: Start of validity, as an XML Schema dateTime.
+        valid_until: End of validity, as an XML Schema dateTime.
+        certificate_number: The OIML certificate number.
+        issued_on: Date of issue, as an ISO 8601 date.
+        recommendation: The OIML Recommendation evaluated against.
+        instrument_type: The evaluated design.
+        applicant: Reference to the manufacturer that applied.
+        characteristics: The metrological characteristics established by the evaluation.
+        test_report: Identifier of the associated test report.
+        capability_reference: Reference to a registry entry bounding the recognition,
+            where one exists. Type evaluation is bounded by the Recommendation rather
+            than by a registry entry, so this is normally omitted.
+        credential_status: Optional credentialStatus member.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    credential: dict[str, Any] = {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": credential_id,
+        "type": ["VerifiableCredential", "OimlCertificateCredential"],
+        "name": f"OIML certificate {certificate_number}",
+        "issuer": issuer,
+        "validFrom": valid_from,
+        "validUntil": valid_until,
+        "credentialSubject": {
+            **instrument_type,
+            "applicant": applicant,
+            "typeEvaluation": {
+                "type": "OimlTypeEvaluation",
+                "certificateNumber": certificate_number,
+                "issuedOn": issued_on,
+                "standard": recommendation,
+                "characteristics": characteristics,
+                "testReport": test_report,
+                **({"capabilityReference": capability_reference} if capability_reference else {}),
+                "legalEffect": "none",
+                "legalEffectNote": (
+                    "This certificate is type-evaluation evidence under the OIML "
+                    "certification system. It is not a national or regional approval and "
+                    "confers no legal permission to place the instrument on the market "
+                    "or put it into use in any jurisdiction. Legal effect comes only "
+                    "from the competent authority of that jurisdiction."
+                ),
+            },
+        },
+    }
+    if credential_status is not None:
+        credential["credentialStatus"] = credential_status
+    return credential
+
+
+def type_approval_credential(
+    *,
+    credential_id: str,
+    issuer: dict[str, Any],
+    valid_from: str,
+    valid_until: str,
+    approval_number: str,
+    issued_on: str,
+    jurisdiction: str,
+    legal_basis: str,
+    instrument_type: dict[str, Any],
+    holder: dict[str, Any],
+    characteristics: dict[str, Any],
+    evidence: list[dict[str, Any]],
+    capability_reference: dict[str, Any] | None = None,
+    credential_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a national type approval.
+
+    This is the document that makes a design lawful, and it is issued by the authority
+    that national legislation made competent. It normally rests on type-evaluation
+    evidence, and this one cites the OIML certificate for exactly that purpose, which is
+    what the OIML certification system exists to enable: the technical work is done once
+    and reused, while the legal decision stays sovereign.
+
+    Args:
+        credential_id: URL the approval is published at.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        valid_from: Start of validity, as an XML Schema dateTime.
+        valid_until: End of validity, as an XML Schema dateTime.
+        approval_number: The national approval number.
+        issued_on: Date of issue, as an ISO 8601 date.
+        jurisdiction: Where the approval has legal effect.
+        legal_basis: The legislation it is granted under.
+        instrument_type: The approved design.
+        holder: Reference to the manufacturer the approval is granted to.
+        characteristics: The metrological characteristics the approval fixes.
+        evidence: References to the type-evaluation evidence relied upon.
+        capability_reference: Reference to a registry entry bounding the competence of
+            the authority, where one exists. Competence conferred by legislation is not
+            scoped to a registry entry, so this is normally omitted.
+        credential_status: Optional credentialStatus member.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    credential: dict[str, Any] = {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": credential_id,
+        "type": ["VerifiableCredential", "TypeApprovalCredential"],
+        "name": f"Type approval {approval_number}",
+        "issuer": issuer,
+        "validFrom": valid_from,
+        "validUntil": valid_until,
+        "credentialSubject": {
+            **instrument_type,
+            "holder": holder,
+            "typeApproval": {
+                "type": "NationalTypeApproval",
+                "approvalNumber": approval_number,
+                "issuedOn": issued_on,
+                "jurisdiction": jurisdiction,
+                "legalBasis": legal_basis,
+                "standard": "OIML R 76, non-automatic weighing instruments",
+                "characteristics": characteristics,
+                **({"capabilityReference": capability_reference} if capability_reference else {}),
+                "typeEvaluationEvidence": evidence,
+                "legalEffect": "national",
+                "legalEffectNote": (
+                    f"This approval permits instruments of this type to be verified and "
+                    f"used for legally regulated measurements in {jurisdiction}. It has "
+                    f"no effect elsewhere."
+                ),
+            },
+        },
+    }
+    if credential_status is not None:
+        credential["credentialStatus"] = credential_status
+    return credential
+
+
+def verification_certificate_credential(
+    *,
+    credential_id: str,
+    issuer: dict[str, Any],
+    valid_from: str,
+    valid_until: str,
+    certificate_number: str,
+    performed_on: str,
+    kind: str,
+    instrument: dict[str, Any],
+    owner: dict[str, Any],
+    jurisdiction: str,
+    characteristics: dict[str, Any],
+    test_points: list[dict[str, Any]],
+    decision: str,
+    legal_basis: dict[str, Any],
+    capability_reference: dict[str, Any],
+    reference_standards: list[dict[str, Any]],
+    verification_mark: dict[str, Any],
+    credential_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a legal verification certificate.
+
+    This is the credential that differs most from everything else here, and the
+    difference is the point. A calibration certificate reports a measurement and leaves
+    the reader to decide what it means. A verification certificate reports a
+    **decision**: this instrument complies with the law, or it does not.
+
+    The decision is not an opinion. It follows from the observed errors and the maximum
+    permissible errors, and it is only supportable if the verification was measured
+    precisely enough. Both of those are recorded here rather than summarised away, so
+    that whoever receives the certificate can confirm the decision rather than accept it.
+
+    Args:
+        credential_id: URL the certificate is published at.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        valid_from: Start of validity, as an XML Schema dateTime.
+        valid_until: End of validity. For a verification this is when the next periodic
+            verification falls due, which is why a lapsed one stops being lawful without
+            anything about the instrument having changed.
+        certificate_number: The verification certificate number.
+        performed_on: Date the verification was performed, as an ISO 8601 date.
+        kind: ``initial``, ``subsequent`` or ``after repair``.
+        instrument: The verified instrument, from ``Instrument.to_json``.
+        owner: Reference to the organisation operating the instrument.
+        jurisdiction: Where the verification has legal effect.
+        characteristics: Accuracy class, maximum capacity and verification scale
+            interval, which are what the limits are computed from.
+        test_points: The loads tested, with the error and the limit at each.
+        decision: The conformity decision recorded.
+        legal_basis: Reference to the type approval the instrument was verified against.
+        capability_reference: Reference to the designation of the verification body.
+        reference_standards: References to the calibration certificates of the standards
+            used, which is where legal metrology rests on the calibration chain.
+        verification_mark: The mark or seal applied to the instrument.
+        credential_status: Optional credentialStatus member.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    credential: dict[str, Any] = {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": credential_id,
+        "type": ["VerifiableCredential", "VerificationCertificateCredential"],
+        "name": f"Verification certificate {certificate_number}",
+        "issuer": issuer,
+        "validFrom": valid_from,
+        "validUntil": valid_until,
+        "credentialSubject": {
+            **instrument,
+            "owner": owner,
+            "verification": {
+                "type": "LegalVerification",
+                "certificateNumber": certificate_number,
+                "performedOn": performed_on,
+                "kind": kind,
+                "jurisdiction": jurisdiction,
+                "standard": "OIML R 76, non-automatic weighing instruments",
+                **characteristics,
+                "testPoints": test_points,
+                "decision": decision,
+                "decisionRule": (
+                    "The instrument conforms where the absolute indication error at "
+                    "every tested load is within the maximum permissible error for its "
+                    "accuracy class, and the verification is supportable where the "
+                    "Expanded Uncertainty at each load is at most one third of that "
+                    "limit."
+                ),
+                "legalBasis": legal_basis,
+                "capabilityReference": capability_reference,
+                "referenceStandards": reference_standards,
+                "verificationMark": verification_mark,
+            },
+        },
+    }
+    if credential_status is not None:
+        credential["credentialStatus"] = credential_status
+    return credential

@@ -26,8 +26,13 @@ def test_page_is_served(client: TestClient) -> None:
 def test_world_describes_the_demonstration(client: TestClient) -> None:
     """The world endpoint carries everything the interface needs to start."""
     data = client.get("/api/world").json()
-    assert len(data["graph"]["nodes"]) == 10
-    assert data["graph"]["trustAnchors"] == ["did:web:bipm.example", "did:web:global-aci.example"]
+    assert len(data["graph"]["nodes"]) == 14
+    assert data["graph"]["trustAnchors"] == [
+        "did:web:bipm.example",
+        "did:web:global-aci.example",
+        "did:web:legislator.example",
+        "did:web:oiml.example",
+    ]
     assert len(data["tamperCases"]) == len(TAMPER_CASES)
     assert any(entry["identifier"] == "CH-EM-0042" for entry in data["cmcEntries"])
 

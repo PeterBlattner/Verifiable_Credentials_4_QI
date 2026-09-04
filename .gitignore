@@ -10,3 +10,8 @@ __pycache__/
 
 # Generated output
 out/
+
+temp/
+# Optional UI click harness; see tools/ui-clicks.mjs
+tools/node_modules/
+tools/package*.json

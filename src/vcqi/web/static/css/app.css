@@ -30,6 +30,9 @@
   --anchor: #1f4e79;
   --anchor-soft: #e7eef5;
 
+  --legal: #6b4694;
+  --legal-soft: #efe9f6;
+
   --sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
 
@@ -62,6 +65,9 @@
 
     --anchor: #7fb0dd;
     --anchor-soft: #16212c;
+
+    --legal: #b79ae0;
+    --legal-soft: #201a2b;
   }
 }
 
@@ -334,6 +340,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .badge--warn { background: var(--warn-soft); color: var(--warn); }
 .badge--skip { background: var(--skip-soft); color: var(--skip); }
 .badge--anchor { background: var(--anchor-soft); color: var(--anchor); }
+.badge--legal { background: var(--legal-soft); color: var(--legal); }
 .badge--neutral { background: var(--paper-sunken); color: var(--ink-soft); }
 
 .verdict {
@@ -478,6 +485,7 @@ svg.graph { display: block; width: 100%; height: auto; }
 .edge--recognition { stroke: var(--anchor); }
 .edge--issuance { stroke: var(--ink-faint); stroke-dasharray: 5 4; }
 .edge--presentation { stroke: var(--accent); stroke-dasharray: 2 4; }
+.edge--authority { stroke: var(--legal); stroke-width: 2; }
 .edge--active { stroke: var(--accent); stroke-width: 3; }
 .edge__label { font-size: 9px; fill: var(--ink-faint); }
 

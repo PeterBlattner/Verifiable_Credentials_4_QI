@@ -10,7 +10,8 @@ depends on being clear about which.
 crypto/   canonicalization, keys, signatures        no domain knowledge
 vc/       credential shapes, checks, recognition,   no metrology knowledge
           verification pipeline
-domain/   CMCs, accreditation scopes, uncertainty   no credential knowledge
+domain/   CMCs, accreditation scopes, uncertainty,  no credential knowledge
+          legal limits and conformity decisions
 actors/   the world, and the ways to break it
 web/      one FastAPI process playing every part
 ```
@@ -128,6 +129,66 @@ of an uncertainty budget, which many laboratories treat as commercially confiden
 That is a real objection and not an oversight. Selective disclosure is where it would be
 addressed, and it is not implemented here.
 
+### Legal metrology, and why it needed its own module
+
+Legal metrology is the third pillar and it does not work like the other two, so
+`domain/legal.py` sits beside `domain/scope.py` rather than inside it.
+
+`domain/scope.py` decides whether a *measurement* falls inside a declared capability.
+`domain/legal.py` decides whether a *decision* follows from the measurements offered for
+it. A calibration certificate reports an error and an uncertainty and leaves the reader
+to judge; a verification certificate has already judged, and the judgement has legal
+effect. The only useful thing a recipient can do with the second kind is confirm it.
+
+Two conditions decide a verification, and keeping them apart matters:
+
+* **the error against the limit.** Outside the maximum permissible error, the instrument
+  does not comply and a certificate saying otherwise is wrong.
+* **the uncertainty against a third of the limit.** Above `MPE/3` the verification cannot
+  distinguish a compliant instrument from a non-compliant one, so the certificate is not
+  wrong but unsupported. `ConformityVerdict` exposes `decision_follows` and
+  `adequately_measured` separately because an inspector should treat those differently.
+
+The limits come from OIML R 76: three bands rising in half-interval steps, at different
+loads for each accuracy class, doubled for an instrument already in service. The
+in-service doubling is not laxity — an instrument is expected to drift within its
+verification interval and is not required to stay as good as new.
+
+**Four anchors, one thing each.** The most consequential design decision here was almost
+made wrongly. OIML was initially left out of `TRUST_ANCHORS` on the reasoning that it
+confers no legal force, which conflates two questions. Reaching OIML establishes
+technical type evaluation perfectly well, and a national authority relying on OIML
+evidence is exactly what the certification system exists for. What reaching OIML does not
+establish is legal force. So OIML is an anchor, `NOT_A_LEGAL_ANCHOR` records what it does
+not confer, and the distinction is enforced in `conformity.legal-basis`, which looks at
+what the cited document *is* rather than at who vouches for its issuer. The result is a
+failure mode with no counterpart elsewhere in the demonstration: a document that is
+genuine, current, correctly signed, issued by a genuinely recognised body, reaching a
+genuine trust anchor, and still unable to do the job being asked of it.
+
+**One organisation, two roles.** METAS is both the national metrology institute and the
+legal metrology authority, which is the Swiss arrangement and one of several the field
+uses. It appears once in the graph, and two edges of different kinds arrive at it from
+opposite ends of the row above: recognition from the BIPM, legal authority from the
+ordinance. Its weight calibration chains to the BIPM and its type approval chains to the
+legislator, and the two chains share nothing. Modelling it as two nodes would have been
+easier to draw and would have hidden the point.
+
+**Where the two systems join.** A verification is only as good as the standards it was
+made with, so the reference weight the verification body weighs with is calibrated by the
+institute under a published CMC, and the verification certificate references that
+calibration certificate by content digest. The legal branch rests on the calibration
+chain rather than running beside it, and `traceability` follows the reference straight
+into it.
+
+**What needed no new mechanism.** A designation is a `RecognizedEntityCredential` with
+`action: "verify"`, on a status list the authority controls. Delegating verification
+while keeping regulation public is exactly what that shape already expresses, and the
+demonstration is better for having reused it than it would have been with a bespoke
+credential type. `REQUIRED_ACTIONS` did have to grow into a set per credential type: an
+accreditation body accredits and a legal metrology authority designates, and the two
+produce the same kind of document from quite different standing.
+
 ### The network is a dictionary
 
 `vc/resolver.py` stands in for retrieval. Every document is published at the address a
@@ -158,11 +219,12 @@ than assumed.
 | `scope` | the numeric decision a schema cannot express |
 | `mra-logo` | whether a claim of international recognition is justified |
 | `uncertainty` | whether the stated U is supported by the budget offered for it, whether every representation matches its recorded digest, and whether the printed line agrees with the dependency data |
+| `conformity` | whether a legal conformity decision follows from its test points, was measured well enough to support, and rests on an approval with force in the stated jurisdiction |
 | `traceability` | whether the chain of certificates below it holds, by content digest, and whether the influences of the parent are genuinely present in this result |
 
 Every step returns a structured result rather than a boolean, and a step that cannot be
-evaluated reports `skip` rather than passing quietly. `tests/test_pipeline.py` asserts
-that each of the thirteen failure cases is caught by the step that claims it, and that the
+evaluated reports `skip` rather than passing quietly. `tests/test_pipeline.py` and `tests/test_legal.py` assert
+that each of the seventeen failure cases is caught by the step that claims it, and that the
 metrological cases pass `proof`, `validity` and `recognition` first — which is the whole
 reason they are worth demonstrating.
 
@@ -182,6 +244,24 @@ reason they are worth demonstrating.
   OpenID4VP and a wallet are what a real flow would use.
 - **Any authority whatsoever.** No part of this reflects the position of any real
   institute, accreditation body, RMO, Global ACI, or the BIPM.
+
+## Testing what the interface does, not only what it renders
+
+`tests/` covers everything the server computes, and it structurally cannot cover whether
+a button works. That gap produced a real bug: the document inspector was appended to the
+page only for a hardcoded list of chapter ids, so a chapter not on that list could fetch
+a document, render it, and put the result into a node that had never been in the page.
+Every request succeeded and every test passed while seven controls did nothing.
+
+Two things came out of it. The inspector now attaches itself the first time a chapter
+asks for a document, so there is no list to fall off. And `tools/ui-clicks.mjs` drives
+the real application in a jsdom document, navigating to each chapter and clicking every
+control, failing if the page does not change. It skips controls that are already the
+selected option, because re-choosing the tab you are on is meant to do nothing and a
+check that cries wolf gets ignored.
+
+It needs jsdom, which is not a project dependency and should not become one: nothing that
+ships needs npm.
 
 ## Reproducibility
 
