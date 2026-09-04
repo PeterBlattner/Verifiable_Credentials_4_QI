@@ -35,6 +35,16 @@ certificates carry the UncLib representation only:
 uv sync --extra gtc     # certificates gain a GTC archive as well
 ```
 
+There is also an optional interaction check. The Python suite verifies what the server
+computes, and a separate harness verifies that the interface actually responds when you
+click it, which is a different question and once had a different answer:
+
+```
+cd tools && npm install jsdom && cd ..
+uv run vc-demo &
+node tools/ui-clicks.mjs     # clicks every control on every chapter
+```
+
 The build is deterministic: signing uses RFC 6979, so two runs produce byte-identical
 credentials and `--dump` output can be diffed between runs.
 

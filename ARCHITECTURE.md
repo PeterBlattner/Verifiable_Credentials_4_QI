@@ -245,6 +245,24 @@ reason they are worth demonstrating.
 - **Any authority whatsoever.** No part of this reflects the position of any real
   institute, accreditation body, RMO, Global ACI, or the BIPM.
 
+## Testing what the interface does, not only what it renders
+
+`tests/` covers everything the server computes, and it structurally cannot cover whether
+a button works. That gap produced a real bug: the document inspector was appended to the
+page only for a hardcoded list of chapter ids, so a chapter not on that list could fetch
+a document, render it, and put the result into a node that had never been in the page.
+Every request succeeded and every test passed while seven controls did nothing.
+
+Two things came out of it. The inspector now attaches itself the first time a chapter
+asks for a document, so there is no list to fall off. And `tools/ui-clicks.mjs` drives
+the real application in a jsdom document, navigating to each chapter and clicking every
+control, failing if the page does not change. It skips controls that are already the
+selected option, because re-choosing the tab you are on is meant to do nothing and a
+check that cries wolf gets ignored.
+
+It needs jsdom, which is not a project dependency and should not become one: nothing that
+ships needs npm.
+
 ## Reproducibility
 
 `build_world()` is deterministic: fixed seed, fixed timestamps, deterministic

@@ -12,10 +12,18 @@ const nav = document.getElementById('rail-nav');
 
 let world = null;
 let inspector = null;
+let inspectorHeading = null;
 
 /** Fetch any published document and show it, exactly as the verifier would. */
 async function inspect(url) {
   if (!inspector) return;
+  // The inspector puts itself on the page the first time a chapter actually asks for a
+  // document. It used to be appended only for a hardcoded list of chapter ids, so a
+  // chapter that was not on the list could fetch a document perfectly well and render it
+  // into a node that was never in the page: the click worked and nothing happened.
+  if (!inspector.isConnected) {
+    stage.append(inspectorHeading, inspector);
+  }
   clear(inspector).append(el('p', { class: 'spinner', text: `Fetching ${url}…` }));
   try {
     const data = await api.document(url);
@@ -71,14 +79,12 @@ async function show(id) {
   );
 
   inspector = panel(null, null, el('p', { class: 'muted', text: 'Click any address in a document above to fetch it, the way the verifier does.' }));
+  inspectorHeading = el('h3', { text: 'Follow a reference' });
 
   try {
     const body = await chapter.render({ world, api, inspect });
     stage.lastChild.remove();
     stage.append(body);
-    if (['graph', 'issuing', 'verification', 'scope'].includes(chapter.id)) {
-      stage.append(el('h3', { text: 'Follow a reference' }), inspector);
-    }
   } catch (error) {
     stage.lastChild.remove();
     stage.append(

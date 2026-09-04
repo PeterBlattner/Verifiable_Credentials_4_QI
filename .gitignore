@@ -12,3 +12,6 @@ __pycache__/
 out/
 
 temp/
+# Optional UI click harness; see tools/ui-clicks.mjs
+tools/node_modules/
+tools/package*.json
