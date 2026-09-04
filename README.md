@@ -3,7 +3,7 @@
 An interactive demonstration of what W3C [Verifiable Credentials][vc] and
 [Recognized Entities][re] would look like applied to metrology, accreditation and
 conformity assessment — calibration certificates, CMCs and the CIPM MRA, accreditation
-scopes and the ILAC MRA, test reports and certificates of conformity.
+scopes and the Global ACI MRA, test reports and certificates of conformity.
 
 > **Everything here is fictional.** Every organisation, identifier, certificate,
 > capability and signing key is invented. The identifiers use the `.example` domain
@@ -40,11 +40,16 @@ The quality infrastructure already works this way on paper.
 
 | Recognized Entities | Quality infrastructure |
 | --- | --- |
-| Root of trust | BIPM under the CIPM MRA; ILAC under the ILAC MRA |
+| Root of trust | BIPM under the CIPM MRA; Global ACI under the Global ACI MRA |
 | `RecognizedEntityCredential` | CIPM MRA participation; ISO/IEC 17025 accreditation |
 | `RecognizedAction` + `outputValidation` | The declared CMC or the granted accreditation scope |
 | Leaf credential | Calibration certificate, test report, certificate of conformity |
 | `recognizedIn`, followed upward | The recognition path a recipient checks by hand today |
+
+Note that one anchor is new: on 1 January 2026 the IAF and ILAC consolidated into
+**Global Accreditation Cooperation Incorporated (Global ACI)**, whose arrangement is the
+Global ACI *Multilateral* Recognition Arrangement. The CIPM MRA remains a *Mutual*
+Recognition Arrangement; the demo keeps the distinction exact.
 
 Two things go beyond the specification, because metrology needs them:
 
@@ -66,7 +71,7 @@ correlated contributions are not double counted.
 ```
 BIPM ──recognises──▶ METAS ──calibrates──▶ Alpine Calibration's 10 kΩ standard
                                                     │
-ILAC ──recognises──▶ SAS ──accredits──▶ Alpine Calibration
+Global ACI ──recognises──▶ SAS ──accredits──▶ Alpine Calibration
                           ├─accredits──▶ Helvetia Testing
                           └─accredits──▶ Confoederatio Certification
                                                     │
@@ -76,7 +81,7 @@ Helvetia ──test report──▶ Confoederatio ──certificate of conformit
                                                     │
                                       Market surveillance authority, at a border,
                                       trusting only did:web:bipm.example and
-                                      did:web:ilac.example
+                                      did:web:global-aci.example
 ```
 
 That authority runs eleven checks, and reaches a verified path from the kettle down to

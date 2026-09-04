@@ -1,4 +1,4 @@
-"""Accreditation scopes issued by an accreditation body under the ILAC arrangements.
+"""Accreditation scopes issued by an accreditation body under the Global ACI MRA.
 
 An accreditation scope is the accreditation-body counterpart of a CMC: it states which
 activity a laboratory is competent to perform, over which range, and for calibration

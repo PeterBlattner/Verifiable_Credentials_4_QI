@@ -113,7 +113,7 @@ def _graph() -> dict[str, Any]:
     current = world()
     edges: list[dict[str, Any]] = []
 
-    for name in ("bipm-recognition", "ilac-recognition", "sas-recognition"):
+    for name in ("bipm-recognition", "global-aci-recognition", "sas-recognition"):
         credential = current.credential(name)
         source = issuer_id(credential)
         subjects = credential.get("credentialSubject", [])
@@ -355,7 +355,7 @@ def post_verify(request: VerifyRequest) -> dict[str, Any]:
     presented = (
         [
             current.credential(name)
-            for name in ("bipm-recognition", "ilac-recognition", "sas-recognition")
+            for name in ("bipm-recognition", "global-aci-recognition", "sas-recognition")
         ]
         if request.staple
         else []

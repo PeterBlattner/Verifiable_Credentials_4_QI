@@ -27,7 +27,7 @@ CONTEXT_VCQI_V1: Final[str] = "https://vcqi.example/contexts/v1"
 
 #: Where the demonstrator's own documents live. Resolved locally, never fetched.
 BIPM_ORIGIN: Final[str] = "https://bipm.example"
-ILAC_ORIGIN: Final[str] = "https://ilac.example"
+GLOBAL_ACI_ORIGIN: Final[str] = "https://global-aci.example"
 SAS_ORIGIN: Final[str] = "https://sas.example"
 METAS_ORIGIN: Final[str] = "https://metas.example"
 

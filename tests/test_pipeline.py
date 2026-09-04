@@ -53,7 +53,7 @@ class TestWorld:
         """Nothing in the base world is broken."""
         for name in (
             "bipm-recognition",
-            "ilac-recognition",
+            "global-aci-recognition",
             "sas-recognition",
             "metas-calibration",
             "callab-calibration",
@@ -80,7 +80,7 @@ class TestRecognition:
         assert len(chain.hops) == 1
 
     def test_laboratory_reaches_the_accreditation_anchor_in_two_hops(self, world) -> None:
-        """A laboratory reaches ILAC through its accreditation body."""
+        """A laboratory reaches Global ACI through its accreditation body."""
         chain = discover_recognition(
             world.credential("callab-calibration"),
             resolver=Resolver(world.store),
@@ -88,7 +88,7 @@ class TestRecognition:
             now=DEMO_NOW,
         )
         assert chain.succeeded
-        assert chain.anchor == "did:web:ilac.example"
+        assert chain.anchor == "did:web:global-aci.example"
         assert [hop.issuer for hop in chain.hops] == [
             "did:web:callab.example",
             "did:web:sas.example",
@@ -210,7 +210,7 @@ class TestPipeline:
             "callab-calibration",
             presented=[
                 world.credential("sas-recognition"),
-                world.credential("ilac-recognition"),
+                world.credential("global-aci-recognition"),
                 world.credential("bipm-recognition"),
             ],
         )

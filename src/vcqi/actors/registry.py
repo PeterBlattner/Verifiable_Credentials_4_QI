@@ -2,7 +2,7 @@
 
 The set is chosen to show both halves of the quality infrastructure meeting in one
 supply chain. On the metrology side the BIPM anchors the CIPM MRA and national
-metrology institutes calibrate against it. On the conformity assessment side ILAC
+metrology institutes calibrate against it. On the conformity assessment side Global ACI
 anchors its own arrangement and an accreditation body accredits the laboratories and
 the certification body beneath it. A manufacturer holds the resulting credentials and a
 market surveillance authority in an importing country is the party that has to decide
@@ -110,14 +110,15 @@ ACTORS: tuple[Actor, ...] = (
         issues="Recognition of national metrology institutes, and CMC entries",
     ),
     Actor(
-        did="did:web:ilac.example",
-        name="ILAC",
-        legal_name="International Laboratory Accreditation Cooperation (demonstration)",
+        did="did:web:global-aci.example",
+        name="Global ACI",
+        legal_name="Global Accreditation Cooperation Incorporated (demonstration)",
         role="Accreditation trust anchor",
         country="",
         description=(
-            "Records which national accreditation bodies are signatories to its "
-            "mutual recognition arrangement, and for which standards."
+            "Formed on 1 January 2026 when the IAF and ILAC consolidated into one body. "
+            "Records which accreditation bodies are signatories to its multilateral "
+            "recognition arrangement, and for which standards."
         ),
         issues="Recognition of accreditation bodies",
     ),
@@ -220,7 +221,7 @@ ACTORS: tuple[Actor, ...] = (
 #: The identifiers the verifier is configured to trust directly. Everything else has to
 #: be reached from one of these by following recognition, which is the entire point.
 TRUST_ANCHORS: frozenset[str] = frozenset(
-    {"did:web:bipm.example", "did:web:ilac.example"}
+    {"did:web:bipm.example", "did:web:global-aci.example"}
 )
 
 _BY_DID = {actor.did: actor for actor in ACTORS}

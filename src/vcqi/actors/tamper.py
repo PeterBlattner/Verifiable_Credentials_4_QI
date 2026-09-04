@@ -398,7 +398,7 @@ TAMPER_CASES: tuple[TamperCase, ...] = (
         catches=(
             "The signature is valid, which is the point: a valid signature by an "
             "unknown party proves only that the party exists. There is no route from "
-            "that identifier to the BIPM or ILAC."
+            "that identifier to the BIPM or Global ACI."
         ),
         apply=_forged_issuer,
     ),

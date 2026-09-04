@@ -124,7 +124,7 @@ reason they are worth demonstrating.
 - **Holder wallets and presentation protocols.** Credentials are handed around as JSON.
   OpenID4VP and a wallet are what a real flow would use.
 - **Any authority whatsoever.** No part of this reflects the position of any real
-  institute, accreditation body, RMO, ILAC, or the BIPM.
+  institute, accreditation body, RMO, Global ACI, or the BIPM.
 
 ## Reproducibility
 

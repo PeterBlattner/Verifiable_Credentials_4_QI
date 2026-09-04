@@ -1,3 +1,5 @@
+# Change set 1 - the demonstrator (complete)
+
 # Verifiable Credentials for the Quality Infrastructure — interactive demonstrator
 
 ## Context
@@ -265,3 +267,288 @@ All phases complete. 134 tests pass; the server runs; every chapter renders.
 
 Selective disclosure, DCC payload mapping, long-term validation, key rotation, real DID
 methods, wallet and presentation protocols. Each is recorded in ARCHITECTURE.md.
+
+---
+
+# Change set 2 - Global ACI, and transmitting metrological traceability
+
+Phase 1 is built, tested and committed on `feature/vc-qi-demo` (48 files, 134 tests).
+This plan covers two changes requested on top of it.
+
+## Context
+
+**A. ILAC no longer exists.** On 1 January 2026 the IAF and ILAC consolidated into a
+single body, **Global Accreditation Cooperation Incorporated (Global ACI)**, whose
+arrangement is the *Global ACI Multilateral Recognition Arrangement*. The demonstration
+world is set in September 2026, so it should reflect that. This is a rename plus a
+re-dating, not a structural change: Global ACI still accredits against ISO/IEC 17025 and
+17065, so the accreditation scopes are untouched.
+
+**B. The traceability chapter understates what is possible.** Right now a certificate
+carries a value, an Expanded Uncertainty, and a budget rendered as a flat table. That is
+the classical statement, and a receiving laboratory can only re-enter it as a single
+lumped input.
+
+METAS UncLib can transmit far more: the full dependency of the result on its input
+quantities, with a sensitivity per input and — crucially — a **GUID per input quantity**.
+When two certificates share an input quantity, the GUIDs match and correlations are
+handled automatically. Verified against the installed library:
+
+```
+u(a − a₂) = 0.0            two independent loads of one certificate stay identical
+r(R1, R2) = 0.667          two certificates sharing a transfer standard, correctly correlated
+U(R1−R2) tracked = 0.00113 Ω
+U(R1−R2) as RSS  = 0.00196 Ω    classical reporting overestimates by 1.7×
+```
+
+That last line is the argument. A customer who receives two certificates and forms a
+difference gets a 1.7× too large uncertainty if all they were given was value ± U. The
+information needed to do better exists at the laboratory and is simply not transmitted.
+
+`metas_unclib.ustorage` already provides the transport: `to_xml_string` /
+`from_xml_string` and `to_byte_array` / `from_byte_array`, the binary form being for
+large data sets. A four-input budget is 972 characters of XML or 346 bytes binary. The
+XML is exactly the structure being described:
+
+```xml
+<UncNumber>
+  <Value>10000.0007</Value>
+  <Dependencies>
+    <DependsOn>
+      <Input>
+        <Id>BE-52-F0-9E-9F-A6-4F-BD-BF-67-5D-8C-C9-3D-B2-87</Id>
+        <Description>National standard</Description>
+        <Distribution xsi:type="Normal"><mu>10000.0007</mu><sigma>0.0003</sigma></Distribution>
+      </Input>
+      <Jacobi>1</Jacobi>
+    </DependsOn>
+```
+
+**GTC** (GUM Tree Calculator, MSL New Zealand) solves the same problem independently:
+elementary uncertain numbers carry UUID-based `eUID`s, archives serialise to JSON or XML
+against published schemas. Two implementations of one idea is a better argument than one,
+so the credential must be format-agnostic rather than UncLib-specific.
+
+And **classical reporting stays**. It is what certificates say today, it is what remains
+legally recognisable, and it is the only thing available when the issuer has no such tool.
+It is always present; the dependency representations are additional.
+
+Decisions taken with the user: GTC as an optional extra; dependency data inline when
+small and referenced by digest when large; the correlation demonstration gets its own
+chapter.
+
+## A. Global ACI
+
+Mechanical, 50 occurrences across 13 files.
+
+- `did:web:ilac.example` → `did:web:global-aci.example`, in `actors/registry.py`
+  (actor entry and `TRUST_ANCHORS`), `graph.js` (`POSITIONS`), and the tests.
+- Name `ILAC` → `Global ACI`; legal name → *Global Accreditation Cooperation
+  Incorporated (demonstration)*; role stays *Accreditation trust anchor*.
+- URLs in `actors/scenarios.py`: `ILAC_RECOGNITION` →
+  `https://global-aci.example/recognition/global-aci-mra-signatories-2026`,
+  `ILAC_STATUS` → `https://global-aci.example/status/recognition`.
+- Wording: *ILAC MRA* → *Global ACI MRA*, expanded as **Multilateral** Recognition
+  Arrangement. The CIPM MRA stays **Mutual** — the distinction is real, keep it exact.
+- **Re-date the recognition credentials.** Global ACI did not exist before 2026-01-01,
+  so a recognition credential dated 2025 would be wrong, and the `action` step checks
+  that a recognised action covers the *issuance* date of what it authorises. Move
+  `RECOGNITION_FROM` to 2026-01-01 and `RECOGNITION_UNTIL` to 2031-01-01 for all three
+  recognition credentials and the status lists. The underlying accreditations keep their
+  own 2024 dates in `domain/accreditation.py`; only the recognition documents move.
+- Add a short historical note in chapter 1 and in `README.md`: the consolidation is
+  itself an argument, because a trust anchor changing its name and identifier is exactly
+  the governance event a real deployment has to survive.
+
+## B. Transmitting metrological traceability
+
+### Credential shape
+
+`credentialSubject.calibration.results[0]` gains `uncertaintyRepresentations`, an ordered
+list. The classical statement is always first and always present.
+
+```json
+"uncertaintyRepresentations": [
+  { "type": "ClassicalStatement", "format": "value-and-expanded-uncertainty",
+    "value": 10000.0012, "standardUncertainty": 0.000566, "expandedUncertainty": 0.001131,
+    "coverageFactor": 2, "unit": "ohm", "reported": "10000.0012 +/- 0.0011 ohm (k = 2)" },
+  { "type": "DependencyRepresentation", "format": "METAS-UncLib-XML",
+    "mediaType": "application/xml", "specification": "https://www.metas.ch/unclib",
+    "inputQuantityCount": 4,
+    "inputQuantities": [ { "id": "BE-52-...", "description": "National standard" }, ... ],
+    "content": "<?xml version=...",
+    "digestMultibase": "u..." },
+  { "type": "DependencyRepresentation", "format": "METAS-UncLib-binary",
+    "mediaType": "application/octet-stream",
+    "id": "https://metas.example/certificates/METAS-2026-0417/uncertainty.unc",
+    "byteCount": 346, "digestMultibase": "u..." },
+  { "type": "DependencyRepresentation", "format": "GTC-archive-JSON", ... }   // when GTC installed
+]
+```
+
+`digestMultibase` is over the **raw** dependency bytes (UTF-8 XML, or the binary blob),
+not over a JSON wrapper, so the signature covers the actual data whether it is inline or
+fetched. Inline below a `INLINE_LIMIT = 4096` character threshold, referenced above it;
+the binary form is always referenced so both paths are exercised. `inputQuantities` lists
+the GUIDs and descriptions so the identity mechanism is visible without parsing XML.
+
+### Code changes
+
+**`domain/uncertainty.py`** — the substantive one.
+
+- `Contribution` gains an optional `uncertain_number` field. When set, `evaluate()` uses
+  that object directly instead of building a fresh `ufloat`. This is what makes the GUIDs
+  shared: the laboratory does not re-enter a number, it *continues* the parent's one.
+- New constructor `from_certificate(key, label, unclib_xml, note)`, which deserialises
+  with `mu.ustorage.from_xml_string` and hands the result to `Contribution`. Contrast it
+  in the docstring with the existing `from_expanded_uncertainty`, which is the classical
+  path and deliberately creates a *new* input quantity with a *new* GUID.
+- `MeasurementResult` gains `uncertain_number: Any = None`, excluded from every JSON
+  rendering, so the result can be serialised later.
+- Budget rendering: in dependency mode the parent's input quantities appear as individual
+  lines rather than one lumped row. Keep `get_unc_component(result, parent_object)` to
+  also report the parent's total contribution, so both views are available.
+
+**`vc/model.py`** — `uncertainty_representations(result, *, base_url, gtc_archive)`
+building the list above; reuse `digest_multibase` from `crypto/multibase.py`.
+
+**`vc/verify.py`** — three new child steps, all under the existing `uncertainty` and
+`traceability` steps so the top-level step list stays at eleven:
+
+| Step | Checks |
+| --- | --- |
+| `uncertainty.representations` | each representation's `digestMultibase` matches its inline content or the fetched document |
+| `uncertainty.agreement` | where both a classical statement and a dependency representation exist, the value and u agree within tolerance — catches a certificate whose XML disagrees with its printed number |
+| `traceability.shared-inputs` | the child's dependency representation contains the parent's input quantity GUIDs — a traceability proof independent of names and digests |
+
+`traceability.inherited` stays, for the classical path where no dependency data exists.
+
+**`actors/scenarios.py`** — the METAS certificate is issued with a dependency
+representation; the CalLab certificate is built in *dependency mode*, loading the METAS
+XML rather than re-entering U/k. Add the shared-reference pair: two 10 kΩ standards owned
+by the testing laboratory, certificates `AC-2026-1190` and `AC-2026-1191`, both calibrated
+against the same transfer standard, so chapter 6 has real documents to work with.
+
+**`domain/gtc_archive.py`** (new, optional) — builds a GTC archive mirroring the same
+budget, importing GTC lazily and returning `None` when it is absent. `pyproject.toml`
+gains `[project.optional-dependencies] gtc = ["GTC>=1.5"]`; `uv sync --extra gtc` enables
+it. Every GTC test is skipped when the import fails.
+
+**`web/app.py`** — `GET /api/uncertainty-data?url=` serving referenced representations
+with their real media type, and `POST /api/combine` for chapter 6, which takes two
+certificate names and an operation and returns both the correlation-aware and the naive
+RSS result.
+
+### Chapters
+
+Chapter 5 is reworked and a new chapter 6 inserted; Break it and the argument shift to 7
+and 8.
+
+**5. Traceability and uncertainty.** As now, plus a three-way tab on the certificate:
+*classical* (value ± U, what a paper certificate says), *UncLib* (the XML, its input
+quantities and GUIDs, the sensitivity per input), *GTC* (the archive, or a note that it
+is not installed). The point made explicitly: all three describe the same measurement,
+and only the last two let the recipient do anything further with it.
+
+**6. Why the dependencies matter.** Two certificates, one shared transfer standard. The
+reader picks an operation — difference, ratio, mean — and sees both answers side by side:
+correlation-aware from the shared GUIDs, and naive RSS from value ± U alone. The 1.7×
+overestimate is the headline. A second panel shows what happens if the laboratory had
+reported classically: the customer *cannot* recover the correlation, at any effort, from
+the numbers they were given.
+
+Also worth stating plainly in this chapter: transmitting the dependency structure exposes
+the internals of a laboratory's uncertainty budget, which some laboratories treat as
+confidential. That is a genuine trade-off, not an oversight, and selective disclosure is
+where it would be addressed.
+
+## Files
+
+```
+src/vcqi/domain/uncertainty.py     Contribution.uncertain_number, from_certificate, budget expansion
+src/vcqi/domain/gtc_archive.py     new, optional, lazily imported
+src/vcqi/vc/model.py               uncertainty_representations()
+src/vcqi/vc/verify.py              three new child steps
+src/vcqi/actors/scenarios.py       Global ACI, re-dating, dependency mode, the resistor pair
+src/vcqi/actors/registry.py        Global ACI actor and trust anchor
+src/vcqi/actors/tamper.py          two new cases (below)
+src/vcqi/web/app.py                /api/uncertainty-data, /api/combine
+src/vcqi/web/static/js/chapters.js chapters 5 and 6
+src/vcqi/web/static/js/graph.js    POSITIONS key rename
+pyproject.toml                     [project.optional-dependencies] gtc
+tests/, README.md, ARCHITECTURE.md
+```
+
+Two failure cases to add in `tamper.py`, both in the metrological group:
+
+- **`dependency-disagrees`** — the UncLib XML is replaced with one stating a smaller
+  uncertainty than the printed classical statement. Caught by `uncertainty.agreement`.
+- **`unshared-inputs`** — the laboratory claims traceability to the institute but its
+  dependency representation contains none of the institute's input quantity GUIDs, so the
+  chain is asserted rather than real. Caught by `traceability.shared-inputs`.
+
+## Verification
+
+- `uv run pytest` — existing 134 plus roughly 20 new. Specifically: XML round-trip keeps
+  GUID identity (`u(a − a₂) == 0`); a certificate built in dependency mode correlates with
+  its parent while one built classically does not; the 1.7× figure is asserted against a
+  hand-computed value; all 13 tamper cases caught by their named step.
+- `uv sync --extra gtc && uv run pytest` — the GTC path exercised; without the extra those
+  tests skip rather than fail.
+- `uv run vc-demo`, then walk chapters 5 and 6 and confirm the three representations
+  render and the two combination results differ by the stated factor.
+- Headless render of every chapter against the live server, as before.
+- `python -m vcqi.actors.scenarios --dump` twice, byte-identical. This needed resolving
+  before the plan could stand, because UncLib assigns a fresh GUID to every input quantity
+  by default and two runs would then differ. `ufloat` accepts an explicit `id`, and
+  passing four little-endian uint32 words yields a clean 16 byte GUID:
+
+  ```python
+  raw = hashlib.sha256(DEMO_SEED + b"|" + label).digest()[:16]
+  identifier = [int.from_bytes(raw[i : i + 4], "little") for i in range(0, 16, 4)]
+  u_variable_x = mu.ufloat(value, stdunc, id=identifier, desc=label)
+  # -> 10-FE-D3-10-7E-B3-4C-4D-67-C0-84-56-D3-81-39-61, stable across runs,
+  #    and equal to uuid.UUID(bytes=raw) = 10fed310-7eb3-4c4d-67c0-8456d3813961
+  ```
+
+  Verified: two inputs built this way from the same label are treated as the *same* input
+  quantity, `u(a − b) == 0`. A helper `seeded_input_id(label)` goes in
+  `domain/uncertainty.py`, and `ARCHITECTURE.md` records that real deployments must let
+  UncLib generate genuinely random GUIDs — seeding them is a reproducibility device for a
+  demonstration, and would be a correctness bug in production, since two unrelated
+  laboratories using the same label must not collide.
+
+## Git
+
+Continue on `feature/vc-qi-demo`. Two commits, so the rename stays separable from the
+substantive work:
+
+```
+refactor(actors): replace ILAC with Global ACI
+feat(uncertainty): transmit input dependencies to customers
+```
+
+Nothing pushed; no remote is configured yet.
+
+---
+
+## Change set 2 - build order
+
+- [ ] **A - Global ACI.** Rename ILAC to Global ACI across 13 files, re-date the
+      recognition credentials to 2026-01-01, update graph positions and tests.
+- [ ] **B1 - Dependency-aware uncertainty.** `Contribution.uncertain_number`,
+      `from_certificate()`, `seeded_input_id()`, `MeasurementResult.uncertain_number`.
+- [ ] **B2 - Credential transport.** `uncertainty_representations()` in `vc/model.py`,
+      inline below 4096 characters and referenced by digest above it.
+- [ ] **B3 - Verification.** `uncertainty.representations`, `uncertainty.agreement`,
+      `traceability.shared-inputs`.
+- [ ] **B4 - The world.** METAS certificate carries its dependencies; CalLab builds in
+      dependency mode; add the shared-reference resistor pair.
+- [ ] **B5 - GTC.** Optional `domain/gtc_archive.py` and the `gtc` extra.
+- [ ] **B6 - Web.** `/api/uncertainty-data`, `/api/combine`, chapters 5 and 6.
+- [ ] **B7 - Failure cases and docs.** `dependency-disagrees`, `unshared-inputs`,
+      README and ARCHITECTURE.
+
+## Change set 2 - progress log
+
+(started)

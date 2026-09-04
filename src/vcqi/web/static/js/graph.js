@@ -22,7 +22,7 @@ const BOX = { width: 170, height: 48 };
 
 const POSITIONS = {
   'did:web:bipm.example': { x: 60, y: 24 },
-  'did:web:ilac.example': { x: 560, y: 24 },
+  'did:web:global-aci.example': { x: 560, y: 24 },
   'did:web:metas.example': { x: 30, y: 140 },
   'did:web:ptb.example': { x: 215, y: 140 },
   'did:web:sas.example': { x: 560, y: 140 },

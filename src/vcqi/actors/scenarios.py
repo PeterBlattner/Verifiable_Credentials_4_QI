@@ -10,7 +10,7 @@ added of its own. The testing laboratory measures a kettle with that multimeter 
 issues a test report. A certification body issues a certificate of conformity on the
 strength of the report. A market surveillance authority in an importing country meets
 the certificate of conformity, knows none of these organisations, and trusts only the
-BIPM and ILAC.
+BIPM and Global ACI.
 
 Two independent structures run through that chain, and keeping them apart is the point
 of the whole demonstration:
@@ -65,12 +65,12 @@ from vcqi.vc.schema import (
 )
 from vcqi.vc.status import BitstringStatusList, status_list_credential
 
-__all__ = ["World", "build_world", "BIPM_RECOGNITION", "ILAC_RECOGNITION", "SAS_RECOGNITION"]
+__all__ = ["World", "build_world", "BIPM_RECOGNITION", "GLOBAL_ACI_RECOGNITION", "SAS_RECOGNITION"]
 
 # Addresses are fixed in advance because credentials reference each other by URL and
 # some of those references point forward in build order.
 BIPM_RECOGNITION = "https://bipm.example/recognition/cipm-mra-signatories-2026"
-ILAC_RECOGNITION = "https://ilac.example/recognition/ilac-mra-signatories-2026"
+GLOBAL_ACI_RECOGNITION = "https://global-aci.example/recognition/global-aci-mra-signatories-2026"
 SAS_RECOGNITION = "https://sas.example/recognition/accredited-bodies-2026"
 
 METAS_CERTIFICATE = "https://metas.example/certificates/METAS-2026-0417"
@@ -79,7 +79,7 @@ TESTLAB_REPORT = "https://testlab.example/reports/HTS-2026-3391"
 CAB_CERTIFICATE = "https://cab.example/certificates/CPC-2026-0055"
 
 BIPM_STATUS = "https://bipm.example/status/recognition"
-ILAC_STATUS = "https://ilac.example/status/recognition"
+GLOBAL_ACI_STATUS = "https://global-aci.example/status/recognition"
 SAS_STATUS = "https://sas.example/status/accreditation"
 METAS_STATUS = "https://metas.example/status/certificates"
 CALLAB_STATUS = "https://callab.example/status/certificates"
@@ -92,7 +92,7 @@ ACCREDITATION_SCHEMA_BASE = "https://sas.example/schemas"
 #: Position of each credential in the status list of its issuer.
 STATUS_INDEX = {
     BIPM_RECOGNITION: 1,
-    ILAC_RECOGNITION: 1,
+    GLOBAL_ACI_RECOGNITION: 1,
     SAS_RECOGNITION: 1,
     METAS_CERTIFICATE: 7,
     CALLAB_CERTIFICATE: 3,
@@ -130,8 +130,8 @@ def _stamp(moment: datetime) -> str:
 
 
 # Fixed timestamps for the whole scenario.
-RECOGNITION_FROM = _utc(2025, 1, 1)
-RECOGNITION_UNTIL = _utc(2030, 1, 1)
+RECOGNITION_FROM = _utc(2026, 1, 1)
+RECOGNITION_UNTIL = _utc(2031, 1, 1)
 METAS_CALIBRATED_ON = "2026-02-10"
 METAS_ISSUED = _utc(2026, 2, 12, 9, 0)
 METAS_EXPIRES = _utc(2027, 2, 12, 9, 0)
@@ -395,7 +395,7 @@ def _status_lists(world: World) -> None:
     """
     definitions = [
         (BIPM_STATUS, "did:web:bipm.example", "suspension", "Recognition of national metrology institutes"),
-        (ILAC_STATUS, "did:web:ilac.example", "suspension", "Recognition of accreditation bodies"),
+        (GLOBAL_ACI_STATUS, "did:web:global-aci.example", "suspension", "Recognition of accreditation bodies"),
         (SAS_STATUS, "did:web:sas.example", "suspension", "Accreditations granted by the accreditation body"),
         (METAS_STATUS, "did:web:metas.example", "revocation", "Calibration certificates of the institute"),
         (CALLAB_STATUS, "did:web:callab.example", "revocation", "Calibration certificates of the laboratory"),
@@ -485,13 +485,13 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
     )
     world._register("bipm-recognition", signed, trace)
 
-    # ILAC recognises accreditation bodies.
+    # Global ACI recognises accreditation bodies.
     sas = actor_by_did("did:web:sas.example")
-    ilac = actor_by_did("did:web:ilac.example")
+    ilac = actor_by_did("did:web:global-aci.example")
     assert sas is not None and ilac is not None
     credential = recognized_entity_credential(
-        credential_id=ILAC_RECOGNITION,
-        issuer=issuer_reference("did:web:ilac.example", ilac.legal_name),
+        credential_id=GLOBAL_ACI_RECOGNITION,
+        issuer=issuer_reference("did:web:global-aci.example", ilac.legal_name),
         valid_from=valid_from,
         valid_until=valid_until,
         subjects=[
@@ -505,10 +505,10 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
                 "recognizedTo": [
                     recognized_action(
                         "accredit",
-                        "did:web:ilac.example",
+                        "did:web:global-aci.example",
                         description=(
                             "Accredit conformity assessment bodies against ISO/IEC 17025 "
-                            "and ISO/IEC 17065 under the ILAC mutual recognition arrangement."
+                            "and ISO/IEC 17065 under the Global ACI multilateral recognition arrangement."
                         ),
                         valid_from=valid_from,
                         valid_until=valid_until,
@@ -516,22 +516,22 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
                 ],
             }
         ],
-        name="ILAC MRA signatories, 2026 edition",
+        name="Global ACI MRA signatories, 2026 edition",
         description=(
-            "Accreditation bodies that are signatories to the ILAC mutual recognition "
-            "arrangement, with the standards each signatory is a signatory for."
+            "Accreditation bodies that are signatories to the Global ACI multilateral "
+            "recognition arrangement, with the standards each signatory is a signatory for."
         ),
         credential_status=status_entry(
-            ILAC_STATUS, STATUS_INDEX[ILAC_RECOGNITION], purpose="suspension"
+            GLOBAL_ACI_STATUS, STATUS_INDEX[GLOBAL_ACI_RECOGNITION], purpose="suspension"
         ),
     )
     signed, trace = sign_document(
-        credential, actor_key("did:web:ilac.example"), created=RECOGNITION_FROM
+        credential, actor_key("did:web:global-aci.example"), created=RECOGNITION_FROM
     )
-    world._register("ilac-recognition", signed, trace)
+    world._register("global-aci-recognition", signed, trace)
 
     # The accreditation body recognises the bodies it has accredited. Its own issuer
-    # object points upward at ILAC, which is the link that makes the chain traversable.
+    # object points upward at Global ACI, which is the link that makes the chain traversable.
     accredited = []
     for scope in accreditation_registry.ACCREDITATION_SCOPES:
         actor = actor_by_did(scope.organisation)
@@ -568,7 +568,7 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
     credential = recognized_entity_credential(
         credential_id=SAS_RECOGNITION,
         issuer=issuer_reference(
-            "did:web:sas.example", sas.legal_name, recognized_in=ILAC_RECOGNITION
+            "did:web:sas.example", sas.legal_name, recognized_in=GLOBAL_ACI_RECOGNITION
         ),
         valid_from=valid_from,
         valid_until=valid_until,
@@ -815,7 +815,7 @@ def _whois_presentations(world: World) -> None:
     membership = {
         "did:web:metas.example": "bipm-recognition",
         "did:web:ptb.example": "bipm-recognition",
-        "did:web:sas.example": "ilac-recognition",
+        "did:web:sas.example": "global-aci-recognition",
         "did:web:callab.example": "sas-recognition",
         "did:web:testlab.example": "sas-recognition",
         "did:web:cab.example": "sas-recognition",

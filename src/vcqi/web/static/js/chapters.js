@@ -27,7 +27,7 @@ import {
 
 const CREDENTIAL_LABELS = {
   'bipm-recognition': 'BIPM recognition of national metrology institutes',
-  'ilac-recognition': 'ILAC recognition of accreditation bodies',
+  'global-aci-recognition': 'Global ACI recognition of accreditation bodies',
   'sas-recognition': 'Accreditation body recognition of laboratories',
   'metas-calibration': 'Calibration certificate METAS-2026-0417',
   'callab-calibration': 'Calibration certificate AC-2026-1182',
@@ -93,7 +93,7 @@ async function chapterOrientation(context) {
       table(
         ['Recognized Entities', 'Quality infrastructure'],
         [
-          ['Root of trust', 'BIPM under the CIPM MRA; ILAC under the ILAC MRA'],
+          ['Root of trust', 'BIPM under the CIPM MRA; Global ACI under the Global ACI MRA'],
           ['RecognizedEntityCredential', 'CIPM MRA participation; ISO/IEC 17025 accreditation'],
           ['RecognizedAction with an outputValidation schema', 'The declared CMC or the granted accreditation scope'],
           ['Leaf credential', 'Calibration certificate, test report, certificate of conformity'],
@@ -130,6 +130,7 @@ async function chapterGraph(context) {
   fragment.append(
     prose([
       'Ten organisations, and one supply chain running through them. A national metrology institute calibrates a laboratory&rsquo;s transfer standard; the laboratory calibrates a testing laboratory&rsquo;s multimeter; the testing laboratory measures a kettle; a certification body certifies the kettle; the manufacturer presents that certificate at a border.',
+      'One of the two anchors is new. On 1 January 2026 the IAF and ILAC consolidated into a single body, <strong>Global Accreditation Cooperation Incorporated</strong>, whose arrangement is the Global ACI Multilateral Recognition Arrangement. Worth pausing on, because it is exactly the event a real deployment has to survive: a trust anchor changing its name, and with it the identifier every credential beneath it points at. Everything a verifier had configured would need to follow.',
       'Click any organisation to see the identifier it signs with and what it has issued. Click any edge to read the credential behind it.',
     ])
   );
@@ -277,7 +278,7 @@ async function chapterVerification(context) {
   const fragment = document.createDocumentFragment();
   fragment.append(
     prose([
-      'This is the demonstration proper. A market surveillance authority in an importing country receives a certificate of conformity. It has no relationship with the certification body, the testing laboratory, the calibration laboratory or the institute. It trusts two identifiers in the world: the BIPM and ILAC.',
+      'This is the demonstration proper. A market surveillance authority in an importing country receives a certificate of conformity. It has no relationship with the certification body, the testing laboratory, the calibration laboratory or the institute. It trusts two identifiers in the world: the BIPM and Global ACI.',
       'It runs eleven checks. Four are generic, one walks the recognition chain, and six are about whether the metrology holds up. Expand any step to see what it decided.',
     ])
   );
