@@ -20,25 +20,66 @@ calibration certificates under the CIPM MRA.
 
 from __future__ import annotations
 
+import hashlib
 import math
+import xml.etree.ElementTree as ElementTree
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 import metas_unclib as mu
 
-from vcqi.config import COVERAGE_FACTOR
+from vcqi.config import COVERAGE_FACTOR, DEMO_SEED
 
 __all__ = [
     "Contribution",
     "BudgetLine",
+    "InputQuantity",
     "MeasurementResult",
     "normal",
     "rectangular",
     "from_expanded_uncertainty",
+    "from_certificate",
+    "from_quantity",
     "evaluate",
     "format_measurement",
+    "seeded_input_id",
+    "to_unclib_xml",
+    "to_unclib_binary",
+    "parse_input_quantities",
 ]
+
+
+def seeded_input_id(label: str, context: str = "") -> list[int]:
+    """Derive a reproducible identifier for an input quantity from the demo seed.
+
+    UncLib gives every input quantity a fresh GUID, which is exactly right: two
+    measurements that happen to describe a contribution the same way are not thereby
+    the same physical influence. It also means no two runs of this demonstration would
+    produce the same documents, which would make the whole thing undiffable.
+
+    So the demonstration seeds them instead, and the ``context`` is not optional in
+    spirit. Seeding on the label alone makes every budget that says "temperature
+    correction" share one identifier, and results that have nothing to do with each
+    other come out perfectly correlated. Passing the certificate as the context keeps
+    each measurement's own influences distinct, while influences genuinely inherited
+    from another certificate keep the identifiers they arrived with.
+
+    In production this whole function should not exist: let UncLib generate random
+    GUIDs, or two unrelated laboratories will collide the moment they choose the same
+    wording.
+
+    Args:
+        label: Name of the input quantity.
+        context: What distinguishes this use of that name, normally the certificate the
+            budget belongs to.
+
+    Returns:
+        Four little-endian words, the form UncLib accepts as a 16 byte identifier.
+    """
+    material = DEMO_SEED + b"|" + context.encode("utf-8") + b"|" + label.encode("utf-8")
+    digest = hashlib.sha256(material).digest()[:16]
+    return [int.from_bytes(digest[index : index + 4], "little") for index in range(0, 16, 4)]
 
 
 @dataclass(frozen=True)
@@ -55,6 +96,12 @@ class Contribution:
         distribution: The assumed distribution, recorded so a reader can see how a
             stated tolerance was converted into a Standard Uncertainty.
         note: Optional provenance, for example the certificate the value came from.
+        uncertain_number: An existing uncertain number to use as this input, instead of
+            creating a fresh one. This is what makes traceability real rather than
+            asserted: when a laboratory loads the dependency representation from the
+            certificate above it, the input quantities keep their original identifiers,
+            so a later calculation involving both certificates sees them as the same
+            physical influences and handles the correlation correctly.
     """
 
     key: str
@@ -64,6 +111,7 @@ class Contribution:
     unit: str = ""
     distribution: str = "normal"
     note: str = ""
+    uncertain_number: Any = None
 
 
 @dataclass(frozen=True)
@@ -107,7 +155,11 @@ class MeasurementResult:
         standard_uncertainty: The combined Standard Uncertainty u, in ``unit``.
         unit: Unit symbol of the measurand.
         coverage_factor: The coverage factor k used to expand u.
-        budget: The contributions that make up the combined Standard Uncertainty.
+        budget: The contributions that make up the combined Standard Uncertainty, one
+            line per input of the measurement model.
+        uncertain_number: The underlying metas_unclib object, retained so the result can
+            be serialised with its full dependency structure. Never rendered into JSON
+            directly; see to_unclib_xml.
     """
 
     value: float
@@ -115,6 +167,7 @@ class MeasurementResult:
     unit: str
     coverage_factor: float = COVERAGE_FACTOR
     budget: list[BudgetLine] = field(default_factory=list)
+    uncertain_number: Any = None
 
     @property
     def expanded_uncertainty(self) -> float:
@@ -268,12 +321,67 @@ def from_expanded_uncertainty(
     )
 
 
+def from_certificate(
+    key: str,
+    label: str,
+    unclib_xml: str,
+    *,
+    unit: str = "",
+    note: str = "",
+) -> Contribution:
+    """Build a contribution from the dependency representation of a certificate.
+
+    This is the alternative to :func:`from_expanded_uncertainty`, and the difference
+    between them is the whole point of transmitting dependencies at all.
+
+    ``from_expanded_uncertainty`` takes the two numbers a paper certificate prints and
+    declares a *new* input quantity from them. It gets the right answer for this
+    measurement, and loses everything about where the number came from. Two results
+    built that way from the same reference standard look statistically independent, and
+    a customer combining them will overstate their uncertainty.
+
+    ``from_certificate`` deserialises the uncertain number the issuing laboratory
+    actually computed. Its input quantities arrive with their original identifiers, so
+    the reference standard inside it stays the *same* influence wherever it reappears,
+    and correlations come out right without anyone having to notice they were there.
+
+    Args:
+        key: Identifier used inside the model function.
+        label: Human-readable description for the budget table.
+        unclib_xml: The METAS UncLib XML from the certificate.
+        unit: Unit symbol of the quantity.
+        note: Optional provenance, normally the identifier of that certificate.
+
+    Returns:
+        The contribution, carrying the deserialised uncertain number.
+
+    Raises:
+        ValueError: If the XML cannot be read as an uncertain number.
+    """
+    try:
+        u_variable_input = mu.ustorage.from_xml_string(unclib_xml)
+    except Exception as error:  # the wrapper raises .NET-derived exceptions
+        raise ValueError(f"could not read the dependency representation: {error}") from error
+
+    return Contribution(
+        key=key,
+        label=label,
+        value=float(mu.get_value(u_variable_input)),
+        standard_uncertainty=float(mu.get_stdunc(u_variable_input)),
+        unit=unit,
+        distribution="from certificate",
+        note=note,
+        uncertain_number=u_variable_input,
+    )
+
+
 def evaluate(
     model: Callable[[dict[str, Any]], Any],
     contributions: Sequence[Contribution],
     *,
     unit: str,
     coverage_factor: float = COVERAGE_FACTOR,
+    context: str = "",
 ) -> MeasurementResult:
     """Propagate uncertainty through a measurement model and build its budget.
 
@@ -283,6 +391,11 @@ def evaluate(
         contributions: The input quantities of the model.
         unit: Unit symbol of the measurand.
         coverage_factor: The coverage factor k used to expand the result.
+        context: What this budget belongs to, normally a certificate number. It scopes
+            the seeded identifiers of the inputs declared here, so that two budgets
+            using the same wording for their own effects do not end up sharing an
+            influence. Contributions loaded from another certificate are unaffected:
+            they keep the identifiers they arrived with.
 
     Returns:
         The result, with the combined Standard Uncertainty and one budget line per
@@ -295,10 +408,19 @@ def evaluate(
     if len(set(keys)) != len(keys):
         raise ValueError("contribution keys must be unique within a budget")
 
-    u_variable_inputs = {
-        item.key: mu.ufloat(item.value, item.standard_uncertainty, desc=item.label)
-        for item in contributions
-    }
+    u_variable_inputs = {}
+    for item in contributions:
+        if item.uncertain_number is not None:
+            # Continue the parent's quantity rather than declaring a new one, so its
+            # input identifiers travel onward into this result.
+            u_variable_inputs[item.key] = item.uncertain_number
+        else:
+            u_variable_inputs[item.key] = mu.ufloat(
+                item.value,
+                item.standard_uncertainty,
+                id=seeded_input_id(item.label, context),
+                desc=item.label,
+            )
     u_variable_result = model(u_variable_inputs)
 
     value = float(mu.get_value(u_variable_result))
@@ -309,16 +431,17 @@ def evaluate(
     for item in contributions:
         u_variable_input = u_variable_inputs[item.key]
         component = float(mu.get_unc_component(u_variable_result, u_variable_input)[0][0])
-        if item.standard_uncertainty == 0.0:
-            sensitivity = 0.0
-        else:
-            sensitivity = component / item.standard_uncertainty
+        # Read the input back from the object rather than from the declaration, so that
+        # a contribution loaded from a certificate reports what it actually carries.
+        input_value = float(mu.get_value(u_variable_input))
+        input_uncertainty = float(mu.get_stdunc(u_variable_input))
+        sensitivity = component / input_uncertainty if input_uncertainty else 0.0
         budget.append(
             BudgetLine(
                 key=item.key,
                 label=item.label,
-                value=item.value,
-                standard_uncertainty=item.standard_uncertainty,
+                value=input_value,
+                standard_uncertainty=input_uncertainty,
                 unit=item.unit,
                 distribution=item.distribution,
                 sensitivity_coefficient=sensitivity,
@@ -334,6 +457,7 @@ def evaluate(
         unit=unit,
         coverage_factor=coverage_factor,
         budget=budget,
+        uncertain_number=u_variable_result,
     )
 
 
@@ -369,3 +493,190 @@ def format_measurement(
     suffix = f" {unit}" if unit else ""
     factor = f"{coverage_factor:g}"
     return f"{rendered_value} +/- {rendered_uncertainty}{suffix} (k = {factor})"
+
+
+@dataclass(frozen=True)
+class InputQuantity:
+    """One elementary influence a result depends on, as transmitted to a customer.
+
+    This is the row of a dependency representation. It is what the flat budget of a
+    paper certificate cannot carry: not just how much the influence contributed here,
+    but which influence it was, so that the same one can be recognised elsewhere.
+
+    Attributes:
+        identifier: The identifier UncLib gives the influence, as it appears in the XML.
+        description: Human-readable name of the influence.
+        value: Best estimate of the influence.
+        standard_uncertainty: The Standard Uncertainty u of the influence.
+        distribution: The assumed distribution.
+        sensitivity_coefficient: Partial derivative of the result with respect to it.
+        uncertainty_contribution: Its contribution to the Standard Uncertainty of the
+            result, being the sensitivity times u.
+    """
+
+    identifier: str
+    description: str
+    value: float
+    standard_uncertainty: float
+    distribution: str
+    sensitivity_coefficient: float
+    uncertainty_contribution: float
+
+    def to_json(self) -> dict[str, Any]:
+        """Return the influence as a JSON-compatible dictionary.
+
+        Returns:
+            The identifier, description and the numbers describing its contribution.
+        """
+        return {
+            "id": self.identifier,
+            "description": self.description,
+            "value": self.value,
+            "standardUncertainty": self.standard_uncertainty,
+            "distribution": self.distribution,
+            "sensitivityCoefficient": self.sensitivity_coefficient,
+            "uncertaintyContribution": self.uncertainty_contribution,
+        }
+
+
+def to_unclib_xml(result: MeasurementResult) -> str:
+    """Serialise a result with its full dependency structure as METAS UncLib XML.
+
+    Args:
+        result: The evaluated result. It must carry its uncertain number.
+
+    Returns:
+        The XML document, which states the value, every input quantity it depends on
+        with that quantity identifier and distribution, and the sensitivity to each.
+
+    Raises:
+        ValueError: If the result was built without retaining its uncertain number.
+    """
+    if result.uncertain_number is None:
+        raise ValueError("this result carries no uncertain number to serialise")
+    return mu.ustorage.to_xml_string(result.uncertain_number)
+
+
+def to_unclib_binary(result: MeasurementResult) -> bytes:
+    """Serialise a result with its dependency structure in the compact binary form.
+
+    The binary form says exactly what the XML says. It exists because a result with
+    thousands of input quantities, which is ordinary in areas such as radiofrequency
+    scattering parameters, produces an XML document too large to be comfortable.
+
+    Args:
+        result: The evaluated result. It must carry its uncertain number.
+
+    Returns:
+        The serialised bytes.
+
+    Raises:
+        ValueError: If the result was built without retaining its uncertain number.
+    """
+    if result.uncertain_number is None:
+        raise ValueError("this result carries no uncertain number to serialise")
+    return bytes(mu.ustorage.to_byte_array(result.uncertain_number))
+
+
+def parse_input_quantities(unclib_xml: str) -> list[InputQuantity]:
+    """Read the influences a result depends on out of its UncLib XML.
+
+    A customer receiving a certificate would do exactly this: parse the dependency
+    representation and see, one line per influence, what the result rests on. Doing it
+    here with a plain XML parser rather than through the library makes the point that
+    the representation is inspectable by anyone, not only by a holder of the same tool.
+
+    Args:
+        unclib_xml: The XML from a dependency representation.
+
+    Returns:
+        One entry per input quantity, in document order.
+
+    Raises:
+        ValueError: If the document cannot be parsed.
+    """
+    try:
+        root = ElementTree.fromstring(unclib_xml)
+    except ElementTree.ParseError as error:
+        raise ValueError(f"could not parse the dependency representation: {error}") from error
+
+    quantities: list[InputQuantity] = []
+    for depends_on in root.iterfind("./Dependencies/DependsOn"):
+        node = depends_on.find("./Input")
+        if node is None:
+            continue
+        distribution = node.find("./Distribution")
+        kind = "unknown"
+        mean, sigma = 0.0, 0.0
+        if distribution is not None:
+            for name, value in distribution.attrib.items():
+                if name.endswith("type"):
+                    kind = value
+            mean = _float_of(distribution.findtext("./mu"))
+            sigma = _float_of(distribution.findtext("./sigma"))
+        jacobi = _float_of(depends_on.findtext("./Jacobi"))
+        quantities.append(
+            InputQuantity(
+                identifier=(node.findtext("./Id") or "").strip(),
+                description=(node.findtext("./Description") or "").strip(),
+                value=mean,
+                standard_uncertainty=sigma,
+                distribution=kind,
+                sensitivity_coefficient=jacobi,
+                uncertainty_contribution=jacobi * sigma,
+            )
+        )
+    return quantities
+
+
+def _float_of(text: str | None) -> float:
+    """Read a number out of an XML element, tolerating an absent one.
+
+    Args:
+        text: The element text, or None when the element was missing.
+
+    Returns:
+        The value, or 0.0 when there was nothing to read.
+    """
+    try:
+        return float(text) if text is not None else 0.0
+    except ValueError:
+        return 0.0
+
+
+def from_quantity(
+    key: str,
+    label: str,
+    uncertain_number: Any,
+    *,
+    unit: str = "",
+    note: str = "",
+) -> Contribution:
+    """Build a contribution from an uncertain number that already exists.
+
+    Use this where one physical quantity genuinely enters two measurements. A national
+    standard is one artefact whose realisation is one quantity, and two comparisons made
+    against it are correlated through it. Declaring it separately in each budget would
+    describe two different standards that happen to have the same value, which is a
+    different and untrue statement.
+
+    Args:
+        key: Identifier used inside the model function.
+        label: Human-readable description for the budget table.
+        uncertain_number: The existing quantity.
+        unit: Unit symbol of the quantity.
+        note: Optional provenance.
+
+    Returns:
+        The contribution, carrying the existing quantity and therefore its identifier.
+    """
+    return Contribution(
+        key=key,
+        label=label,
+        value=float(mu.get_value(uncertain_number)),
+        standard_uncertainty=float(mu.get_stdunc(uncertain_number)),
+        unit=unit,
+        distribution="shared quantity",
+        note=note,
+        uncertain_number=uncertain_number,
+    )

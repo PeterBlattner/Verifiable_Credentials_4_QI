@@ -31,6 +31,8 @@ const CREDENTIAL_LABELS = {
   'sas-recognition': 'Accreditation body recognition of laboratories',
   'metas-calibration': 'Calibration certificate METAS-2026-0417',
   'callab-calibration': 'Calibration certificate AC-2026-1182',
+  'metas-SR10K-0091': 'Calibration certificate METAS-2026-0418 (check standard A)',
+  'metas-SR10K-0092': 'Calibration certificate METAS-2026-0419 (check standard B)',
   'testlab-report': 'Test report HTS-2026-3391',
   'cab-conformity': 'Certificate of conformity CPC-2026-0055',
 };
@@ -479,6 +481,143 @@ async function chapterScope(context) {
 
 // ---------------------------------------------------------------- chapter 5
 
+/**
+ * Show the same measurement in each way it can be handed to a customer.
+ *
+ * Three columns of the same certificate: what a paper certificate prints, what the
+ * dependency representation carries, and what an independent implementation of the same
+ * idea would carry. The point of putting them side by side is that all three describe
+ * one measurement, and only the last two let the recipient do anything further with it.
+ */
+async function representationPanel(context, certificateName) {
+  const data = await api.credential(certificateName);
+  const result = data.credential.credentialSubject.calibration.results[0];
+  const representations = result.uncertaintyRepresentations || [];
+  const gtc = await api.gtc();
+
+  const body = el('div', {});
+  const tabs = [
+    { key: 'classical', label: 'Classical' },
+    { key: 'unclib', label: 'METAS UncLib' },
+    { key: 'gtc', label: 'GTC' },
+  ];
+
+  const bar = el(
+    'div',
+    { class: 'chips' },
+    tabs.map((tab, index) =>
+      el('button', {
+        class: 'chip',
+        text: tab.label,
+        'aria-pressed': String(index === 0),
+        onclick: () => {
+          bar.querySelectorAll('.chip').forEach((chip, position) =>
+            chip.setAttribute('aria-pressed', String(position === index))
+          );
+          show(tab.key);
+        },
+      })
+    )
+  );
+
+  function show(kind) {
+    clear(body);
+    if (kind === 'classical') {
+      const classical = representations.find((item) => item.type === 'ClassicalStatement');
+      body.append(
+        el('div', { class: 'stat__value', text: result.reported }),
+        prose([
+          'This is the whole of what a calibration certificate has stated for as long as calibration certificates have existed, and for most purposes it is enough. It tells you how good the number is.',
+          'What it cannot tell you is anything about <em>where</em> the uncertainty came from. Two certificates reported this way are, as far as any recipient can determine, unrelated — even when both rest on the same reference standard in the same laboratory.',
+        ]),
+        classical ? keyValues([
+          ['Value', `${classical.value} ${classical.unit}`],
+          ['Standard Uncertainty u', classical.standardUncertainty],
+          ['Expanded Uncertainty U', classical.expandedUncertainty],
+          ['Coverage factor k', classical.coverageFactor],
+        ]) : null
+      );
+      return;
+    }
+
+    if (kind === 'unclib') {
+      const xml = representations.find((item) => item.format === 'METAS-UncLib-XML');
+      const binary = representations.find((item) => item.format === 'METAS-UncLib-binary');
+      if (!xml) {
+        body.append(el('p', { class: 'muted', text: 'This certificate carries no dependency representation.' }));
+        return;
+      }
+      body.append(
+        prose([
+          `The same result, transmitted with everything it depends on: ${xml.inputQuantityCount} input quantities, each with its own identifier, its distribution, and the sensitivity of the result to it.`,
+          'The identifiers are what matter. They travel with the number, so an influence stays recognisable wherever it turns up again, and a recipient combining two results can tell that part of their uncertainty is one and the same thing.',
+        ]),
+        table(
+          ['Identifier', 'Influence'],
+          xml.inputQuantities.map((influence) => [
+            el('span', { class: 'hash', text: influence.id }),
+            influence.description,
+          ])
+        ),
+        el('h3', { text: 'As transmitted' }),
+        el('pre', { class: 'code json', text: xml.content || `published separately at ${xml.id}` }),
+        binary
+          ? panel(
+              'The same thing, in binary',
+              `${binary.byteCount} bytes against ${(xml.content || '').length} characters of XML`,
+              [
+                el('p', { class: 'muted', text: 'Published separately and referenced by digest, which is what the binary form is for: a result depending on thousands of influences, as an ordinary scattering-parameter measurement does, is not something to write out as XML.' }),
+                el('button', {
+                  class: 'action',
+                  text: 'Fetch it as a customer would',
+                  onclick: async (event) => {
+                    const fetched = await api.uncertaintyData(binary.id);
+                    event.target.replaceWith(
+                      keyValues([
+                        ['Address', binary.id],
+                        ['Media type', fetched.mediaType],
+                        ['Size', `${fetched.bytes} bytes`],
+                        ['Digest recorded in the credential', el('span', { class: 'hash', text: binary.digestMultibase })],
+                      ])
+                    );
+                  },
+                }),
+              ]
+            )
+          : null
+      );
+      return;
+    }
+
+    const archive = representations.find((item) => item.format === 'GTC-archive-JSON');
+    body.append(
+      prose([
+        'The <strong>GUM Tree Calculator</strong>, from the Measurement Standards Laboratory of New Zealand, arrives at the same design independently: elementary uncertain numbers carry UUID-based identifiers, and an archive of them serialises to JSON or XML against a published schema.',
+        'Two implementations reaching the same conclusion is a better argument for the idea than one, and it is why the credential names a <em>format</em> rather than assuming a library. A certificate can carry either, or both, and a recipient uses whichever it can read.',
+      ])
+    );
+    if (archive) {
+      body.append(
+        keyValues([['Format', archive.format], ['Specification', archive.specification]]),
+        el('pre', { class: 'code json', text: archive.content || `published separately at ${archive.id}` })
+      );
+    } else {
+      body.append(
+        el('div', { class: 'callout' }, el('p', { text: gtc.note })),
+        el('p', { class: 'muted', text: 'Everything else in this chapter works either way. The credential simply carries one dependency representation instead of two.' })
+      );
+    }
+  }
+
+  show('classical');
+  return panel(
+    'One measurement, three ways of handing it over',
+    certificateName === 'metas-calibration' ? 'Certificate METAS-2026-0417' : certificateName,
+    [bar, body]
+  );
+}
+
+
 async function chapterTraceability(context) {
   const fragment = document.createDocumentFragment();
   fragment.append(
@@ -540,6 +679,8 @@ async function chapterTraceability(context) {
       )
     );
   }
+
+  fragment.append(await representationPanel(context, 'metas-calibration'));
 
   const live = el('div', {});
   const state = {
@@ -627,6 +768,114 @@ async function chapterTraceability(context) {
 
 // ---------------------------------------------------------------- chapter 6
 
+const OPERATIONS = [
+  { key: 'difference', label: 'R1 − R2', hint: 'checking two standards against each other' },
+  { key: 'ratio', label: 'R1 / R2', hint: 'a resistance ratio' },
+  { key: 'mean', label: '(R1 + R2) / 2', hint: 'averaging two check standards' },
+];
+
+async function chapterDependencies(context) {
+  const fragment = document.createDocumentFragment();
+
+  fragment.append(
+    prose([
+      'One institute, one national standard, two certificates. Both check standards were compared against the same 10 kΩ national standard, so a large part of what is uncertain about each result is <em>the same thing</em> being uncertain twice.',
+      'A customer who combines the two ought to get the benefit of that. Whether they can depends entirely on what the institute transmitted, and the choice was made when the certificate was written, not when the customer opened it.',
+    ])
+  );
+
+  const output = el('div', {});
+  const state = { operation: 'difference' };
+
+  const picker = el(
+    'div',
+    { class: 'chips' },
+    OPERATIONS.map((operation) =>
+      el('button', {
+        class: 'chip',
+        text: operation.label,
+        title: operation.hint,
+        'aria-pressed': String(operation.key === state.operation),
+        onclick: () => {
+          state.operation = operation.key;
+          picker.querySelectorAll('.chip').forEach((chip, index) =>
+            chip.setAttribute('aria-pressed', String(OPERATIONS[index].key === state.operation))
+          );
+          run();
+        },
+      })
+    )
+  );
+
+  async function run() {
+    clear(output).append(el('p', { class: 'spinner', text: 'Combining…' }));
+    const data = await api.combine({ operation: state.operation });
+
+    const understates = data.direction === 'understates';
+    clear(output).append(
+      el('div', { class: 'split' }, [
+        panel('With the dependencies transmitted', 'the shared influence is recognised and cancels correctly', [
+          el('div', { class: 'stat__value', text: data.tracked.reported }),
+          el('p', { class: 'muted', text: data.tracked.basis }),
+        ]),
+        panel('From the printed value and U alone', 'the shared influence is invisible, so it is counted twice', [
+          el('div', { class: 'stat__value', text: data.naive.reported }),
+          el('p', { class: 'muted', text: data.naive.basis }),
+        ]),
+      ]),
+      el('div', { class: `verdict verdict--${understates ? 'fail' : 'pass'}` }, [
+        el('div', { class: 'verdict__mark', text: understates ? '!' : '✓' }),
+        el('div', { class: 'verdict__text' }, [
+          el('strong', {
+            text: `Classical reporting ${data.direction} the uncertainty of ${data.expression} by ${data.factor.toFixed(2)}×`,
+          }),
+          el('span', {
+            text: understates
+              ? 'Note the direction. For a mean, positive correlation makes the result less certain, not more, so ignoring it is optimistic rather than cautious. Classical reporting is not conservative; it is simply wrong by an amount nobody can compute.'
+              : `The two results are correlated at r = ${data.correlation.toFixed(3)} because they share ${data.sharedInfluences.length} input quantities. That correlation is recoverable from the dependency representations and from nothing else.`,
+          }),
+        ]),
+      ]),
+      panel(
+        'The influences the two certificates have in common',
+        'matched by identifier, not by name — two laboratories using the same wording are still different influences',
+        table(
+          ['Identifier', 'Influence'],
+          data.sharedInfluences.map((influence) => [
+            el('span', { class: 'hash', text: influence.id }),
+            influence.description,
+          ])
+        )
+      ),
+      panel('The two certificates', null, table(
+        ['Certificate', 'As reported'],
+        data.inputs.map((input) => [
+          el('button', {
+            class: 'chip',
+            text: input.certificate.split('/').pop(),
+            onclick: () => context.inspect(input.certificate),
+          }),
+          input.reported,
+        ])
+      ))
+    );
+  }
+
+  fragment.append(
+    panel('What would you like to compute from the two certificates?', null, picker),
+    output,
+    callout([
+      'It is worth being clear about what the customer did wrong in the right-hand column: <strong>nothing</strong>. Combining in quadrature is the correct thing to do with two numbers that you have no reason to believe are related. The information that they were related existed, at the laboratory, and was not sent.',
+      'This is also the honest cost of the idea. A dependency representation exposes the structure of an uncertainty budget, and many laboratories regard that as commercially confidential. Selective disclosure is where that tension would be addressed, and it is not implemented here.',
+    ])
+  );
+
+  await run();
+  return fragment;
+}
+
+// ---------------------------------------------------------------- chapter 7
+
 const GROUP_LABELS = {
   forgery: 'Forgery — the cryptography catches these',
   standing: 'Standing — the organisation was not entitled to issue it',
@@ -700,7 +949,7 @@ async function chapterBreakIt(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 7
+// ---------------------------------------------------------------- chapter 8
 
 async function chapterImplications() {
   const fragment = document.createDocumentFragment();
@@ -796,6 +1045,13 @@ export const CHAPTERS = [
     eyebrow: 'Where the numbers come from',
     lede: 'The credential chain and the traceability chain are the same chain. The uncertainty grows measurably along it.',
     render: chapterTraceability,
+  },
+  {
+    id: 'dependencies',
+    title: 'Why the dependencies matter',
+    eyebrow: 'The argument for transmitting them',
+    lede: 'Two certificates from one institute, resting on one national standard. What a customer can do with them depends on what was sent.',
+    render: chapterDependencies,
   },
   {
     id: 'break',

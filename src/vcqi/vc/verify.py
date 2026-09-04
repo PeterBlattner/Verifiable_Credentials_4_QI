@@ -30,6 +30,7 @@ never silently passed.
 from __future__ import annotations
 
 import math
+import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -44,6 +45,8 @@ from vcqi.domain.scope import (
     UncertaintyFloor,
     evaluate_scope,
 )
+from vcqi.domain.uncertainty import parse_input_quantities
+from vcqi.vc.model import artefact_payload
 from vcqi.vc.checks import (
     CheckOutcome,
     check_proof,
@@ -1103,7 +1106,8 @@ def _step_traceability(
         )
         if _payload(credential).get("uncertaintyBudget"):
             child.children.append(_step_inherited_uncertainty(credential, referenced))
-            if child.children[-1].status == FAIL:
+            child.children.append(_step_shared_inputs(credential, referenced))
+            if any(item.status == FAIL for item in child.children[-2:]):
                 child.status = FAIL
         children.append(child)
 
@@ -1204,7 +1208,15 @@ def verify_credential(
     scope_step = _step_scope(credential, resolver)
     report.steps.append(scope_step)
     report.steps.append(_step_mra_logo(credential, scope_step))
-    report.steps.append(_step_uncertainty(credential))
+    # The representations sit under the uncertainty step, so the top-level list stays
+    # the same eleven checks however many ways the certificate offers its uncertainty.
+    uncertainty_step = _step_uncertainty(credential)
+    representations_step = _step_representations(credential, resolver)
+    uncertainty_step.children.append(representations_step)
+    if representations_step.status == FAIL:
+        uncertainty_step.status = FAIL
+        uncertainty_step.detail = representations_step.detail
+    report.steps.append(uncertainty_step)
     report.steps.append(
         _step_traceability(
             credential,
@@ -1220,3 +1232,311 @@ def verify_credential(
 
     report.fetches = [record.to_json() for record in resolver.log]
     return report
+
+
+def _representations(credential: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the uncertainty representations a certificate offers.
+
+    Args:
+        credential: The credential to inspect.
+
+    Returns:
+        The representations, empty when the certificate reports classically only.
+    """
+    result = _first_result(credential)
+    if result is None:
+        return []
+    value = result.get("uncertaintyRepresentations")
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _representation_bytes(
+    representation: dict[str, Any], resolver: Resolver
+) -> tuple[bytes | None, str]:
+    """Recover the raw payload a representation stands for.
+
+    Args:
+        representation: One entry from uncertaintyRepresentations.
+        resolver: Used when the payload is published separately.
+
+    Returns:
+        The raw bytes and a description of where they came from, the bytes being None
+        when the payload could not be obtained.
+    """
+    inline = representation.get("content")
+    if isinstance(inline, str):
+        return inline.encode("utf-8"), "carried inside the credential"
+
+    address = representation.get("id")
+    if not isinstance(address, str):
+        return None, "the representation neither carries content nor names an address"
+
+    document = resolver.fetch(address)
+    if document is None:
+        return None, f"{address} could not be retrieved"
+    payload = artefact_payload(document)
+    if payload is None:
+        return None, f"{address} is not a readable uncertainty artefact"
+    return payload, f"fetched from {address}"
+
+
+def _reconstruct(unclib_xml: str) -> tuple[float, float]:
+    """Recompute a value and its Standard Uncertainty from a dependency representation.
+
+    Done by arithmetic on the transmitted sensitivities rather than by handing the XML
+    back to the library, so that the check is independent of the tool that wrote it.
+
+    Args:
+        unclib_xml: The dependency representation.
+
+    Returns:
+        The stated value and the Standard Uncertainty implied by the influences.
+
+    Raises:
+        ValueError: If the document cannot be parsed.
+    """
+    influences = parse_input_quantities(unclib_xml)
+    combined = math.sqrt(sum(item.uncertainty_contribution**2 for item in influences))
+    try:
+        root = ElementTree.fromstring(unclib_xml)
+    except ElementTree.ParseError as error:
+        raise ValueError(str(error)) from error
+    text = root.findtext("./Value")
+    return (float(text) if text else 0.0), combined
+
+
+def _step_agreement(
+    credential: dict[str, Any],
+    dependency_value: float | None,
+    dependency_uncertainty: float | None,
+) -> Step:
+    """Check the classical statement against the dependency representation.
+
+    Args:
+        credential: The credential being verified.
+        dependency_value: The value the dependency representation states.
+        dependency_uncertainty: The Standard Uncertainty its influences imply.
+
+    Returns:
+        The step.
+    """
+    result = _first_result(credential)
+    if result is None or dependency_value is None or dependency_uncertainty is None:
+        return Step(
+            id="uncertainty.agreement",
+            title="Printed result agrees with the transmitted dependencies",
+            status=SKIP,
+            detail="the certificate offers only one of the two, so there is nothing to compare",
+        )
+
+    try:
+        stated_value = float(result["value"])
+        stated_uncertainty = float(result["standardUncertainty"])
+    except (KeyError, TypeError, ValueError) as error:
+        return Step(
+            id="uncertainty.agreement",
+            title="Printed result agrees with the transmitted dependencies",
+            status=FAIL,
+            detail=f"the printed result could not be read: {error}",
+        )
+
+    value_ok = math.isclose(stated_value, dependency_value, rel_tol=1e-9, abs_tol=1e-12)
+    uncertainty_ok = math.isclose(
+        stated_uncertainty, dependency_uncertainty, rel_tol=1e-6, abs_tol=0.0
+    )
+    return Step(
+        id="uncertainty.agreement",
+        title="Printed result agrees with the transmitted dependencies",
+        status=PASS if value_ok and uncertainty_ok else FAIL,
+        detail=(
+            f"printed {stated_value:.10g} with u = {stated_uncertainty:.6g}; the "
+            f"dependency representation gives {dependency_value:.10g} with "
+            f"u = {dependency_uncertainty:.6g}"
+        ),
+        evidence={
+            "printedValue": stated_value,
+            "printedStandardUncertainty": stated_uncertainty,
+            "dependencyValue": dependency_value,
+            "dependencyStandardUncertainty": dependency_uncertainty,
+        },
+    )
+
+
+def _step_representations(credential: dict[str, Any], resolver: Resolver) -> Step:
+    """Check that every uncertainty representation is intact and self-consistent.
+
+    Two things are checked here. Each representation has to match the digest recorded
+    for it, whether it travelled inside the credential or was fetched; that is what lets
+    the dependency data live outside the credential without escaping the signature.
+
+    And where a certificate offers both a classical statement and a dependency
+    representation, the two have to agree. A certificate whose printed uncertainty
+    differs from the one its own dependency data implies is telling two stories, and the
+    recipient is expected to act on the second.
+
+    Args:
+        credential: The credential being verified.
+        resolver: Used to retrieve any separately published representation.
+
+    Returns:
+        The step, with one child per representation plus the agreement check.
+    """
+    representations = _representations(credential)
+    if not representations:
+        return Step(
+            id="uncertainty.representations",
+            title="Uncertainty representations are intact",
+            status=SKIP,
+            detail=(
+                "the certificate states its uncertainty classically only, which is what "
+                "an issuer without such a tool would produce"
+            ),
+        )
+
+    children: list[Step] = []
+    dependency_value: float | None = None
+    dependency_uncertainty: float | None = None
+
+    for index, representation in enumerate(representations, start=1):
+        kind = str(representation.get("format", "unknown"))
+        step_id = f"uncertainty.representations.{index}"
+
+        if representation.get("type") == "ClassicalStatement":
+            children.append(
+                Step(
+                    id=step_id,
+                    title=kind,
+                    status=PASS,
+                    detail=str(representation.get("reported", "classical statement")),
+                )
+            )
+            continue
+
+        payload, where = _representation_bytes(representation, resolver)
+        if payload is None:
+            children.append(Step(id=step_id, title=kind, status=FAIL, detail=where))
+            continue
+
+        expected = representation.get("digestMultibase")
+        if isinstance(expected, str) and not verify_digest_multibase(payload, expected):
+            children.append(
+                Step(
+                    id=step_id,
+                    title=kind,
+                    status=FAIL,
+                    detail=(
+                        f"{where}, but it does not match the digest recorded in the "
+                        f"credential, so it is not the data that was signed for"
+                    ),
+                )
+            )
+            continue
+
+        detail = f"{where}, {len(payload)} bytes, digest matches"
+        if kind == "METAS-UncLib-XML" and dependency_value is None:
+            try:
+                text = payload.decode("utf-8")
+                dependency_value, dependency_uncertainty = _reconstruct(text)
+                detail += f", {len(parse_input_quantities(text))} input quantities"
+            except (ValueError, UnicodeDecodeError) as error:
+                children.append(
+                    Step(
+                        id=step_id,
+                        title=kind,
+                        status=FAIL,
+                        detail=f"{where}, but could not be parsed: {error}",
+                    )
+                )
+                continue
+
+        children.append(Step(id=step_id, title=kind, status=PASS, detail=detail))
+
+    children.append(_step_agreement(credential, dependency_value, dependency_uncertainty))
+
+    failed = [child for child in children if child.status == FAIL]
+    return Step(
+        id="uncertainty.representations",
+        title="Uncertainty representations are intact",
+        status=FAIL if failed else PASS,
+        detail=(
+            f"{len(representations)} representation(s) offered, all intact and in agreement"
+            if not failed
+            else "; ".join(child.detail for child in failed[:2])
+        ),
+        children=children,
+    )
+
+
+def _input_identifiers(credential: dict[str, Any]) -> set[str]:
+    """Return the input quantity identifiers a certificate declares.
+
+    Args:
+        credential: The credential to inspect.
+
+    Returns:
+        The identifiers, empty when the certificate carries no dependency
+        representation. Read from the summary in the credential, which the signature
+        covers, rather than from the payload.
+    """
+    identifiers: set[str] = set()
+    for representation in _representations(credential):
+        for entry in representation.get("inputQuantities", []) or []:
+            if isinstance(entry, dict) and isinstance(entry.get("id"), str):
+                identifiers.add(entry["id"])
+    return identifiers
+
+
+def _step_shared_inputs(credential: dict[str, Any], parent: dict[str, Any]) -> Step:
+    """Check that a certificate really inherits the influences of its parent.
+
+    Everything else about traceability is an assertion the verifier takes on trust: a
+    name, a digest over a document, a line in a budget. This is the one check where the
+    claim is visible in the arithmetic. If the laboratory genuinely built on the
+    certificate above it, the influences of that certificate are present in its own
+    result and carry the same identifiers. If it did not, they are absent, and no amount
+    of correct paperwork puts them there.
+
+    Args:
+        credential: The certificate being verified.
+        parent: The certificate it declares traceability to.
+
+    Returns:
+        The step.
+    """
+    child_inputs = _input_identifiers(credential)
+    parent_inputs = _input_identifiers(parent)
+
+    if not child_inputs or not parent_inputs:
+        return Step(
+            id="traceability.shared-inputs",
+            title="Inherited influences are present in this result",
+            status=SKIP,
+            detail=(
+                "one of the two certificates transmits no dependency representation, so "
+                "the inheritance can only be taken on trust"
+            ),
+        )
+
+    shared = parent_inputs & child_inputs
+    missing = parent_inputs - child_inputs
+    parent_id = parent.get("id")
+    return Step(
+        id="traceability.shared-inputs",
+        title="Inherited influences are present in this result",
+        status=PASS if not missing else FAIL,
+        detail=(
+            f"all {len(shared)} input quantities of {parent_id} reappear in this result "
+            f"with the same identifiers"
+            if not missing
+            else (
+                f"{len(missing)} of the {len(parent_inputs)} input quantities of "
+                f"{parent_id} are absent here, so this result was not built on that "
+                f"certificate however much it says it was"
+            )
+        ),
+        evidence={
+            "sharedCount": len(shared),
+            "missingCount": len(missing),
+            "shared": sorted(shared)[:8],
+        },
+    )

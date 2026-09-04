@@ -40,6 +40,7 @@ from typing import Any, Callable
 from vcqi.actors.registry import actor_key
 from vcqi.actors.scenarios import (
     CALLAB_CERTIFICATE,
+    _callab_result,
     DEMO_NOW,
     METAS_CERTIFICATE,
     SAS_STATUS,
@@ -50,7 +51,12 @@ from vcqi.actors.scenarios import (
 from vcqi.crypto.dataintegrity import sign_document
 from vcqi.crypto.keys import build_did_document, derive_key
 from vcqi.domain.uncertainty import evaluate, from_expanded_uncertainty, normal, rectangular
-from vcqi.vc.model import budget_to_json, credential_reference, measurement_result_to_json
+from vcqi.vc.model import (
+    budget_to_json,
+    credential_reference,
+    measurement_result_to_json,
+    uncertainty_representations,
+)
 from vcqi.vc.status import BitstringStatusList, status_list_credential
 
 __all__ = ["TamperCase", "TAMPER_CASES", "tamper_by_key", "apply_tamper", "TamperResult"]
@@ -574,3 +580,129 @@ def apply_tamper(key: str) -> TamperResult:
     if case is None:
         raise KeyError(f"no tamper case named {key!r}")
     return case.apply()
+
+
+def _dependency_disagrees() -> TamperResult:
+    """Print one uncertainty and transmit a different one.
+
+    The certificate reads exactly as before. Its dependency representation is replaced
+    with one computed from a budget a third the size, and the digest is recomputed so
+    nothing is broken cryptographically. A recipient reading the printed line and a
+    recipient loading the XML get different answers from the same document.
+    """
+    world = build_world()
+    credential = copy.deepcopy(world.credential("metas-calibration"))
+
+    flattering = evaluate(
+        lambda q: q["national_standard"] + q["repeatability"],
+        [
+            normal(
+                "national_standard",
+                "National standard, scaled from the quantum Hall resistance",
+                10000.0012,
+                1.0e-4,
+                unit="ohm",
+            ),
+            normal("repeatability", "Repeatability of the comparison", 0.0, 1.5e-4, unit="ohm"),
+        ],
+        unit="ohm",
+        context="METAS-2026-0417-flattering",
+    )
+
+    representations, artefacts = uncertainty_representations(
+        flattering, credential_id=METAS_CERTIFICATE
+    )
+    world.publish_artefacts(artefacts)
+
+    # Keep the classical statement the certificate already printed, and swap only the
+    # dependency representations underneath it.
+    result = credential["credentialSubject"]["calibration"]["results"][0]
+    result["uncertaintyRepresentations"] = [
+        result["uncertaintyRepresentations"][0]
+    ] + [item for item in representations if item["type"] != "ClassicalStatement"]
+
+    signed = _resign(credential, "did:web:metas.example", DEMO_NOW)
+    _republish(world, "metas-calibration", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
+def _unshared_inputs() -> TamperResult:
+    """Claim traceability while transmitting dependencies that contain none of it.
+
+    The laboratory names the certificate of the institute, references it by content
+    digest, and enters the right number in its budget. What it does not do is build on
+    the dependency representation, so none of the input quantities of the institute
+    appear in what it transmits. Every other check passes; the chain is asserted rather
+    than realised.
+    """
+    world = build_world()
+    credential = copy.deepcopy(world.credential("callab-calibration"))
+    parent = world.credential("metas-calibration")
+    parent_result = world.results["metas-calibration"]
+
+    # Classical mode: the parent enters as two numbers, so it brings no identifiers.
+    detached = _callab_result(parent_result, classical=True, context="AC-2026-1182")
+
+    representations, artefacts = uncertainty_representations(
+        detached, credential_id=CALLAB_CERTIFICATE
+    )
+    world.publish_artefacts(artefacts)
+
+    calibration = credential["credentialSubject"]["calibration"]
+    calibration["results"] = [
+        measurement_result_to_json(
+            detached, nominal_value=1.0e4, representations=representations
+        )
+    ]
+    calibration["uncertaintyBudget"] = budget_to_json(detached)
+    calibration["traceableTo"] = {
+        **credential_reference(parent, relation="CalibrationCertificateCredential"),
+        "instrument": "urn:instrument:callab:standard-resistor:SR10K-0042",
+    }
+
+    signed = _resign(credential, "did:web:callab.example", DEMO_NOW)
+    _republish(world, "callab-calibration", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
+NEW_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="dependency-disagrees",
+        title="Transmit a different uncertainty from the one printed",
+        group="metrological",
+        description=(
+            "The certificate prints U = 0.0011 ohm as before, but the dependency "
+            "representation attached to it was computed from a much smaller budget. "
+            "Signature valid, digests correct, issuer in good standing."
+        ),
+        expected_step="uncertainty.agreement",
+        catches=(
+            "Offering two representations of one measurement means they can be checked "
+            "against each other. A recipient reading the printed line and one loading "
+            "the dependency data would otherwise reach different conclusions from the "
+            "same certificate, and neither would know."
+        ),
+        apply=_dependency_disagrees,
+    ),
+    TamperCase(
+        key="unshared-inputs",
+        title="Claim traceability without inheriting anything",
+        group="metrological",
+        description=(
+            "The laboratory names the certificate of the institute, references it by "
+            "content digest, and puts the right number in its budget, but builds its "
+            "result from a freshly declared quantity instead of the transmitted one."
+        ),
+        expected_step="traceability.shared-inputs",
+        catches=(
+            "Every other traceability check compares paperwork with paperwork. This one "
+            "looks at the arithmetic: if the result were really built on that "
+            "certificate, its input quantities would be present, carrying the "
+            "identifiers they were given. They are not."
+        ),
+        apply=_unshared_inputs,
+    ),
+)
+
+TAMPER_CASES = TAMPER_CASES + NEW_CASES
+_BY_KEY.update({case.key: case for case in NEW_CASES})

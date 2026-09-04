@@ -534,21 +534,49 @@ Nothing pushed; no remote is configured yet.
 
 ## Change set 2 - build order
 
-- [ ] **A - Global ACI.** Rename ILAC to Global ACI across 13 files, re-date the
+- [x] **A - Global ACI.** Rename ILAC to Global ACI across 13 files, re-date the
       recognition credentials to 2026-01-01, update graph positions and tests.
-- [ ] **B1 - Dependency-aware uncertainty.** `Contribution.uncertain_number`,
+- [x] **B1 - Dependency-aware uncertainty.** `Contribution.uncertain_number`,
       `from_certificate()`, `seeded_input_id()`, `MeasurementResult.uncertain_number`.
-- [ ] **B2 - Credential transport.** `uncertainty_representations()` in `vc/model.py`,
+- [x] **B2 - Credential transport.** `uncertainty_representations()` in `vc/model.py`,
       inline below 4096 characters and referenced by digest above it.
-- [ ] **B3 - Verification.** `uncertainty.representations`, `uncertainty.agreement`,
+- [x] **B3 - Verification.** `uncertainty.representations`, `uncertainty.agreement`,
       `traceability.shared-inputs`.
-- [ ] **B4 - The world.** METAS certificate carries its dependencies; CalLab builds in
+- [x] **B4 - The world.** METAS certificate carries its dependencies; CalLab builds in
       dependency mode; add the shared-reference resistor pair.
-- [ ] **B5 - GTC.** Optional `domain/gtc_archive.py` and the `gtc` extra.
-- [ ] **B6 - Web.** `/api/uncertainty-data`, `/api/combine`, chapters 5 and 6.
-- [ ] **B7 - Failure cases and docs.** `dependency-disagrees`, `unshared-inputs`,
+- [x] **B5 - GTC.** Optional `domain/gtc_archive.py` and the `gtc` extra.
+- [x] **B6 - Web.** `/api/uncertainty-data`, `/api/combine`, chapters 5 and 6.
+- [x] **B7 - Failure cases and docs.** `dependency-disagrees`, `unshared-inputs`,
       README and ARCHITECTURE.
 
 ## Change set 2 - progress log
 
-(started)
+Complete. 176 tests pass, 1 skipped (GTC not installed). All nine chapters render.
+
+- **A** ILAC replaced by Global ACI across 13 files; recognition credentials re-dated to
+  2026-01-01 because Global ACI did not exist before that and the action step checks the
+  issuance date. Committed separately as 244ee10.
+- **B** Certificates now carry their uncertainty three ways: the classical statement
+  (always), the METAS UncLib dependency structure as XML inline and binary by reference,
+  and a GTC archive when the optional extra is installed.
+
+### Two things the work itself corrected
+
+- **Seeded identifiers collided.** Deriving them from the label alone made every budget
+  saying "temperature correction" one shared influence, and unrelated results came out
+  perfectly correlated (r = 1.0). Fixed by scoping identifiers to the certificate.
+- **The first shared-reference pair was physically implausible.** Having the accredited
+  laboratory calibrate both check standards produced certificates 36 times better than
+  its accreditation allows, and the pipeline rejected them - correctly. Moved the pair to
+  the institute, where two comparisons against one national standard give a real
+  correlation of r = 0.69 and both certificates sit inside the published CMC.
+
+### Verified
+
+- `uv run pytest` - 176 passed, 1 skipped.
+- Determinism survives: `--dump` twice gives byte-identical output across all 58
+  documents, input quantity identifiers included.
+- All 13 failure cases caught by the step each names.
+- Every chapter renders headlessly against the live server with no console errors.
+- The headline figures are asserted in tests: r = 0.69 between the paired certificates,
+  classical reporting overstating their difference by 1.81x and understating their mean.

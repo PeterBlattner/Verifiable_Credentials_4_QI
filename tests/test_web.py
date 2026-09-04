@@ -129,3 +129,67 @@ def test_tamper_endpoint_reports_the_expected_step(client: TestClient, case) -> 
 def test_unknown_tamper_case_is_not_found(client: TestClient) -> None:
     """An unknown case identifier is a 404."""
     assert client.post("/api/tamper/nonexistent").status_code == 404
+
+
+def test_combine_reports_both_answers(client: TestClient) -> None:
+    """Combining two certificates gives the correlated answer and the naive one."""
+    data = client.post("/api/combine", json={"operation": "difference"}).json()
+    assert data["correlation"] == pytest.approx(0.69, abs=0.02)
+    assert data["factor"] == pytest.approx(1.81, abs=0.03)
+    assert data["direction"] == "overstates"
+    assert data["tracked"]["standardUncertainty"] < data["naive"]["standardUncertainty"]
+    assert len(data["sharedInfluences"]) == 1
+
+
+def test_combine_reports_the_direction_for_a_mean(client: TestClient) -> None:
+    """For a mean the classical answer is optimistic, not conservative.
+
+    Worth asserting rather than assuming: discarding correlation is often described as
+    the safe simplification, and for this operation it is the opposite.
+    """
+    data = client.post("/api/combine", json={"operation": "mean"}).json()
+    assert data["direction"] == "understates"
+    assert data["naive"]["standardUncertainty"] < data["tracked"]["standardUncertainty"]
+
+
+def test_combine_ratio_is_dimensionless(client: TestClient) -> None:
+    """A ratio of two resistances carries no unit."""
+    assert client.post("/api/combine", json={"operation": "ratio"}).json()["unit"] == ""
+
+
+def test_combine_rejects_an_unknown_operation(client: TestClient) -> None:
+    """An operation the server does not implement is a bad request."""
+    assert client.post("/api/combine", json={"operation": "product"}).status_code == 400
+
+
+def test_uncertainty_data_is_served_as_itself(client: TestClient) -> None:
+    """Dependency data comes back as bytes with its own media type, not as JSON."""
+    url = "https://metas.example/certificates/METAS-2026-0417/uncertainty.unc"
+    response = client.get("/api/uncertainty-data", params={"url": url})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/octet-stream")
+    assert len(response.content) > 100
+
+
+def test_missing_uncertainty_data_is_not_found(client: TestClient) -> None:
+    """An address with no dependency data at it is a 404."""
+    assert client.get(
+        "/api/uncertainty-data", params={"url": "https://nowhere.example/x.unc"}
+    ).status_code == 404
+
+
+def test_gtc_status_is_reported(client: TestClient) -> None:
+    """The interface can say plainly whether the optional extra is installed."""
+    data = client.get("/api/gtc").json()
+    assert isinstance(data["available"], bool)
+    assert data["note"]
+
+
+def test_certificates_carry_a_classical_statement_and_dependencies(client: TestClient) -> None:
+    """Every calibration certificate reports classically and offers more besides."""
+    data = client.get("/api/credential/metas-calibration").json()
+    result = data["credential"]["credentialSubject"]["calibration"]["results"][0]
+    formats = [item["format"] for item in result["uncertaintyRepresentations"]]
+    assert formats[0] == "value-and-expanded-uncertainty"
+    assert "METAS-UncLib-XML" in formats
+    assert "METAS-UncLib-binary" in formats

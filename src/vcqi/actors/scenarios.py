@@ -34,20 +34,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import metas_unclib as mu
+
 from vcqi.crypto.dataintegrity import ProofTrace, sign_document
 from vcqi.domain import accreditation as accreditation_registry
 from vcqi.domain import kcdb as kcdb_registry
-from vcqi.domain.instruments import instrument_by_id
+from vcqi.domain.instruments import SHARED_REFERENCE_PAIR, instrument_by_id
+from vcqi.domain.gtc_archive import build_gtc_archive
 from vcqi.domain.uncertainty import (
     MeasurementResult,
     evaluate,
+    from_certificate,
     from_expanded_uncertainty,
+    from_quantity,
     normal,
+    seeded_input_id,
     rectangular,
+    to_unclib_xml,
 )
 from vcqi.actors.registry import ACTORS, actor_by_did, actor_key, did_document, whois_url
 from vcqi.vc.model import (
     CREDENTIAL_CONTEXT,
+    artefact_document,
     calibration_certificate_credential,
     credential_reference,
     issuer_reference,
@@ -56,6 +64,7 @@ from vcqi.vc.model import (
     recognized_entity_credential,
     status_entry,
     test_report_credential,
+    uncertainty_representations,
 )
 from vcqi.vc.resolver import DocumentStore
 from vcqi.vc.schema import (
@@ -75,6 +84,8 @@ SAS_RECOGNITION = "https://sas.example/recognition/accredited-bodies-2026"
 
 METAS_CERTIFICATE = "https://metas.example/certificates/METAS-2026-0417"
 CALLAB_CERTIFICATE = "https://callab.example/certificates/AC-2026-1182"
+METAS_CHECK_A = "https://metas.example/certificates/METAS-2026-0418"
+METAS_CHECK_B = "https://metas.example/certificates/METAS-2026-0419"
 TESTLAB_REPORT = "https://testlab.example/reports/HTS-2026-3391"
 CAB_CERTIFICATE = "https://cab.example/certificates/CPC-2026-0055"
 
@@ -166,6 +177,19 @@ class World:
     traces: dict[str, ProofTrace] = field(default_factory=dict)
     results: dict[str, MeasurementResult] = field(default_factory=dict)
     schemas: dict[str, dict[str, Any]] = field(default_factory=dict)
+    artefacts: dict[str, tuple[str, bytes]] = field(default_factory=dict)
+
+    def publish_artefacts(self, artefacts: dict[str, tuple[str, bytes]]) -> None:
+        """Publish dependency data that a credential references rather than carries.
+
+        Args:
+            artefacts: Raw payloads keyed by address, with their media type.
+        """
+        for address, (media_type, payload) in artefacts.items():
+            self.artefacts[address] = (media_type, payload)
+            self.store.publish(
+                address, artefact_document(media_type, payload), "uncertainty-data"
+            )
 
     def credential(self, name: str) -> dict[str, Any]:
         """Return one signed credential by short name.
@@ -205,6 +229,26 @@ class World:
         return credential
 
 
+def _national_standard() -> Any:
+    """Return the realisation of the national standard, as one persistent quantity.
+
+    The institute has one 10 kilohm national standard, and every comparison it makes is
+    against that one artefact. Modelling it as a single quantity rather than declaring
+    it afresh in each budget is not a convenience: two certificates issued against it
+    are genuinely correlated through it, and that is only true if it is genuinely the
+    same quantity.
+
+    Returns:
+        The uncertain number standing for the realised value, in ohm.
+    """
+    return mu.ufloat(
+        10000.0007,
+        4.6e-4,
+        id=seeded_input_id("National standard, scaled from the quantum Hall resistance", "METAS"),
+        desc="National standard, scaled from the quantum Hall resistance",
+    )
+
+
 def _metas_result() -> MeasurementResult:
     """Evaluate the calibration the national metrology institute performed.
 
@@ -216,42 +260,67 @@ def _metas_result() -> MeasurementResult:
         The measured resistance of the transfer standard with its budget, in ohm.
     """
     contributions = [
-        normal(
+        from_quantity(
             "national_standard",
             "National standard, scaled from the quantum Hall resistance",
-            10000.0007,
-            3.0e-4,
+            _national_standard(),
             unit="ohm",
         ),
         normal("ratio", "Cryogenic current comparator ratio", 1.00000005, 2.0e-8),
         rectangular(
-            "temperature", "Temperature correction to 23 degC", 0.0, 3.0e-4, unit="ohm"
+            "temperature", "Temperature correction to 23 degC", 0.0, 2.0e-4, unit="ohm"
         ),
-        normal("repeatability", "Repeatability of the comparison", 0.0, 4.0e-4, unit="ohm"),
+        normal("repeatability", "Repeatability of the comparison", 0.0, 2.0e-4, unit="ohm"),
     ]
     return evaluate(
         lambda q: q["national_standard"] * q["ratio"] + q["temperature"] + q["repeatability"],
         contributions,
         unit="ohm",
+        context="METAS-2026-0417",
     )
 
 
-def _callab_result(parent: MeasurementResult) -> MeasurementResult:
-    """Evaluate the calibration the accredited laboratory performed.
+def _callab_result(
+    parent: MeasurementResult,
+    *,
+    ratio: float = 1.0000031,
+    ratio_uncertainty: float = 2.6e-6,
+    drift_half_width: float = 5.0e-4,
+    temperature_half_width: float = 2.0e-4,
+    context: str = "AC-2026-1182",
+    classical: bool = False,
+) -> MeasurementResult:
+    """Evaluate a calibration the accredited laboratory performed.
 
-    The first contribution is the result the institute certified, divided by its
-    coverage factor. That single line is the traceability chain expressed
-    arithmetically: everything the institute achieved is inherited, and the laboratory
-    can only add to it.
+    The first contribution is the result the institute certified. How it is entered is
+    the whole subject of chapter 6.
+
+    In the default *dependency* mode the laboratory loads the dependency representation
+    from the certificate, so the input quantities of the institute arrive with their own
+    identifiers and remain recognisable in everything computed from them.
+
+    In *classical* mode the laboratory has only the printed value and Expanded
+    Uncertainty, so it declares a fresh input quantity from those two numbers. The
+    Expanded Uncertainty that comes out is identical. What is lost is the ability of
+    anyone downstream to see that this result and another one rest on the same standard.
 
     Args:
         parent: The result from the certificate of the national metrology institute.
+        ratio: The bridge ratio for this particular comparison.
+        ratio_uncertainty: The Standard Uncertainty of that ratio.
+        drift_half_width: Half-width of the drift interval, in ohm.
+        temperature_half_width: Half-width of the temperature interval, in ohm.
+        context: The certificate this budget belongs to, which scopes the identifiers
+            of the effects the laboratory declares for itself. Two comparisons made with
+            the same transfer standard share that standard and nothing else.
+        classical: Enter the parent as a value and an Expanded Uncertainty instead of
+            loading its dependency representation.
 
     Returns:
-        The measured resistance of the reference multimeter with its budget, in ohm.
+        The measured resistance with its budget, in ohm.
     """
-    contributions = [
-        from_expanded_uncertainty(
+    if classical:
+        reference = from_expanded_uncertainty(
             "transfer_standard",
             "Transfer standard, from certificate METAS-2026-0417",
             parent.value,
@@ -259,23 +328,39 @@ def _callab_result(parent: MeasurementResult) -> MeasurementResult:
             coverage_factor=parent.coverage_factor,
             unit="ohm",
             note=METAS_CERTIFICATE,
-        ),
-        normal("ratio", "Resistance bridge ratio", 1.0000031, 2.6e-6),
+        )
+    else:
+        reference = from_certificate(
+            "transfer_standard",
+            "Transfer standard, from certificate METAS-2026-0417",
+            to_unclib_xml(parent),
+            unit="ohm",
+            note=METAS_CERTIFICATE,
+        )
+
+    contributions = [
+        reference,
+        normal("ratio", "Resistance bridge ratio", ratio, ratio_uncertainty),
         rectangular(
             "drift",
             "Drift of the transfer standard since its calibration",
             0.0,
-            5.0e-4,
+            drift_half_width,
             unit="ohm",
         ),
         rectangular(
-            "temperature", "Temperature correction to 23 degC", 0.0, 2.0e-4, unit="ohm"
+            "temperature",
+            "Temperature correction to 23 degC",
+            0.0,
+            temperature_half_width,
+            unit="ohm",
         ),
     ]
     return evaluate(
         lambda q: q["transfer_standard"] * q["ratio"] + q["drift"] + q["temperature"],
         contributions,
         unit="ohm",
+        context=context,
     )
 
 
@@ -609,8 +694,16 @@ def _calibration_certificates(world: World) -> None:
     metas_result = _metas_result()
     world.results["metas-calibration"] = metas_result
 
+    metas_representations, metas_artefacts = uncertainty_representations(
+        metas_result,
+        credential_id=METAS_CERTIFICATE,
+        gtc_archive=build_gtc_archive(metas_result),
+    )
+    world.publish_artefacts(metas_artefacts)
+
     credential = calibration_certificate_credential(
         credential_id=METAS_CERTIFICATE,
+        representations=metas_representations,
         issuer=issuer_reference(
             "did:web:metas.example", metas.legal_name, recognized_in=BIPM_RECOGNITION
         ),
@@ -640,15 +733,25 @@ def _calibration_certificates(world: World) -> None:
     world._register("metas-calibration", metas_certificate, trace)
 
     # The accredited laboratory now calibrates its customer's multimeter against the
-    # standard it just had calibrated.
+    # standard it just had calibrated. It loads the dependency representation from the
+    # certificate rather than re-entering the two printed numbers, so the input
+    # quantities of the institute travel onward into everything it issues.
     callab_result = _callab_result(metas_result)
     world.results["callab-calibration"] = callab_result
 
     scope = accreditation_registry.scope_by_id("SCS 0123")
     assert scope is not None
 
+    callab_representations, callab_artefacts = uncertainty_representations(
+        callab_result,
+        credential_id=CALLAB_CERTIFICATE,
+        gtc_archive=build_gtc_archive(callab_result),
+    )
+    world.publish_artefacts(callab_artefacts)
+
     credential = calibration_certificate_credential(
         credential_id=CALLAB_CERTIFICATE,
+        representations=callab_representations,
         issuer=issuer_reference(
             "did:web:callab.example", callab.legal_name, recognized_in=SAS_RECOGNITION
         ),
@@ -687,6 +790,95 @@ def _calibration_certificates(world: World) -> None:
         credential, actor_key("did:web:callab.example"), created=CALLAB_ISSUED
     )
     world._register("callab-calibration", signed, trace)
+
+
+def _shared_reference_pair(world: World, unused: MeasurementResult) -> None:
+    """Issue two certificates from one institute against one national standard.
+
+    This is the material chapter 6 works with. Both check standards were compared with
+    the same national standard, so the uncertainty that standard contributes is common
+    to both results and cancels in their difference.
+
+    Whether the customer can take advantage of that depends entirely on what was
+    transmitted. The dependency representation makes the shared influence recognisable
+    by its identifier; the printed value and Expanded Uncertainty do not, and no care at
+    the customer end recovers it afterwards.
+
+    Args:
+        world: The world being built.
+        unused: Kept so the call site reads the same; the pair shares the national
+            standard directly rather than the certificate of the transfer standard.
+    """
+    metas = actor_by_did("did:web:metas.example")
+    callab = actor_by_did("did:web:callab.example")
+    assert metas is not None and callab is not None
+
+    cmc = kcdb_registry.cmc_by_id("CH-EM-0042")
+    assert cmc is not None
+
+    u_variable_standard = _national_standard()
+
+    for instrument, number, address, ratio, index in (
+        (SHARED_REFERENCE_PAIR[0], "METAS-2026-0418", METAS_CHECK_A, 1.00000315, 10),
+        (SHARED_REFERENCE_PAIR[1], "METAS-2026-0419", METAS_CHECK_B, 0.99999785, 11),
+    ):
+        result = evaluate(
+            lambda q: q["national_standard"] * q["ratio"] + q["temperature"] + q["repeatability"],
+            [
+                from_quantity(
+                    "national_standard",
+                    "National standard, scaled from the quantum Hall resistance",
+                    u_variable_standard,
+                    unit="ohm",
+                ),
+                normal("ratio", "Cryogenic current comparator ratio", ratio, 2.0e-8),
+                rectangular(
+                    "temperature", "Temperature correction to 23 degC", 0.0, 2.0e-4, unit="ohm"
+                ),
+                normal(
+                    "repeatability", "Repeatability of the comparison", 0.0, 2.0e-4, unit="ohm"
+                ),
+            ],
+            unit="ohm",
+            context=number,
+        )
+        world.results[f"metas-{instrument.serial_number}"] = result
+
+        representations, artefacts = uncertainty_representations(
+            result, credential_id=address, gtc_archive=build_gtc_archive(result)
+        )
+        world.publish_artefacts(artefacts)
+
+        credential = calibration_certificate_credential(
+            credential_id=address,
+            representations=representations,
+            issuer=issuer_reference(
+                "did:web:metas.example", metas.legal_name, recognized_in=BIPM_RECOGNITION
+            ),
+            valid_from=_stamp(METAS_ISSUED),
+            valid_until=_stamp(METAS_EXPIRES),
+            certificate_number=number,
+            performed_on=METAS_CALIBRATED_ON,
+            instrument=instrument.to_json(),
+            owner={"id": callab.did, "name": callab.legal_name},
+            measurand="dc.resistance",
+            conditions=cmc.conditions,
+            result=result,
+            nominal_value=1.0e4,
+            capability_reference={
+                "id": cmc.url,
+                "type": "KcdbCmcEntry",
+                "identifier": cmc.identifier,
+            },
+            mra_logo_asserted=True,
+            accredited=False,
+            traceable_to=None,
+            credential_status=status_entry(METAS_STATUS, index),
+        )
+        signed, trace = sign_document(
+            credential, actor_key("did:web:metas.example"), created=METAS_ISSUED
+        )
+        world._register(f"metas-{instrument.serial_number}", signed, trace)
 
 
 def _test_report_and_conformity(world: World) -> None:
@@ -852,6 +1044,7 @@ def build_world() -> World:
     _status_lists(world)
     _recognition_credentials(world, schemas)
     _calibration_certificates(world)
+    _shared_reference_pair(world, world.results['metas-calibration'])
     _test_report_and_conformity(world)
     _whois_presentations(world)
     return world

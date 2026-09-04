@@ -22,9 +22,16 @@ Then open <http://127.0.0.1:8000>. No npm, no build step — the interface is pl
 modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 
 ```
-uv run pytest                                  # 134 tests
+uv run pytest                                  # 168 tests
 uv run python -m vcqi.actors.scenarios         # list every signed credential
-uv run python -m vcqi.actors.scenarios --dump out/   # write all 52 documents as JSON
+uv run python -m vcqi.actors.scenarios --dump out/   # write all 58 documents as JSON
+```
+
+GTC support is optional because it pulls in scipy. Without it everything works and the
+certificates carry the UncLib representation only:
+
+```
+uv sync --extra gtc     # certificates gain a GTC archive as well
 ```
 
 The build is deterministic: signing uses RFC 6979, so two runs produce byte-identical
@@ -60,11 +67,30 @@ signed registry entry. The bound runs in the direction people new to it get back
 a capability states the *smallest* achievable uncertainty, so a certificate claiming a
 *smaller* one is out of scope.
 
-**Uncertainty travels with its budget.** Each certificate carries the full GUM budget,
-including what it inherited from the certificate above it. A recipient can then check
-both that `U = k·u` and that the inherited line matches what the parent certificate
-actually reports. Propagation uses `metas_unclib`, which tracks provenance so
-correlated contributions are not double counted.
+**Uncertainty travels with its dependencies.** A calibration certificate has always
+stated a value and an Expanded Uncertainty. That is enough to judge a result and not
+enough to use it: a customer combining two certificates cannot tell that both rest on the
+same reference standard, so the shared part gets counted twice.
+
+So every certificate here offers its uncertainty three ways at once:
+
+| Representation | What it carries | What a recipient can do with it |
+| --- | --- | --- |
+| **Classical** | `value ± U (k = 2)` | judge the result; combine only as if independent |
+| **METAS UncLib** | every input quantity, its own identifier, its distribution, and the sensitivity to it — as [XML or binary][unclib] | recombine correctly, because shared influences are recognisable |
+| **GTC** | the same idea from [MSL New Zealand][gtc], UUID-identified elementary quantities in a JSON archive | the same, from an independent implementation |
+
+The classical statement is always present and always first. It is what remains legally
+recognisable and the only thing an issuer without such a tool can offer. The others are
+additional, never a replacement.
+
+Chapter 6 makes the difference concrete. Two check standards, both calibrated against the
+same national standard, are correlated at r = 0.69. A customer forming their difference
+gets `U = 0.00086 Ω` from the dependency representations and `U = 0.0016 Ω` from the
+printed numbers alone — **1.8× too large**, and the customer did nothing wrong. For a
+*mean* the same omission runs the other way and produces an answer that is too
+optimistic, so discarding correlation is not the conservative choice it is often taken
+for.
 
 ## The scenario
 
@@ -95,11 +121,12 @@ parties in advance.
 2. **Issuing a calibration certificate** — canonical form, hashes, signature, step by step
 3. **Verification and recognition discovery** — the full pipeline, with the clock and the trust anchors under your control
 4. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
-5. **Traceability and uncertainty** — budgets at each level, and U growing down the chain
-6. **Break it** — eleven failure cases, each naming the one check that catches it
-7. **What this would mean in practice** — the argument, and the open questions
+5. **Traceability and uncertainty** — budgets at each level, U growing down the chain, and the same measurement shown classically, as UncLib, and as GTC
+6. **Why the dependencies matter** — two certificates, one shared standard, and what each way of reporting lets the customer do
+7. **Break it** — thirteen failure cases, each naming the one check that catches it
+8. **What this would mean in practice** — the argument, and the open questions
 
-## The eleven failure cases
+## The thirteen failure cases
 
 Grouped by what it takes to notice them.
 
@@ -107,7 +134,7 @@ Grouped by what it takes to notice them.
 | --- | --- | --- |
 | **Forgery** | edited value, invented issuer, loosened schema, reissued parent | proof, recognition, output-validation, traceability |
 | **Standing** | expired, suspended accreditation, issuing outside the accredited activity | validity, recognition, action |
-| **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance | scope, mra-logo, traceability.inherited |
+| **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance, dependency data disagreeing with the printed line, traceability claimed but not inherited | scope, mra-logo, traceability.inherited, uncertainty.agreement, traceability.shared-inputs |
 
 The third group is the interesting one: in every case the signature is valid, the issuer
 is genuinely recognised, and the document is inside its validity period. A system that
@@ -129,5 +156,7 @@ tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py
 `ARCHITECTURE.md` records the design decisions, the simplifications, and what a real
 deployment would need that this does not have.
 
+[unclib]: https://www.metas.admin.ch/en/metas-unclib
+[gtc]: https://gtc.readthedocs.io/
 [vc]: https://www.w3.org/TR/vc-data-model-2.0/
 [re]: https://www.w3.org/TR/vc-recognized-entities-1.0/

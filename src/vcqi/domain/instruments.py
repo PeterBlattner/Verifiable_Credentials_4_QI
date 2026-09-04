@@ -113,3 +113,35 @@ def instrument_by_id(identifier: str) -> Instrument | None:
         The instrument, or None when the identifier is unknown.
     """
     return _BY_ID.get(identifier)
+
+
+#: Two nominally equal standards, calibrated against the same transfer standard. They
+#: exist so that the demonstration has a case where a customer combines two certificates
+#: and the correlation between them actually matters.
+SHARED_REFERENCE_PAIR: tuple[Instrument, Instrument] = (
+    Instrument(
+        id="urn:instrument:callab:standard-resistor:SR10K-0091",
+        kind="StandardResistor",
+        name="10 kilohm check standard A",
+        manufacturer="Tinsley (demonstration)",
+        model="5685A",
+        serial_number="SR10K-0091",
+        owner="did:web:callab.example",
+        nominal_value=1.0e4,
+        unit="ohm",
+    ),
+    Instrument(
+        id="urn:instrument:callab:standard-resistor:SR10K-0092",
+        kind="StandardResistor",
+        name="10 kilohm check standard B",
+        manufacturer="Tinsley (demonstration)",
+        model="5685A",
+        serial_number="SR10K-0092",
+        owner="did:web:callab.example",
+        nominal_value=1.0e4,
+        unit="ohm",
+    ),
+)
+
+INSTRUMENTS = INSTRUMENTS + SHARED_REFERENCE_PAIR
+_BY_ID.update({instrument.id: instrument for instrument in SHARED_REFERENCE_PAIR})

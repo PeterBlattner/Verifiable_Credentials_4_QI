@@ -13,6 +13,12 @@ dependencies = [
     "metas-unclib>=1.5",
 ]
 
+[project.optional-dependencies]
+# GTC pulls in scipy, which nothing else here needs. Install with
+#   uv sync --extra gtc
+# to have certificates carry a GUM Tree Calculator archive as well.
+gtc = ["GTC>=1.5"]
+
 [project.scripts]
 vc-demo = "vcqi.web.app:main"
 

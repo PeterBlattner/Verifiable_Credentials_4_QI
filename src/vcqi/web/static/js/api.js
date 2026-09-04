@@ -36,4 +36,16 @@ export const api = {
   tamper: (key) => post(`/api/tamper/${key}`, {}),
   scope: (options) => post('/api/scope', options),
   uncertainty: (options) => post('/api/uncertainty', options),
+  combine: (options) => post('/api/combine', options),
+  gtc: () => request('/api/gtc'),
+  // Dependency data is XML or a binary blob, so it comes back as text rather than JSON.
+  uncertaintyData: async (url) => {
+    const response = await fetch(`/api/uncertainty-data?url=${encodeURIComponent(url)}`);
+    if (!response.ok) throw new Error(`${url}: ${response.statusText}`);
+    return {
+      mediaType: response.headers.get('content-type') || 'application/octet-stream',
+      bytes: (await response.clone().arrayBuffer()).byteLength,
+      text: await response.text(),
+    };
+  },
 };

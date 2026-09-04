@@ -32,10 +32,23 @@ from typing import Any
 from vcqi.config import CONTEXT_CREDENTIALS_V2, CONTEXT_VCQI_V1
 from vcqi.crypto.jcs import canonicalize
 from vcqi.crypto.multibase import digest_multibase
-from vcqi.domain.uncertainty import MeasurementResult
+from vcqi.domain.uncertainty import (
+    MeasurementResult,
+    parse_input_quantities,
+    to_unclib_binary,
+    to_unclib_xml,
+)
+
+#: Above this many characters a dependency representation is published separately and
+#: referenced by digest rather than carried inside the credential. The threshold is
+#: arbitrary; what matters is that both paths exist, because a scattering-parameter set
+#: with thousands of input quantities cannot sensibly travel inline.
+INLINE_LIMIT = 4096
 
 __all__ = [
     "CREDENTIAL_CONTEXT",
+    "INLINE_LIMIT",
+    "uncertainty_representations",
     "issuer_reference",
     "credential_reference",
     "recognized_entity_credential",
@@ -252,19 +265,26 @@ def budget_to_json(result: MeasurementResult) -> list[dict[str, Any]]:
 
 
 def measurement_result_to_json(
-    result: MeasurementResult, *, nominal_value: float
+    result: MeasurementResult,
+    *,
+    nominal_value: float,
+    representations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Render a measurement result as it appears on a certificate.
 
     Args:
         result: The evaluated measurement result.
         nominal_value: Nominal value of the artefact, in the unit of the result.
+        representations: The ways the uncertainty is transmitted, from
+            :func:`uncertainty_representations`. Omitted for a certificate that reports
+            classically only, which is what an issuer without such a tool would produce.
 
     Returns:
         A JSON-compatible object carrying the value, the Expanded Uncertainty, the
-        coverage factor and the conventional reported form.
+        coverage factor, the conventional reported form, and any dependency
+        representations offered alongside them.
     """
-    return {
+    document: dict[str, Any] = {
         "type": "CalibrationResult",
         "nominalValue": nominal_value,
         "value": result.value,
@@ -275,6 +295,9 @@ def measurement_result_to_json(
         "unit": result.unit,
         "reported": result.format(),
     }
+    if representations:
+        document["uncertaintyRepresentations"] = representations
+    return document
 
 
 def calibration_certificate_credential(
@@ -296,6 +319,7 @@ def calibration_certificate_credential(
     accredited: bool,
     traceable_to: dict[str, Any] | None = None,
     credential_status: dict[str, Any] | None = None,
+    representations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build a calibration certificate as a verifiable credential.
 
@@ -322,6 +346,9 @@ def calibration_certificate_credential(
         traceable_to: Reference to the certificate one level up the traceability chain,
             or None when the issuer realises the unit itself.
         credential_status: Optional credentialStatus member.
+        representations: The ways the uncertainty is transmitted, from
+            :func:`uncertainty_representations`. Omit for a certificate that reports
+            classically only.
 
     Returns:
         The unsecured credential, ready to be signed.
@@ -333,7 +360,11 @@ def calibration_certificate_credential(
         "measurand": measurand,
         "unit": result.unit,
         "conditions": conditions,
-        "results": [measurement_result_to_json(result, nominal_value=nominal_value)],
+        "results": [
+            measurement_result_to_json(
+                result, nominal_value=nominal_value, representations=representations
+            )
+        ],
         "uncertaintyBudget": budget_to_json(result),
         "capabilityReference": capability_reference,
         "mraLogoAsserted": mra_logo_asserted,
@@ -493,3 +524,203 @@ def product_conformity_credential(
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
     return credential
+
+
+def uncertainty_representations(
+    result: MeasurementResult,
+    *,
+    credential_id: str,
+    gtc_archive: str | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, tuple[str, bytes]]]:
+    """Build the ways this result can be handed to a customer.
+
+    A calibration certificate has always stated a value and an Expanded Uncertainty.
+    That is enough to know how good the number is, and not enough to use it well: a
+    customer who receives two certificates and combines them has no way to know that
+    both rest on the same reference standard, so the shared contribution gets counted
+    twice and the combined uncertainty comes out too large.
+
+    The dependency representations fix that by transmitting what the issuing laboratory
+    actually computed: every input quantity, its identifier, its distribution, and the
+    sensitivity of the result to it. Two certificates carrying these are recognisably
+    related, and the correlation is handled without the customer having to know it was
+    there.
+
+    The classical statement is always first and always present. It is what a paper
+    certificate says, what remains legally recognisable, and the only thing an issuer
+    without such a tool can offer. The rest are additional, never a replacement.
+
+    Args:
+        result: The evaluated result, carrying its uncertain number.
+        credential_id: Identifier of the certificate, used as the base for the
+            addresses of any representation published separately.
+        gtc_archive: A GTC archive of the same result as JSON, when GTC is installed.
+
+    Returns:
+        A tuple of the representations and the artefacts to publish, the latter keyed by
+        address with the media type and the raw bytes. The digest recorded in a
+        representation is over those raw bytes, so the signature on the credential
+        covers the dependency data whether it travels inside the credential or is
+        fetched from elsewhere.
+    """
+    representations: list[dict[str, Any]] = [
+        {
+            "type": "ClassicalStatement",
+            "format": "value-and-expanded-uncertainty",
+            "value": result.value,
+            "standardUncertainty": result.standard_uncertainty,
+            "expandedUncertainty": result.expanded_uncertainty,
+            "coverageFactor": result.coverage_factor,
+            "unit": result.unit,
+            "reported": result.format(),
+            "note": (
+                "What a calibration certificate has always stated. Sufficient to judge "
+                "the result, insufficient to combine it with another one."
+            ),
+        }
+    ]
+    artefacts: dict[str, tuple[str, bytes]] = {}
+
+    if result.uncertain_number is None:
+        return representations, artefacts
+
+    xml = to_unclib_xml(result)
+    xml_bytes = xml.encode("utf-8")
+    influences = parse_input_quantities(xml)
+
+    entry: dict[str, Any] = {
+        "type": "DependencyRepresentation",
+        "format": "METAS-UncLib-XML",
+        "mediaType": "application/xml",
+        "specification": "https://www.metas.ch/unclib",
+        "inputQuantityCount": len(influences),
+        "inputQuantities": [
+            {"id": influence.identifier, "description": influence.description}
+            for influence in influences
+        ],
+        "digestMultibase": digest_multibase(xml_bytes),
+        "note": (
+            "Every input quantity this result depends on, each with its own identifier "
+            "and the sensitivity of the result to it. Two results that share an input "
+            "quantity share its identifier, which is what lets a later calculation "
+            "treat them as correlated."
+        ),
+    }
+    if len(xml) <= INLINE_LIMIT:
+        entry["content"] = xml
+    else:
+        address = f"{credential_id}/uncertainty.xml"
+        entry["id"] = address
+        entry["byteCount"] = len(xml_bytes)
+        artefacts[address] = ("application/xml", xml_bytes)
+    representations.append(entry)
+
+    # The binary form is always published separately, both because that is what it is
+    # for and so that the referenced path is exercised in every run.
+    blob = to_unclib_binary(result)
+    binary_address = f"{credential_id}/uncertainty.unc"
+    representations.append(
+        {
+            "type": "DependencyRepresentation",
+            "format": "METAS-UncLib-binary",
+            "mediaType": "application/octet-stream",
+            "specification": "https://www.metas.ch/unclib",
+            "id": binary_address,
+            "byteCount": len(blob),
+            "digestMultibase": digest_multibase(blob),
+            "note": (
+                "The same dependency structure in the compact binary form, for results "
+                "with too many input quantities to write out as XML."
+            ),
+        }
+    )
+    artefacts[binary_address] = ("application/octet-stream", blob)
+
+    if gtc_archive is not None:
+        archive_bytes = gtc_archive.encode("utf-8")
+        gtc_entry: dict[str, Any] = {
+            "type": "DependencyRepresentation",
+            "format": "GTC-archive-JSON",
+            "mediaType": "application/json",
+            "specification": "https://gtc.readthedocs.io/",
+            "digestMultibase": digest_multibase(archive_bytes),
+            "note": (
+                "The same idea from an independent implementation. GTC gives every "
+                "elementary uncertain number a UUID-based identifier and serialises an "
+                "archive against a published schema, so the credential does not have to "
+                "commit to one library."
+            ),
+        }
+        if len(gtc_archive) <= INLINE_LIMIT:
+            gtc_entry["content"] = gtc_archive
+        else:
+            address = f"{credential_id}/uncertainty.gtc.json"
+            gtc_entry["id"] = address
+            gtc_entry["byteCount"] = len(archive_bytes)
+            artefacts[address] = ("application/json", archive_bytes)
+        representations.append(gtc_entry)
+
+    return representations, artefacts
+
+
+def artefact_document(media_type: str, payload: bytes) -> dict[str, Any]:
+    """Wrap raw dependency data so it can be published and retrieved.
+
+    Everything in this demonstration is addressed and fetched as JSON, but a
+    dependency representation is XML or a binary blob. The wrapper carries the payload
+    without pretending to be it: the digest recorded in the credential is over the raw
+    bytes inside, never over this envelope, so the wrapper is transport and nothing more.
+
+    Args:
+        media_type: What the payload actually is.
+        payload: The raw bytes.
+
+    Returns:
+        The envelope. Text payloads are carried as text so they stay readable in the
+        document inspector; anything else is base64.
+    """
+    import base64
+
+    textual = media_type in ("application/xml", "application/json", "text/plain")
+    if textual:
+        return {
+            "@type": "UncertaintyData",
+            "mediaType": media_type,
+            "encoding": "utf-8",
+            "byteCount": len(payload),
+            "data": payload.decode("utf-8"),
+        }
+    return {
+        "@type": "UncertaintyData",
+        "mediaType": media_type,
+        "encoding": "base64",
+        "byteCount": len(payload),
+        "data": base64.b64encode(payload).decode("ascii"),
+    }
+
+
+def artefact_payload(document: dict[str, Any]) -> bytes | None:
+    """Recover the raw bytes from a published artefact envelope.
+
+    Args:
+        document: The envelope, as retrieved.
+
+    Returns:
+        The raw payload, or None when the document is not a well-formed envelope. A
+        verifier meets these as untrusted input, so a malformed one is reported rather
+        than raised.
+    """
+    import base64
+    import binascii
+
+    if not isinstance(document, dict) or document.get("@type") != "UncertaintyData":
+        return None
+    data = document.get("data")
+    if not isinstance(data, str):
+        return None
+    if document.get("encoding") == "utf-8":
+        return data.encode("utf-8")
+    try:
+        return base64.b64decode(data, validate=True)
+    except (binascii.Error, ValueError):
+        return None

@@ -72,6 +72,62 @@ revocation to a payload the community has already standardised. Nothing in `vc/`
 depends on the payload shape; `domain/` reads results through a handful of accessors in
 `verify.py` (`_payload`, `_first_result`) which are the only places that would change.
 
+### Transmitting the dependency on input quantities
+
+A calibration certificate states a value and an Expanded Uncertainty. Two certificates
+reported that way are, to any recipient, unrelated — even when both rest on the same
+reference standard in the same laboratory. The information needed to know better exists
+at the issuer and is simply not sent.
+
+METAS UncLib can send it. `metas_unclib.ustorage` serialises an uncertain number with
+its full dependency structure: every input quantity, the distribution assumed for it,
+the sensitivity of the result to it, and an identifier for the quantity itself. That
+identifier is the load-bearing part. Two results that share an influence share its
+identifier, so a later calculation involving both treats it as one influence rather than
+two, and the correlation comes out right without anyone having to notice it was there.
+
+`domain/uncertainty.py` offers both routes, and the contrast between them is the point:
+
+- `from_expanded_uncertainty` is the classical path. It takes the two printed numbers
+  and declares a **new** input quantity. Correct for this measurement, and everything
+  about provenance is gone.
+- `from_certificate` deserialises what the issuing laboratory actually computed, so the
+  input quantities arrive **with their original identifiers**.
+
+Both produce an identical Expanded Uncertainty. Nothing on the face of the certificate
+reveals which was used. What differs is only what a recipient can do next, which is why
+`traceability.shared-inputs` checks for the inherited identifiers rather than taking the
+declared traceability at its word.
+
+**Seeded identifiers are a demonstration device.** UncLib generates a random GUID per
+input quantity, which is right — two laboratories using the same wording are not
+describing the same influence. That would also make every run of this demonstration
+produce different documents. So `seeded_input_id(label, context)` derives them from the
+published seed, scoped by the certificate they belong to. The scoping is not cosmetic: an
+early version seeded on the label alone, and every budget saying "temperature correction"
+became one shared influence, which made unrelated results perfectly correlated. In
+production this function should not exist.
+
+**Transport.** Representations under `INLINE_LIMIT` characters are carried inside the
+credential; larger ones are published separately and referenced. The binary form is
+always referenced, both because that is what it is for and so the referenced path is
+exercised on every run. In each case `digestMultibase` is over the **raw** payload rather
+than over the JSON envelope it is published in, so the signature on the credential covers
+the dependency data wherever it lives.
+
+**GTC** is supported as an optional extra rather than a dependency, because it pulls in
+scipy. It matters to the argument regardless: GTC reached the same design independently,
+giving elementary uncertain numbers UUID-based identifiers and serialising archives
+against published schemas. Two implementations agreeing is why the credential names a
+format rather than assuming a library. `domain/gtc_archive.py` rebuilds the budget in
+GTC rather than converting the UncLib object, because no bridge between the two libraries
+exists and inventing one would misrepresent what is being shown.
+
+**The cost, stated plainly.** A dependency representation exposes the internal structure
+of an uncertainty budget, which many laboratories treat as commercially confidential.
+That is a real objection and not an oversight. Selective disclosure is where it would be
+addressed, and it is not implemented here.
+
 ### The network is a dictionary
 
 `vc/resolver.py` stands in for retrieval. Every document is published at the address a
@@ -101,21 +157,22 @@ than assumed.
 | `output-validation` | the schema the recognition names, pinned by content digest |
 | `scope` | the numeric decision a schema cannot express |
 | `mra-logo` | whether a claim of international recognition is justified |
-| `uncertainty` | whether the stated U is supported by the budget offered for it |
-| `traceability` | whether the chain of certificates below it holds, by content digest |
+| `uncertainty` | whether the stated U is supported by the budget offered for it, whether every representation matches its recorded digest, and whether the printed line agrees with the dependency data |
+| `traceability` | whether the chain of certificates below it holds, by content digest, and whether the influences of the parent are genuinely present in this result |
 
 Every step returns a structured result rather than a boolean, and a step that cannot be
 evaluated reports `skip` rather than passing quietly. `tests/test_pipeline.py` asserts
-that each of the eleven failure cases is caught by the step that claims it, and that the
+that each of the thirteen failure cases is caught by the step that claims it, and that the
 metrological cases pass `proof`, `validity` and `recognition` first — which is the whole
 reason they are worth demonstrating.
 
 ## Not implemented
 
 - **Selective disclosure.** A calibration certificate names a customer and an
-  instrument. A testing laboratory should be able to prove its equipment is traceable
-  and in scope without disclosing the certificate. That needs SD-JWT VC or BBS
-  signatures, neither of which is here.
+  instrument, and a dependency representation exposes a whole uncertainty budget. A
+  laboratory should be able to prove its equipment is traceable and in scope without
+  disclosing either. That needs SD-JWT VC or BBS signatures, neither of which is here,
+  and it is the most obvious thing missing.
 - **Long-term validation.** Calibration certificates are kept for decades; signatures
   and keys are not built for that. Timestamping and an archival strategy would have to
   be designed in from the start.

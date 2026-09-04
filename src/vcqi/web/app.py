@@ -14,13 +14,14 @@ signatures changing underneath it.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -30,9 +31,16 @@ from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
 from vcqi.config import DEFAULT_HOST, DEFAULT_PORT
 from vcqi.crypto.dataintegrity import ProofTrace
 from vcqi.domain.accreditation import ACCREDITATION_SCOPES
+from vcqi.domain.gtc_archive import GTC_UNAVAILABLE_NOTE, gtc_available
 from vcqi.domain.kcdb import CMC_ENTRIES, cmc_by_id
 from vcqi.domain.scope import MeasurementClaim, evaluate_scope
-from vcqi.domain.uncertainty import evaluate, from_expanded_uncertainty, normal, rectangular
+from vcqi.domain.uncertainty import (
+    evaluate,
+    format_measurement,
+    from_expanded_uncertainty,
+    normal,
+    rectangular,
+)
 from vcqi.vc.checks import credential_types, issuer_id
 from vcqi.vc.verify import verify_credential
 
@@ -568,3 +576,202 @@ def main() -> None:
     print(f"Demonstration server on http://{DEFAULT_HOST}:{DEFAULT_PORT}")
     print("Every organisation, key and certificate in it is fictional.")
     uvicorn.run(app, host=DEFAULT_HOST, port=DEFAULT_PORT, log_level="info")
+
+
+@app.get("/api/uncertainty-data")
+def get_uncertainty_data(url: str = Query(..., description="Address of the data")) -> Response:
+    """Serve a dependency representation as the bytes it actually is.
+
+    A customer fetching this gets XML or a binary blob, not JSON wrapping one. It is the
+    same payload the credential records a digest for, so anything retrieved here can be
+    checked against the certificate that pointed at it.
+
+    Args:
+        url: The address the credential references.
+
+    Returns:
+        The raw payload with its own media type.
+
+    Raises:
+        HTTPException: If nothing is published there.
+    """
+    artefact = world().artefacts.get(url)
+    if artefact is None:
+        raise HTTPException(status_code=404, detail=f"no uncertainty data at {url}")
+    media_type, payload = artefact
+    return Response(content=payload, media_type=media_type)
+
+
+class CombineRequest(BaseModel):
+    """A request to combine two certified results.
+
+    Attributes:
+        first: Short name of the first certificate.
+        second: Short name of the second certificate.
+        operation: What to compute, one of difference, ratio or mean.
+    """
+
+    first: str = "metas-SR10K-0091"
+    second: str = "metas-SR10K-0092"
+    operation: str = "difference"
+
+
+@app.post("/api/combine")
+def post_combine(request: CombineRequest) -> dict[str, Any]:
+    """Combine two certified results, with and without their shared influences.
+
+    This is the demonstration chapter 6 is built around. Both certificates come from the
+    same laboratory and rest on the same transfer standard, so part of their uncertainty
+    is common to both. Whether a customer can take advantage of that depends entirely on
+    what was transmitted:
+
+    * given the dependency representations, the shared influence is recognised by its
+      identifier and the common part cancels where the arithmetic says it should;
+    * given only a value and an Expanded Uncertainty, the customer has no way to know
+      the influence was shared, and the honest thing to do is add in quadrature, which
+      overstates the result.
+
+    The second answer is not a mistake by the customer. It is the best that can be done
+    with what they were given.
+
+    Args:
+        request: Which certificates to combine and how.
+
+    Returns:
+        Both answers, the correlation between the inputs, the factor between them, and
+        which way the classical answer errs.
+
+    Raises:
+        HTTPException: If a certificate is unknown or the operation is not supported.
+    """
+    import metas_unclib as unclib
+
+    current = world()
+    try:
+        first = current.results[request.first]
+        second = current.results[request.second]
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=f"no result {error}") from error
+
+    u_variable_a, u_variable_b = first.uncertain_number, second.uncertain_number
+    if u_variable_a is None or u_variable_b is None:
+        raise HTTPException(status_code=400, detail="those results carry no dependencies")
+
+    operations = {
+        "difference": (lambda a, b: a - b, "R1 - R2", first.unit),
+        "ratio": (lambda a, b: a / b, "R1 / R2", ""),
+        "mean": (lambda a, b: (a + b) / 2.0, "(R1 + R2) / 2", first.unit),
+    }
+    if request.operation not in operations:
+        raise HTTPException(status_code=400, detail=f"unknown operation {request.operation}")
+    apply, label, unit = operations[request.operation]
+
+    tracked = apply(u_variable_a, u_variable_b)
+    tracked_value = float(unclib.get_value(tracked))
+    tracked_standard = float(unclib.get_stdunc(tracked))
+
+    # What the same customer would get from the printed numbers alone. The sensitivities
+    # are those of the operation at the measured values; only the correlation is missing.
+    if request.operation == "difference":
+        naive_standard = math.sqrt(first.standard_uncertainty**2 + second.standard_uncertainty**2)
+    elif request.operation == "mean":
+        naive_standard = 0.5 * math.sqrt(
+            first.standard_uncertainty**2 + second.standard_uncertainty**2
+        )
+    else:
+        relative = math.sqrt(
+            (first.standard_uncertainty / first.value) ** 2
+            + (second.standard_uncertainty / second.value) ** 2
+        )
+        naive_standard = abs(tracked_value) * relative
+
+    correlation = float(unclib.get_correlation([u_variable_a, u_variable_b])[0][1])
+    factor = naive_standard / tracked_standard if tracked_standard else float("inf")
+
+    # Which way the error runs depends on the operation, and it is worth being plain
+    # about that. Positive correlation makes a difference more certain and a sum or a
+    # mean less certain, so ignoring it does not simply err on the safe side. Sometimes
+    # the classical answer is optimistic, which is the worse direction to be wrong in.
+    if factor > 1.01:
+        direction = "overstates"
+    elif factor < 0.99:
+        direction = "understates"
+    else:
+        direction = "agrees with"
+
+    return {
+        "operation": request.operation,
+        "expression": label,
+        "value": tracked_value,
+        "unit": unit,
+        "correlation": correlation,
+        "tracked": {
+            "standardUncertainty": tracked_standard,
+            "expandedUncertainty": 2.0 * tracked_standard,
+            "reported": format_measurement(tracked_value, 2.0 * tracked_standard, unit),
+            "basis": "the dependency representations, in which the shared influence is recognisable",
+        },
+        "naive": {
+            "standardUncertainty": naive_standard,
+            "expandedUncertainty": 2.0 * naive_standard,
+            "reported": format_measurement(tracked_value, 2.0 * naive_standard, unit),
+            "basis": "the printed value and Expanded Uncertainty alone, combined in quadrature",
+        },
+        "factor": factor,
+        "direction": direction,
+        "inputs": [
+            {
+                "name": request.first,
+                "reported": first.format(),
+                "certificate": current.credential(request.first)["id"],
+            },
+            {
+                "name": request.second,
+                "reported": second.format(),
+                "certificate": current.credential(request.second)["id"],
+            },
+        ],
+        "sharedInfluences": _shared_influences(request.first, request.second),
+    }
+
+
+def _shared_influences(first: str, second: str) -> list[dict[str, Any]]:
+    """List the influences two certificates have in common.
+
+    Args:
+        first: Short name of the first certificate.
+        second: Short name of the second certificate.
+
+    Returns:
+        One entry per shared influence, with the identifier that made it recognisable.
+    """
+    current = world()
+
+    def influences(name: str) -> dict[str, str]:
+        credential = current.credentials.get(name, {})
+        subject = credential.get("credentialSubject", {})
+        results = subject.get("calibration", {}).get("results", [])
+        found: dict[str, str] = {}
+        for entry in results:
+            for representation in entry.get("uncertaintyRepresentations", []):
+                for item in representation.get("inputQuantities", []) or []:
+                    if isinstance(item, dict) and isinstance(item.get("id"), str):
+                        found[item["id"]] = str(item.get("description", ""))
+        return found
+
+    left, right = influences(first), influences(second)
+    return [
+        {"id": identifier, "description": description}
+        for identifier, description in sorted(left.items())
+        if identifier in right
+    ]
+
+
+@app.get("/api/gtc")
+def get_gtc_status() -> dict[str, Any]:
+    """Report whether the optional GTC support is installed.
+
+    Returns:
+        Whether GTC can be imported, and the note to display when it cannot.
+    """
+    return {"available": gtc_available(), "note": GTC_UNAVAILABLE_NOTE}
