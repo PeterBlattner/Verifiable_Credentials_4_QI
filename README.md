@@ -156,6 +156,12 @@ tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py
 `ARCHITECTURE.md` records the design decisions, the simplifications, and what a real
 deployment would need that this does not have.
 
+`LEGAL-METROLOGY.md` describes the third pillar of the quality infrastructure — type
+approval, verification and market surveillance — and how the demonstration would be
+extended to cover it. It is deliberately not covered here: legal metrology makes the
+argument broader rather than clearer, and the two pillars modelled are enough to show
+what verifiable credentials offer.
+
 [unclib]: https://www.metas.admin.ch/en/metas-unclib
 [gtc]: https://gtc.readthedocs.io/
 [vc]: https://www.w3.org/TR/vc-data-model-2.0/

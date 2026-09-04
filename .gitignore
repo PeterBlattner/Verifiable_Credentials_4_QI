@@ -10,3 +10,6 @@ __pycache__/
 
 # Generated output
 out/
+
+# Working notes, not part of the demonstration
+temp/
