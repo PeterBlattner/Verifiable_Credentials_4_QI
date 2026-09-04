@@ -792,18 +792,53 @@ Nothing pushed without asking.
 
 ## Change set 3 - build order
 
-- [ ] **L1 - Domain.** `domain/legal.py` with the R 76 MPE table, DesignationScope and
+- [x] **L1 - Domain.** `domain/legal.py` with the R 76 MPE table, DesignationScope and
       evaluate_conformity; the mass CMC CH-M-0015; the scale and the reference weight.
-- [ ] **L2 - Actors and graph.** Four actors, third trust anchor, branch tags, METAS dual
+- [x] **L2 - Actors and graph.** Four actors, third trust anchor, branch tags, METAS dual
       role, PTB as OIML Issuing Authority, graph layout and filters.
-- [ ] **L3 - Credentials.** Three new builders in `vc/model.py`; seven credentials and
+- [x] **L3 - Credentials.** Three new builders in `vc/model.py`; seven credentials and
       three status lists in `scenarios.py`.
-- [ ] **L4 - Verification.** The conformity step and its three children; `_payload` and
+- [x] **L4 - Verification.** The conformity step and its three children; `_payload` and
       `_traceability_references` learn the new members; REQUIRED_ACTIONS.
-- [ ] **L5 - Failure cases.** Four cases in a new legal group.
-- [ ] **L6 - Chapter 7 and the web.** `/api/conformity`, chapter 7, renumbering.
-- [ ] **L7 - Tests and docs.** `tests/test_legal.py`, README, ARCHITECTURE.
+- [x] **L5 - Failure cases.** Four cases in a new legal group.
+- [x] **L6 - Chapter 7 and the web.** `/api/conformity`, chapter 7, renumbering.
+- [x] **L7 - Tests and docs.** `tests/test_legal.py`, README, ARCHITECTURE.
 
 ## Change set 3 - progress log
 
-(started)
+Complete. 225 tests pass, 1 skipped (GTC not installed). All ten chapters render.
+
+- 14 actors, 4 trust anchors, 26 credentials, 84 documents, 17 failure cases.
+- The legal branch rests on the calibration chain: the reference weight the verification
+  body weighs with is calibrated by the institute under a new mass CMC, and the
+  verification certificate references that certificate by content digest.
+
+### Three things the pipeline caught while this was being written
+
+- **A designation is not an accreditation.** REQUIRED_ACTIONS mapped one action per
+  credential type, but an accreditation body accredits and a legal metrology authority
+  designates, and both produce a RecognizedEntityCredential. It now takes a set per type.
+- **Status entries must match the purpose of the list they point into.** A designation is
+  suspended and a certificate is revoked, and the two cannot share one bitstring.
+- **Dating the OIML and ordinance recognitions from 2026** alongside Global ACI made the
+  action check reject a type approval issued in 2024, correctly. The legal layer predates
+  Global ACI and now has its own timeline.
+
+### One modelling error corrected
+
+OIML was initially left out of the trust anchors on the reasoning that it confers no
+legal force. That conflates two questions: reaching OIML establishes technical type
+evaluation perfectly well, and a national authority relying on OIML evidence is what the
+certification system is for. What it does not establish is legal force. OIML is now an
+anchor, and the distinction is enforced in conformity.legal-basis, which looks at what
+the cited document is rather than at who vouches for its issuer.
+
+### Verified
+
+- `uv run pytest` - 225 passed, 1 skipped.
+- All 17 failure cases caught by the step each names; the four legal ones pass proof,
+  validity, status and recognition first.
+- Chain assertions: the type approval reaches the legislator, the weight calibration
+  reaches the BIPM, the OIML certificate reaches OIML and cannot serve as a legal basis.
+- All ten chapters rendered headlessly against the live server with no console errors.
+- `--dump` twice gives byte-identical output across all 84 documents.

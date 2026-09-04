@@ -31,10 +31,14 @@ instrument, the organisations and the certificate numbers are invented.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 __all__ = [
     "AccuracyClass",
+    "CLASS_I",
+    "CLASS_II",
+    "CLASS_III",
+    "CLASS_IIII",
     "TestPoint",
     "ConformityCheck",
     "ConformityVerdict",
@@ -77,16 +81,40 @@ class AccuracyClass:
     bands: tuple[tuple[float, float], ...]
 
 
-#: The class this demonstration uses. Class III covers most instruments used in trade:
-#: shop scales, platform scales and the like.
+#: The four accuracy classes of OIML R 76. Every one has the same shape, three bands
+#: rising in half-interval steps, and they differ only in where the bands fall. Class III
+#: is the one this demonstration uses: it covers most instruments used in trade, such as
+#: shop scales and platform scales. The others are defined because a designation that
+#: covers one class and not another is only meaningful if the others exist.
+CLASS_I = AccuracyClass(
+    name="I",
+    minimum_intervals=50000,
+    maximum_intervals=1000000,
+    bands=((50000.0, 0.5), (200000.0, 1.0), (1000000.0, 1.5)),
+)
+CLASS_II = AccuracyClass(
+    name="II",
+    minimum_intervals=100,
+    maximum_intervals=100000,
+    bands=((5000.0, 0.5), (20000.0, 1.0), (100000.0, 1.5)),
+)
 CLASS_III = AccuracyClass(
     name="III",
     minimum_intervals=500,
     maximum_intervals=10000,
     bands=((500.0, 0.5), (2000.0, 1.0), (10000.0, 1.5)),
 )
+CLASS_IIII = AccuracyClass(
+    name="IIII",
+    minimum_intervals=100,
+    maximum_intervals=1000,
+    bands=((50.0, 0.5), (200.0, 1.0), (1000.0, 1.5)),
+)
 
-_CLASSES = {CLASS_III.name: CLASS_III}
+_CLASSES = {
+    definition.name: definition
+    for definition in (CLASS_I, CLASS_II, CLASS_III, CLASS_IIII)
+}
 
 
 def maximum_permissible_error(
@@ -145,6 +173,10 @@ class TestPoint:
         coverage_factor: The coverage factor k that U is stated at.
         unit: Unit symbol.
     """
+
+    #: pytest collects any class whose name begins with Test, and this is a test point
+    #: on a weighing instrument rather than a test of anything.
+    __test__: ClassVar[bool] = False
 
     load: float
     indication_error: float

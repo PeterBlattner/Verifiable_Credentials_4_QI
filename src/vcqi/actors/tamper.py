@@ -37,10 +37,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable
 
-from vcqi.actors.registry import actor_key
+from vcqi.actors.registry import actor_by_did, actor_key
 from vcqi.actors.scenarios import (
     CALLAB_CERTIFICATE,
+    DEFAULT_TEST_POINTS,
     _callab_result,
+    _verification,
     DEMO_NOW,
     METAS_CERTIFICATE,
     SAS_STATUS,
@@ -50,6 +52,8 @@ from vcqi.actors.scenarios import (
 )
 from vcqi.crypto.dataintegrity import sign_document
 from vcqi.crypto.keys import build_did_document, derive_key
+from vcqi.domain.instruments import instrument_by_id
+from vcqi.domain.legal import designation_by_id
 from vcqi.domain.uncertainty import evaluate, from_expanded_uncertainty, normal, rectangular
 from vcqi.vc.model import (
     budget_to_json,
@@ -706,3 +710,179 @@ NEW_CASES: tuple[TamperCase, ...] = (
 
 TAMPER_CASES = TAMPER_CASES + NEW_CASES
 _BY_KEY.update({case.key: case for case in NEW_CASES})
+
+
+def _rebuild_verification(**overrides: Any) -> TamperResult:
+    """Reissue the verification certificate with one thing changed.
+
+    Reissuing it properly, signed by the same designated body, is what makes these cases
+    worth demonstrating: the failure has to survive every cryptographic check before it
+    tells you anything.
+
+    Args:
+        **overrides: Arguments passed through to the scenario builder.
+
+    Returns:
+        The tampered world and the reissued certificate.
+    """
+    world = build_world()
+    scale = instrument_by_id("urn:instrument:retailer:scale:NAWI-88421")
+    verifier = actor_by_did("did:web:verifybody.example")
+    retailer = actor_by_did("did:web:retailer.example")
+    designation = designation_by_id("EV 042")
+    assert scale is not None and verifier is not None and retailer is not None
+    assert designation is not None
+
+    arguments: dict[str, Any] = {
+        "scale": scale,
+        "owner": retailer,
+        "verifier": verifier,
+        "type_approval": world.credential("type-approval"),
+        "weight_certificate": world.credential("metas-weight-calibration"),
+        "designation": designation,
+        "characteristics": {
+            "accuracyClass": "III",
+            "maximumCapacity": 15.0,
+            "minimumCapacity": 0.1,
+            "verificationScaleInterval": 0.005,
+            "verificationScaleIntervals": 3000,
+            "unit": "kg",
+        },
+        "test_points": DEFAULT_TEST_POINTS,
+        "decision": "pass",
+    }
+    arguments.update(overrides)
+
+    signed, _ = _verification(world, **arguments)
+    _republish(world, "verification-certificate", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
+def _oiml_is_not_approval() -> TamperResult:
+    """Cite an OIML certificate where a national approval belongs.
+
+    Nothing here is forged and nothing is out of date. The OIML certificate is real, its
+    issuing authority is genuinely recognised, and the certificate verifies on its own
+    terms. It simply is not an approval, and no jurisdiction has said the instrument may
+    be used.
+    """
+    world = build_world()
+    oiml_certificate = world.credential("oiml-certificate")
+    return _rebuild_verification(
+        legal_basis_override={
+            **credential_reference(oiml_certificate, relation="OimlCertificateCredential"),
+            "jurisdiction": "CH",
+            "note": "OIML certificate of type evaluation.",
+        }
+    )
+
+
+def _mpe_exceeded_but_passed() -> TamperResult:
+    """Record a pass with a load outside its maximum permissible error."""
+    points = list(DEFAULT_TEST_POINTS)
+    points[3] = (15.0, 0.018, 0.0010)
+    return _rebuild_verification(test_points=tuple(points), decision="pass")
+
+
+def _verification_uncertainty_too_large() -> TamperResult:
+    """Verify with reference weights too coarse to support the decision.
+
+    Every load is inside its limit and the decision is the right one. What is missing is
+    the ability to say so: at the lowest load the uncertainty of the verification is more
+    than a third of the limit, so the measurement cannot distinguish an instrument that
+    complies from one that does not.
+    """
+    points = list(DEFAULT_TEST_POINTS)
+    points[0] = (2.5, 0.002, 0.0020)
+    return _rebuild_verification(test_points=tuple(points))
+
+
+def _outside_designation() -> TamperResult:
+    """Verify an accuracy class the body was never designated for."""
+    return _rebuild_verification(
+        characteristics={
+            "accuracyClass": "II",
+            "maximumCapacity": 15.0,
+            "minimumCapacity": 0.1,
+            "verificationScaleInterval": 0.005,
+            "verificationScaleIntervals": 3000,
+            "unit": "kg",
+        }
+    )
+
+
+LEGAL_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="oiml-is-not-approval",
+        title="Cite an OIML certificate as the legal basis",
+        group="legal",
+        description=(
+            "The verification body cites the OIML certificate of type evaluation instead "
+            "of the national type approval. The OIML certificate is genuine, current, and "
+            "issued by a recognised Issuing Authority."
+        ),
+        expected_step="conformity.legal-basis",
+        catches=(
+            "An OIML Recommendation is not law and an OIML certificate is not a national "
+            "approval. It is real evidence that a national authority may rely on, and "
+            "relying on it is exactly what the certification system is for; what it "
+            "cannot do is make an instrument lawful. Every other check passes, which is "
+            "why this one has to exist."
+        ),
+        apply=_oiml_is_not_approval,
+    ),
+    TamperCase(
+        key="mpe-exceeded-but-passed",
+        title="Record a pass with a load over the limit",
+        group="legal",
+        description=(
+            "At 15 kg the scale reads 18 g high where the maximum permissible error for "
+            "an in-service class III instrument is 15 g. The certificate records a pass."
+        ),
+        expected_step="conformity.decision",
+        catches=(
+            "A verification certificate states a decision, not a measurement, so the only "
+            "useful thing a recipient can do is confirm that the decision follows from "
+            "the evidence offered for it. Here it does not."
+        ),
+        apply=_mpe_exceeded_but_passed,
+    ),
+    TamperCase(
+        key="verification-uncertainty-too-large",
+        title="Verify with reference standards that are too coarse",
+        group="legal",
+        description=(
+            "The verification is made with worn weights, giving U = 2.0 g at the 2.5 kg "
+            "load where the limit is 5 g. Every load is inside its limit and the decision "
+            "is the right one."
+        ),
+        expected_step="conformity.uncertainty",
+        catches=(
+            "A decision is only worth as much as the measurement behind it. OIML requires "
+            "the uncertainty of a verification to be at most a third of the limit being "
+            "judged against, and above that the measurement cannot tell a compliant "
+            "instrument from a non-compliant one. This certificate is not wrong; it is "
+            "unsupported, and an inspector should treat those differently."
+        ),
+        apply=_verification_uncertainty_too_large,
+    ),
+    TamperCase(
+        key="outside-designation",
+        title="Verify an accuracy class outside the designation",
+        group="legal",
+        description=(
+            "The body verifies a class II instrument. It is genuinely designated, its "
+            "signature is valid, and its designation covers class III only."
+        ),
+        expected_step="output-validation",
+        catches=(
+            "Delegating verification does not hand over the scope of it. The designation "
+            "names the instruments the body may verify, and the schema the authority "
+            "attached to that designation refuses anything else."
+        ),
+        apply=_outside_designation,
+    ),
+)
+
+TAMPER_CASES = TAMPER_CASES + LEGAL_CASES
+_BY_KEY.update({case.key: case for case in LEGAL_CASES})

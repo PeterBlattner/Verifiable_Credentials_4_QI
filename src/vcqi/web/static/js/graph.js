@@ -21,16 +21,29 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const BOX = { width: 170, height: 48 };
 
 const POSITIONS = {
-  'did:web:bipm.example': { x: 60, y: 24 },
-  'did:web:global-aci.example': { x: 560, y: 24 },
-  'did:web:metas.example': { x: 30, y: 140 },
-  'did:web:ptb.example': { x: 215, y: 140 },
-  'did:web:sas.example': { x: 560, y: 140 },
-  'did:web:callab.example': { x: 120, y: 262 },
-  'did:web:testlab.example': { x: 390, y: 262 },
-  'did:web:cab.example': { x: 660, y: 262 },
-  'did:web:manufacturer.example': { x: 520, y: 384 },
-  'did:web:surveillance.example': { x: 800, y: 384 },
+  // International layer. Three of these four are trust anchors and the fourth, OIML, is
+  // deliberately not: it confers technical recognition and no legal force at all.
+  'did:web:bipm.example': { x: 40, y: 20 },
+  'did:web:global-aci.example': { x: 400, y: 20 },
+  'did:web:oiml.example': { x: 760, y: 20 },
+  'did:web:legislator.example': { x: 1040, y: 20 },
+
+  // National layer. METAS appears once and holds two roles, which is why two edges of
+  // different kinds arrive at it from opposite ends of the row above.
+  'did:web:metas.example': { x: 30, y: 148 },
+  'did:web:ptb.example': { x: 240, y: 148 },
+  'did:web:sas.example': { x: 470, y: 148 },
+
+  // Bodies that assess, calibrate or verify.
+  'did:web:callab.example': { x: 30, y: 276 },
+  'did:web:testlab.example': { x: 250, y: 276 },
+  'did:web:cab.example': { x: 470, y: 276 },
+  'did:web:verifybody.example': { x: 800, y: 276 },
+
+  // Whoever holds the documents, and whoever has to believe them.
+  'did:web:manufacturer.example': { x: 250, y: 404 },
+  'did:web:retailer.example': { x: 660, y: 404 },
+  'did:web:surveillance.example': { x: 960, y: 404 },
 };
 
 function svg(tag, attrs, children) {
@@ -97,12 +110,26 @@ export function renderGraph(graph, options) {
   const highlight = new Set(settings.highlightEdges || []);
   const selected = settings.selectedNode;
 
-  const edges = graph.edges.filter((edge) => POSITIONS[edge.source] && POSITIONS[edge.target]);
+  // A branch filter hides nodes as well as edges, so that isolating one pillar leaves
+  // the organisations of the others out rather than stranded and unconnected.
+  const branches = settings.branches || null;
+  const visible = (branch) => !branches || branches.has(branch);
+
+  const nodes = graph.nodes.filter((node) => visible(node.branch));
+  const shown = new Set(nodes.map((node) => node.id));
+  const edges = graph.edges.filter(
+    (edge) =>
+      POSITIONS[edge.source] &&
+      POSITIONS[edge.target] &&
+      shown.has(edge.source) &&
+      shown.has(edge.target)
+  );
 
   const defs = svg('defs', {}, [
     marker('arrow-recognition', 'edge--recognition'),
     marker('arrow-issuance', 'edge--issuance'),
     marker('arrow-presentation', 'edge--presentation'),
+    marker('arrow-authority', 'edge--authority'),
     marker('arrow-active', 'edge--active'),
   ]);
   // Markers inherit no stroke, so give each arrowhead its own fill.
@@ -112,6 +139,7 @@ export function renderGraph(graph, options) {
       recognition: 'var(--anchor)',
       issuance: 'var(--ink-faint)',
       presentation: 'var(--accent)',
+      authority: 'var(--legal)',
       active: 'var(--accent)',
     }[kind];
     path.setAttribute('fill', fill);
@@ -134,7 +162,7 @@ export function renderGraph(graph, options) {
   }
 
   const nodeLayer = svg('g', { class: 'nodes' });
-  for (const node of graph.nodes) {
+  for (const node of nodes) {
     const position = POSITIONS[node.id];
     if (!position) continue;
     const classes = ['node'];
@@ -160,7 +188,7 @@ export function renderGraph(graph, options) {
 
   const canvas = svg(
     'svg',
-    { class: 'graph', viewBox: '0 0 1000 460', role: 'img', 'aria-label': 'Trust graph of the demonstration' },
+    { class: 'graph', viewBox: '0 0 1240 490', role: 'img', 'aria-label': 'Trust graph of the demonstration' },
     [defs, edgeLayer, nodeLayer]
   );
 
@@ -168,14 +196,15 @@ export function renderGraph(graph, options) {
     canvas,
     el('div', { class: 'legend' }, [
       legendKey('var(--anchor)', 'solid', 'recognition: who vouches for whom'),
+      legendKey('var(--legal)', 'solid', 'legal authority: where legal force comes from'),
       legendKey('var(--ink-faint)', 'dashed', 'issuance: who gave whom a document'),
-      legendKey('var(--accent)', 'dotted', 'presentation at the border'),
+      legendKey('var(--accent)', 'dotted', 'presentation'),
       el('span', { class: 'legend__key' }, [
         el('span', {
           class: 'legend__swatch',
           style: 'border-top-color: var(--anchor); border-top-width: 3px;',
         }),
-        'boxes outlined in blue are the two trust anchors',
+        'outlined boxes are trust anchors. OIML is not one: it confers technical recognition, never legal force',
       ]),
     ]),
   ]);
