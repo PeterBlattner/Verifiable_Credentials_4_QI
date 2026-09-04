@@ -14,13 +14,16 @@ actually has. The full sequence is:
 7. does the document validate against the schema that recognition names;
 8. does what it claims fall inside the capability it was issued under, and if it claims
    the CIPM MRA logo, is that claim justified;
-9. does its traceability chain hold, all the way down to an institute that realises the
+9. if it records a legal conformity decision, does that decision follow from the
+   measurements, were they good enough to support it, and does it rest on an approval
+   that actually confers legal force;
+10. does its traceability chain hold, all the way down to an institute that realises the
    unit;
-10. is the stated uncertainty consistent with the budget offered to support it.
+11. is the stated uncertainty consistent with the budget offered to support it.
 
-Steps 1 to 4 are generic. Step 5 is the Recognized Entities contribution. Steps 6 to 10
-are where the quality infrastructure lives, and they are the ones that turn a document
-that merely verifies into a document a metrologist can rely on.
+Steps 1 to 4 are generic. Step 5 is the Recognized Entities contribution. The rest are
+where the quality infrastructure lives, and they are the ones that turn a document that
+merely verifies into a document a metrologist, or an inspector, can rely on.
 
 Every step returns a structured result rather than a boolean, so the interface can show
 which check decided the outcome. A step that cannot be evaluated is reported as skipped,
@@ -45,6 +48,7 @@ from vcqi.domain.scope import (
     UncertaintyFloor,
     evaluate_scope,
 )
+from vcqi.domain.legal import evaluate_conformity
 from vcqi.domain.uncertainty import parse_input_quantities
 from vcqi.vc.model import artefact_payload
 from vcqi.vc.checks import (
@@ -63,11 +67,18 @@ from vcqi.vc.resolver import DocumentStore, Resolver
 __all__ = ["Step", "VerificationReport", "verify_credential", "REQUIRED_ACTIONS"]
 
 #: What an issuer has to be recognised to do in order to issue each kind of document.
-REQUIRED_ACTIONS = {
-    "CalibrationCertificateCredential": "issue",
-    "TestReportCredential": "issue",
-    "ProductConformityCredential": "issue",
-    "RecognizedEntityCredential": "accredit",
+#: Several may satisfy one type. A RecognizedEntityCredential is the obvious case: an
+#: accreditation body accredits and a legal metrology authority designates, and the two
+#: produce the same kind of document from quite different standing. Which of them applies
+#: in a given case is settled by the capability the document claims, not by its type.
+REQUIRED_ACTIONS: dict[str, tuple[str, ...]] = {
+    "CalibrationCertificateCredential": ("issue",),
+    "TestReportCredential": ("issue",),
+    "ProductConformityCredential": ("issue",),
+    "RecognizedEntityCredential": ("accredit", "designate"),
+    "VerificationCertificateCredential": ("verify",),
+    "TypeApprovalCredential": ("approve",),
+    "OimlCertificateCredential": ("issue",),
 }
 
 #: How far a verifier follows traceability before stopping. The chains in this
@@ -234,7 +245,14 @@ def _payload(credential: dict[str, Any]) -> dict[str, Any]:
     subject = credential.get("credentialSubject")
     if not isinstance(subject, dict):
         return {}
-    for member in ("calibration", "testing", "conformity"):
+    for member in (
+        "calibration",
+        "testing",
+        "conformity",
+        "verification",
+        "typeApproval",
+        "typeEvaluation",
+    ):
         value = subject.get(member)
         if isinstance(value, dict):
             return value
@@ -372,6 +390,7 @@ def _step_action(
     issuer = issuer_id(credential) or ""
     credential_type = _most_specific_type(credential)
     required = REQUIRED_ACTIONS.get(credential_type)
+    wanted = ", ".join(required) if required else ""
 
     if not chain.succeeded:
         return (
@@ -405,7 +424,7 @@ def _step_action(
         )
 
     _, actions = chain.entity_for(issuer)
-    candidates = [action for action in actions if action.get("action") == required]
+    candidates = [action for action in actions if action.get("action") in required]
     if not candidates:
         offered = sorted({str(action.get("action")) for action in actions})
         return (
@@ -416,9 +435,9 @@ def _step_action(
                 detail=(
                     f"{issuer} is recognised to {', '.join(offered) or 'do nothing'}, "
                     f"but issuing a {credential_type} requires being recognised to "
-                    f"{required}"
+                    f"{wanted}"
                 ),
-                evidence={"required": required, "offered": offered},
+                evidence={"required": list(required), "offered": offered},
             ),
             None,
         )
@@ -493,7 +512,7 @@ def _step_action(
             title="Recognition covers this kind of document",
             status=PASS,
             detail=(
-                f"{issuer} was recognised to {required} under "
+                f"{issuer} was recognised to {matched.get('action')} under "
                 f"{matched.get('capabilityReference', {}).get('identifier', 'this recognition')} "
                 f"when the document was issued"
             ),
@@ -885,10 +904,16 @@ def _traceability_references(credential: dict[str, Any]) -> list[dict[str, Any]]
     payload = _payload(credential)
     references: list[dict[str, Any]] = []
 
-    single = payload.get("traceableTo")
-    if isinstance(single, dict):
-        references.append(single)
-    for member in ("equipmentTraceability", "testReports"):
+    for name in ("traceableTo", "legalBasis"):
+        single = payload.get(name)
+        if isinstance(single, dict):
+            references.append(single)
+    for member in (
+        "equipmentTraceability",
+        "testReports",
+        "referenceStandards",
+        "typeEvaluationEvidence",
+    ):
         value = payload.get(member)
         if isinstance(value, list):
             references.extend(item for item in value if isinstance(item, dict))
@@ -1208,6 +1233,7 @@ def verify_credential(
     scope_step = _step_scope(credential, resolver)
     report.steps.append(scope_step)
     report.steps.append(_step_mra_logo(credential, scope_step))
+    report.steps.append(_step_conformity(credential, resolver))
     # The representations sit under the uncertainty step, so the top-level list stays
     # the same eleven checks however many ways the certificate offers its uncertainty.
     uncertainty_step = _step_uncertainty(credential)
@@ -1539,4 +1565,232 @@ def _step_shared_inputs(credential: dict[str, Any], parent: dict[str, Any]) -> S
             "missingCount": len(missing),
             "shared": sorted(shared)[:8],
         },
+    )
+
+
+def _step_conformity(credential: dict[str, Any], resolver: Resolver) -> Step:
+    """Decide whether a legal conformity decision is supported by its own certificate.
+
+    This is the legal-metrology counterpart of the CMC check, and it asks the question
+    that separates verification from calibration. A calibration certificate reports a
+    measurement and the reader decides what it means. A verification certificate has
+    already decided, and the decision has legal effect, so the only useful thing a
+    recipient can do is confirm that the decision follows from the evidence offered for
+    it.
+
+    Three ways it can fail to, and they are different failures:
+
+    * an error outside the maximum permissible error means the instrument does not
+      comply, so a certificate recording a pass is simply wrong;
+    * an uncertainty larger than a third of that limit means the verification cannot
+      tell either way, so the decision is unsupported rather than wrong, and an
+      inspector should treat those differently;
+    * a legal basis that is not a national approval means the decision rests on nothing,
+      however genuine the document cited.
+
+    Args:
+        credential: The credential being verified.
+        resolver: Used to retrieve the cited legal basis.
+
+    Returns:
+        The step, skipped for anything that is not a verification certificate.
+    """
+    if "VerificationCertificateCredential" not in credential_types(credential):
+        return Step(
+            id="conformity",
+            title="Conformity decision follows from the evidence",
+            status=SKIP,
+            detail="the document records no legal conformity decision",
+        )
+
+    payload = _payload(credential)
+    children: list[Step] = []
+
+    test_points = payload.get("testPoints")
+    decision = payload.get("decision")
+    interval = payload.get("verificationScaleInterval")
+    accuracy_class = payload.get("accuracyClass")
+
+    if not isinstance(test_points, list) or not test_points or not isinstance(decision, str):
+        return Step(
+            id="conformity",
+            title="Conformity decision follows from the evidence",
+            status=FAIL,
+            detail="the certificate records a decision without the test points behind it",
+        )
+    if not isinstance(interval, (int, float)) or not isinstance(accuracy_class, str):
+        return Step(
+            id="conformity",
+            title="Conformity decision follows from the evidence",
+            status=FAIL,
+            detail=(
+                "the certificate states no accuracy class and verification scale "
+                "interval, so no limit can be computed for it"
+            ),
+        )
+
+    verdict = evaluate_conformity(
+        test_points,
+        decision=decision,
+        scale_interval=float(interval),
+        accuracy_class=accuracy_class,
+        in_service=payload.get("kind") != "initial",
+    )
+
+    decision_checks = [check for check in verdict.checks if check.key in ("error", "limit")]
+    children.append(
+        Step(
+            id="conformity.decision",
+            title="Recorded decision is the one the measurements support",
+            status=PASS if verdict.decision_follows else FAIL,
+            detail=(
+                f"every tested load is inside its limit, so the recorded decision of "
+                f"{decision} is correct"
+                if verdict.decision_follows
+                else (
+                    f"the certificate records {decision}, but the test points support "
+                    f"{verdict.implied_decision}: "
+                    + "; ".join(
+                        check.detail for check in verdict.failures if check.key == "error"
+                    )
+                )
+            ),
+            evidence={"verdict": verdict.to_json()},
+            children=[
+                Step(
+                    id=f"conformity.decision.{index}",
+                    title=check.title,
+                    status=PASS if check.passed else FAIL,
+                    detail=check.detail,
+                )
+                for index, check in enumerate(decision_checks, start=1)
+            ],
+        )
+    )
+
+    uncertainty_checks = [check for check in verdict.checks if check.key == "uncertainty"]
+    inadequate = [check for check in uncertainty_checks if not check.passed]
+    children.append(
+        Step(
+            id="conformity.uncertainty",
+            title="Verification was measured well enough to decide on",
+            status=PASS if not inadequate else FAIL,
+            detail=(
+                f"the Expanded Uncertainty is within one third of the limit at all "
+                f"{len(uncertainty_checks)} tested loads"
+                if not inadequate
+                else (
+                    f"at {len(inadequate)} of {len(uncertainty_checks)} tested loads the "
+                    f"uncertainty is too large to support a decision: "
+                    + "; ".join(check.detail for check in inadequate[:2])
+                )
+            ),
+            children=[
+                Step(
+                    id=f"conformity.uncertainty.{index}",
+                    title=check.title,
+                    status=PASS if check.passed else FAIL,
+                    detail=check.detail,
+                )
+                for index, check in enumerate(uncertainty_checks, start=1)
+            ],
+        )
+    )
+
+    children.append(_step_legal_basis(credential, resolver))
+
+    failed = [child for child in children if child.status == FAIL]
+    return Step(
+        id="conformity",
+        title="Conformity decision follows from the evidence",
+        status=FAIL if failed else PASS,
+        detail=(
+            f"the decision of {decision} follows from the test points, is adequately "
+            f"measured, and rests on a national approval"
+            if not failed
+            else "; ".join(child.detail for child in failed[:2])
+        ),
+        children=children,
+    )
+
+
+def _step_legal_basis(credential: dict[str, Any], resolver: Resolver) -> Step:
+    """Check that a conformity decision rests on something that confers legal force.
+
+    The case this exists for is subtle and is the whole reason legal metrology is worth
+    modelling separately. A verification body can cite an OIML certificate: a real
+    document, correctly signed, issued by a genuinely recognised Issuing Authority, whose
+    every other check passes. It still does not make an instrument lawful anywhere,
+    because an OIML Recommendation is not law. Only a national or regional approval does
+    that, and the difference is invisible unless someone looks.
+
+    Args:
+        credential: The verification certificate.
+        resolver: Used to retrieve the cited document.
+
+    Returns:
+        The step.
+    """
+    payload = _payload(credential)
+    reference = payload.get("legalBasis")
+    jurisdiction = payload.get("jurisdiction")
+
+    if not isinstance(reference, dict) or not isinstance(reference.get("id"), str):
+        return Step(
+            id="conformity.legal-basis",
+            title="Decision rests on an approval that has legal force here",
+            status=FAIL,
+            detail="the certificate cites no legal basis for its decision",
+        )
+
+    cited = resolver.fetch(reference["id"])
+    if cited is None:
+        return Step(
+            id="conformity.legal-basis",
+            title="Decision rests on an approval that has legal force here",
+            status=FAIL,
+            detail=f"the cited legal basis at {reference['id']} could not be retrieved",
+            evidence={"legalBasis": reference},
+        )
+
+    types = credential_types(cited)
+    if "TypeApprovalCredential" not in types:
+        specific = [name for name in types if name != "VerifiableCredential"]
+        return Step(
+            id="conformity.legal-basis",
+            title="Decision rests on an approval that has legal force here",
+            status=FAIL,
+            detail=(
+                f"the decision cites a {specific[0] if specific else 'document'}, which is "
+                f"type-evaluation evidence rather than an approval. Evidence of this kind "
+                f"is genuine and internationally useful, and it confers no legal "
+                f"permission in any jurisdiction; only the competent authority can do that"
+            ),
+            evidence={"legalBasis": reference, "citedType": specific},
+        )
+
+    approval = _payload(cited)
+    approved_in = approval.get("jurisdiction")
+    if isinstance(jurisdiction, str) and approved_in != jurisdiction:
+        return Step(
+            id="conformity.legal-basis",
+            title="Decision rests on an approval that has legal force here",
+            status=FAIL,
+            detail=(
+                f"the verification claims effect in {jurisdiction} but cites an approval "
+                f"granted for {approved_in}, and a type approval has no effect outside "
+                f"the jurisdiction that granted it"
+            ),
+            evidence={"legalBasis": reference},
+        )
+
+    return Step(
+        id="conformity.legal-basis",
+        title="Decision rests on an approval that has legal force here",
+        status=PASS,
+        detail=(
+            f"verified against type approval {approval.get('approvalNumber')}, granted "
+            f"under {approval.get('legalBasis')} and effective in {approved_in}"
+        ),
+        evidence={"legalBasis": reference},
     )
