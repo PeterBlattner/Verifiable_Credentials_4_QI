@@ -133,42 +133,18 @@ async function chapterGraph(context) {
     prose([
       'Ten organisations, and one supply chain running through them. A national metrology institute calibrates a laboratory&rsquo;s transfer standard; the laboratory calibrates a testing laboratory&rsquo;s multimeter; the testing laboratory measures a kettle; a certification body certifies the kettle; the manufacturer presents that certificate at a border.',
       'One of the two anchors is new. On 1 January 2026 the IAF and ILAC consolidated into a single body, <strong>Global Accreditation Cooperation Incorporated</strong>, whose arrangement is the Global ACI Multilateral Recognition Arrangement. Worth pausing on, because it is exactly the event a real deployment has to survive: a trust anchor changing its name, and with it the identifier every credential beneath it points at. Everything a verifier had configured would need to follow.',
-      'Fourteen organisations across three pillars: metrology, accreditation and legal metrology. Use the chips to isolate one branch, click any organisation to see the identifier it signs with, and click any edge to read the credential behind it.',
-      'Watch METAS in particular. It appears once and holds two roles, so two edges of different kinds arrive at it from opposite ends of the top row: recognition from the BIPM, and legal authority from the ordinance. Neither can stand in for the other.',
+      'Click any organisation to see the identifier it signs with and what it has issued. Click any edge to read the credential behind it.',
     ])
   );
 
   const detail = panel('Select an organisation or an edge', 'Everything below is fetched from the running server', el('p', { class: 'muted', text: 'Nothing selected yet.' }));
   const graphHolder = el('div', {});
 
-  // Three pillars, one system. The filter is there because fourteen organisations at
-  // once is a lot, not because the branches are separable: the whole argument of the
-  // last two chapters is that legal metrology rests on the calibration chain.
-  const active = new Set(context.world.graph.branches);
-  const filters = el(
-    'div',
-    { class: 'chips' },
-    context.world.graph.branches.map((branch) =>
-      el('button', {
-        class: 'chip',
-        text: branch,
-        'aria-pressed': 'true',
-        onclick: (event) => {
-          if (active.has(branch) && active.size > 1) active.delete(branch);
-          else active.add(branch);
-          event.target.setAttribute('aria-pressed', String(active.has(branch)));
-          draw(null, []);
-        },
-      })
-    )
-  );
-
   const draw = (selectedNode, highlightEdges) => {
     clear(graphHolder).append(
       renderGraph(context.world.graph, {
         selectedNode,
         highlightEdges,
-        branches: active,
         onSelectNode: async (did) => {
           draw(did, []);
           const data = await api.actor(did);
@@ -226,7 +202,7 @@ async function chapterGraph(context) {
   };
 
   draw(null, []);
-  fragment.append(filters, graphHolder, detail);
+  fragment.append(graphHolder, detail);
   return fragment;
 }
 
@@ -900,202 +876,10 @@ async function chapterDependencies(context) {
 
 // ---------------------------------------------------------------- chapter 7
 
-const LEGAL_CREDENTIALS = [
-  ['oiml-recognition', 'OIML recognises an Issuing Authority'],
-  ['oiml-certificate', 'OIML certificate of type evaluation'],
-  ['legislator-recognition', 'The ordinance makes an authority competent'],
-  ['type-approval', 'National type approval'],
-  ['metas-designation', 'Designation of a verification body'],
-  ['metas-weight-calibration', 'Calibration of the reference weight'],
-  ['verification-certificate', 'Verification certificate for the scale'],
-];
-
-async function chapterLegalMetrology(context) {
-  const fragment = document.createDocumentFragment();
-
-  fragment.append(
-    prose([
-      'Everything so far has been about measurement: how good a number is, and how far you can follow it back. Legal metrology asks a different question, and gets a different kind of answer.',
-      'A calibration asks <strong>what is the error of this instrument, and with what uncertainty</strong>. The answer is information, and the recipient decides what it means. A verification asks <strong>does this instrument comply with the law, yes or no</strong>. The answer is a decision, and it has legal effect.',
-      'A scale can be beautifully calibrated and not lawfully usable in a shop; it can be lawfully verified and less accurate than the calibration laboratory next door would like. The two statements are not substitutes, and this chapter is about what happens when each is a credential.',
-    ])
-  );
-
-  fragment.append(
-    el('div', { class: 'split' }, [
-      panel('A calibration says', 'metrological information', [
-        el('div', { class: 'stat__value', text: '+0.7 g' }),
-        el('div', { class: 'stat__label', text: 'indication error, U = 0.2 g (k = 2)' }),
-        el('p', { class: 'muted', style: 'margin-top:12px', text: 'What the instrument does. No verdict, because a calibration does not make one: whether that is good enough depends entirely on what you are using it for.' }),
-      ]),
-      panel('A verification says', 'a legal conformity decision', [
-        el('div', { class: 'stat__value', text: 'PASS' }),
-        el('div', { class: 'stat__label', text: 'observed +0.7 g against a limit of ±1.0 g' }),
-        el('p', { class: 'muted', style: 'margin-top:12px', text: 'Whether the instrument may lawfully be used. The measurement is the same measurement; the limit and the decision are what the law adds.' }),
-      ]),
-    ])
-  );
-
-  // ---- the layers -------------------------------------------------------------
-  fragment.append(
-    el('h3', { text: 'Where legal force comes from, and where it does not' }),
-    prose([
-      'The <strong>OIML</strong> publishes Recommendations and runs a certification system that produces type-evaluation evidence usable in any country. An OIML certificate is genuine, valuable, and exactly what it says: evidence. It is not law and it approves nothing.',
-      'Legal force comes from <strong>national or regional legislation</strong>, which makes an authority competent. That authority approves instrument types and designates the bodies that verify individual instruments. In Switzerland the same organisation happens to be the national metrology institute as well, which is one arrangement among several and makes the separation easy to see: METAS appears once in the graph below with two edges arriving at it from opposite ends of the row above.',
-    ]),
-    callout([
-      'This is why the demonstration has <strong>four</strong> anchors, not one. Each establishes exactly one thing. The BIPM establishes metrological standing. Global ACI establishes competence to assess. OIML establishes technical type evaluation. Only the legislator establishes legal force — and a document can be impeccably recognised by three of them and still not do the job it is being put to.',
-    ])
-  );
-
-  const graphHolder = el('div', {});
-  clear(graphHolder).append(
-    renderGraph(context.world.graph, { branches: new Set(['legal']) })
-  );
-  fragment.append(graphHolder);
-
-  // ---- the credentials --------------------------------------------------------
-  fragment.append(
-    panel(
-      'The documents, from the ordinance down to one shop scale',
-      'click any of them to read it',
-      el(
-        'div',
-        { class: 'chips' },
-        LEGAL_CREDENTIALS.map(([name, label]) =>
-          el('button', {
-            class: 'chip',
-            text: label,
-            onclick: async () => {
-              const data = await api.credential(name);
-              context.inspect(data.credential.id);
-            },
-          })
-        )
-      )
-    )
-  );
-
-  // ---- the decision -----------------------------------------------------------
-  fragment.append(
-    el('h3', { text: 'The decision, and whether it is supportable' }),
-    prose([
-      'A verification certificate records a decision, so the only useful thing a recipient can do is confirm that the decision follows from the evidence offered for it. Two conditions have to hold at every tested load, and they fail differently.',
-      'The <strong>error</strong> must be inside the maximum permissible error. If it is not, the instrument does not comply and a certificate saying otherwise is wrong.',
-      'The <strong>uncertainty</strong> must be at most a third of that limit. If it is not, the verification cannot tell a compliant instrument from a non-compliant one, whatever verdict was written down. That certificate is not wrong so much as unsupported, and an inspector should treat the two differently.',
-    ])
-  );
-
-  const state = { error15: 0.006, uncertainty: 0.0010 };
-  const output = el('div', {});
-
-  async function decide() {
-    const data = await api.conformity({
-      test_points: [
-        [2.5, 0.002, state.uncertainty],
-        [5.0, 0.003, state.uncertainty],
-        [10.0, -0.004, state.uncertainty],
-        [15.0, state.error15, state.uncertainty],
-      ],
-      decision: 'pass',
-    });
-
-    const wrong = !data.decisionFollows;
-    const unsupported = !data.adequatelyMeasured;
-    const status = wrong ? 'fail' : unsupported ? 'warn' : 'pass';
-
-    clear(output).append(
-      el('div', { class: `verdict verdict--${status === 'pass' ? 'pass' : 'fail'}` }, [
-        el('div', { class: 'verdict__mark', text: status === 'pass' ? '✓' : '✗' }),
-        el('div', { class: 'verdict__text' }, [
-          el('strong', {
-            text: wrong
-              ? `The certificate records PASS; the measurements support ${data.impliedDecision.toUpperCase()}`
-              : unsupported
-                ? 'The decision is right and the certificate cannot support it'
-                : 'PASS, and the measurements support it',
-          }),
-          el('span', {
-            text: wrong
-              ? 'A load is outside its maximum permissible error, so the instrument does not comply and the recorded decision is simply wrong.'
-              : unsupported
-                ? 'Every load is inside its limit, but the uncertainty at one of them is more than a third of that limit, so this verification cannot distinguish a compliant instrument from a non-compliant one.'
-                : 'Every load is inside its limit, and every uncertainty is small enough for the decision to mean something.',
-          }),
-        ]),
-      ]),
-      table(
-        ['Load', 'Error', 'Limit (MPE)', 'U', 'MPE/3', ''],
-        data.testPoints.map((point) => [
-          { numeric: true, value: `${point.load} kg` },
-          { numeric: true, value: `${(point.indicationError * 1000).toFixed(1)} g` },
-          { numeric: true, value: `${(point.maximumPermissibleError * 1000).toFixed(1)} g` },
-          { numeric: true, value: `${(point.expandedUncertainty * 1000).toFixed(1)} g` },
-          { numeric: true, value: `${((point.maximumPermissibleError / 3) * 1000).toFixed(2)} g` },
-          badge(
-            point.verdict === 'pass'
-              ? point.expandedUncertainty <= point.maximumPermissibleError / 3
-                ? 'pass'
-                : 'warn'
-              : 'fail'
-          ),
-        ])
-      )
-    );
-  }
-
-  fragment.append(
-    panel('Adjust the verification', 'the instrument is class III, Max 15 kg, e = 5 g', [
-      sliderRow({
-        label: 'Error found at 15 kg',
-        min: -25,
-        max: 25,
-        step: 0.5,
-        value: state.error15 * 1000,
-        format: (raw) => `${raw.toFixed(1)} g  (limit 15.0 g)`,
-        onInput: (raw) => {
-          state.error15 = raw / 1000;
-          decide();
-        },
-      }),
-      sliderRow({
-        label: 'U of the verification',
-        min: 0.1,
-        max: 6,
-        step: 0.1,
-        value: state.uncertainty * 1000,
-        format: (raw) => `${raw.toFixed(1)} g  (limit MPE/3)`,
-        onInput: (raw) => {
-          state.uncertainty = raw / 1000;
-          decide();
-        },
-      }),
-      output,
-    ])
-  );
-
-  await decide();
-
-  fragment.append(
-    callout([
-      'Notice where the second slider bites first. At 2.5 kg the limit is 5 g, so the uncertainty may not exceed 1.67 g; at 15 kg the limit is 15 g and 5 g would do. A verification is at its most demanding at the <em>bottom</em> of the range, which is the opposite of most peoples intuition and the reason several loads are tested rather than one.',
-      'This is also where the calibration side earns its keep. The reference weight the verification body uses is calibrated by the institute under a published CMC, and without that the uncertainty in the second column is an assertion rather than a fact.',
-    ]),
-    prose([
-      '<strong>Delegating verification does not privatise regulation.</strong> Gotthard Verification Services is a private company, and it decides whether instruments comply. What it does not hold is any power over its own permission to do so: the designation, the scope of it, the supervision and the withdrawal all stay with the authority. In credential terms this needed no new mechanism at all — a designation is the same <code>RecognizedEntityCredential</code> the accreditation body issues, with <code>action: verify</code>, on a status list the authority controls.',
-    ])
-  );
-
-  return fragment;
-}
-
-// ---------------------------------------------------------------- chapter 8
-
 const GROUP_LABELS = {
   forgery: 'Forgery — the cryptography catches these',
   standing: 'Standing — the organisation was not entitled to issue it',
   metrological: 'Metrology — everything verifies and the claim is still wrong',
-  legal: 'Legal force — a genuine document doing a job it cannot do',
 };
 
 const GROUP_NOTES = {
@@ -1104,8 +888,6 @@ const GROUP_NOTES = {
     'Signatures say nothing about whether an accreditation has lapsed, been suspended, or never covered this activity. Recognition chains and status lists do.',
   metrological:
     'Every signature verifies, every organisation is in good standing, and the document is still wrong. A system that checked only the cryptography would accept every one of these.',
-  legal:
-    'The newest category, and the one that surprises people. A document can be genuine, current, correctly signed and issued by a body that really is recognised, and still carry no authority to do what is being asked of it.',
 };
 
 async function chapterBreakIt(context) {
@@ -1113,13 +895,13 @@ async function chapterBreakIt(context) {
   fragment.append(
     prose([
       'A demonstration where everything always passes teaches very little. Each case below is a specific thing that can go wrong, and each names in advance the single check that is supposed to notice it.',
-      'The last two groups are the ones worth dwelling on. In every case there, the signature is valid, the issuer is genuinely recognised, and the document is inside its validity period.',
+      'The third group is the one worth dwelling on. In every case there, the signature is valid, the issuer is genuinely recognised, and the document is inside its validity period.',
     ])
   );
 
   const output = el('div', {});
 
-  for (const group of ['forgery', 'standing', 'metrological', 'legal']) {
+  for (const group of ['forgery', 'standing', 'metrological']) {
     const cases = context.world.tamperCases.filter((item) => item.group === group);
     fragment.append(
       panel(
@@ -1167,7 +949,7 @@ async function chapterBreakIt(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 9
+// ---------------------------------------------------------------- chapter 8
 
 async function chapterImplications() {
   const fragment = document.createDocumentFragment();
@@ -1272,17 +1054,10 @@ export const CHAPTERS = [
     render: chapterDependencies,
   },
   {
-    id: 'legal',
-    title: 'Legal metrology: a different kind of decision',
-    eyebrow: 'The third pillar',
-    lede: 'A calibration tells you what an instrument does. A verification tells you whether it may lawfully be used, and that is not the same document, the same question, or the same authority.',
-    render: chapterLegalMetrology,
-  },
-  {
     id: 'break',
     title: 'Break it',
     eyebrow: 'Failure modes',
-    lede: 'Seventeen ways this can go wrong, and the one check that catches each. The interesting ones pass every cryptographic test.',
+    lede: 'Eleven ways this can go wrong, and the one check that catches each. The interesting ones pass every cryptographic test.',
     render: chapterBreakIt,
   },
   {

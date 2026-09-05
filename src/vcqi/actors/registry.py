@@ -45,10 +45,6 @@ class Actor:
         description: One sentence on what the organisation does here.
         issues: Short description of what it issues, or an empty string if it issues
             nothing and only receives and verifies credentials.
-        branch: Which pillar of the quality infrastructure it belongs to, one of
-            ``metrology``, ``accreditation`` or ``legal``. Used to let a reader isolate
-            one branch of the graph. An organisation can genuinely belong to more than
-            one, and where that happens the branch names the one it is drawn under.
     """
 
     did: str
@@ -58,7 +54,6 @@ class Actor:
     country: str
     description: str
     issues: str = ""
-    branch: str = "metrology"
 
     @property
     def domain(self) -> str:
@@ -95,7 +90,6 @@ class Actor:
             "issues": self.issues,
             "url": self.url,
             "domain": self.domain,
-            "branch": self.branch,
             "publicKeyMultibase": actor_key(self.did).public_key_multibase,
             "isTrustAnchor": self.did in TRUST_ANCHORS,
         }
@@ -114,7 +108,6 @@ ACTORS: tuple[Actor, ...] = (
             "metrology institutes participate in the CIPM MRA and for what."
         ),
         issues="Recognition of national metrology institutes, and CMC entries",
-        branch="metrology",
     ),
     Actor(
         did="did:web:global-aci.example",
@@ -128,25 +121,18 @@ ACTORS: tuple[Actor, ...] = (
             "recognition arrangement, and for which standards."
         ),
         issues="Recognition of accreditation bodies",
-        branch="accreditation",
     ),
     Actor(
         did="did:web:metas.example",
         name="METAS",
         legal_name="Federal Institute of Metrology (demonstration)",
-        role="National metrology institute and legal metrology authority",
+        role="National metrology institute",
         country="CH",
         description=(
-            "Realises the national measurement standards and calibrates against them, "
-            "and is also the authority that administers metrology legislation. The two "
-            "roles draw their authority from entirely different places: its calibration "
-            "certificates from the CIPM MRA, its type approvals from national law."
+            "Realises the national measurement standards and calibrates the reference "
+            "standards of accredited laboratories against them."
         ),
-        issues=(
-            "Calibration certificates carrying the CIPM MRA logo; type approvals and "
-            "designations of verification bodies"
-        ),
-        branch="metrology",
+        issues="Calibration certificates carrying the CIPM MRA logo",
     ),
     Actor(
         did="did:web:ptb.example",
@@ -156,15 +142,9 @@ ACTORS: tuple[Actor, ...] = (
         country="DE",
         description=(
             "A second institute recognised under the same arrangement, which is what "
-            "makes the recognition mutual rather than merely hierarchical. It is also "
-            "an OIML Issuing Authority, so it type-evaluates instrument designs under a "
-            "recognition that has nothing to do with the CIPM MRA."
+            "makes the recognition mutual rather than merely hierarchical."
         ),
-        issues=(
-            "Calibration certificates carrying the CIPM MRA logo; OIML certificates of "
-            "type evaluation"
-        ),
-        branch="metrology",
+        issues="Calibration certificates carrying the CIPM MRA logo",
     ),
     Actor(
         did="did:web:sas.example",
@@ -177,7 +157,6 @@ ACTORS: tuple[Actor, ...] = (
             "ISO/IEC 17065 and grants them a defined scope."
         ),
         issues="Accreditation of laboratories and certification bodies",
-        branch="accreditation",
     ),
     Actor(
         did="did:web:callab.example",
@@ -190,7 +169,6 @@ ACTORS: tuple[Actor, ...] = (
             "standard, and issues calibration certificates to its customers."
         ),
         issues="Accredited calibration certificates",
-        branch="metrology",
     ),
     Actor(
         did="did:web:testlab.example",
@@ -203,7 +181,6 @@ ACTORS: tuple[Actor, ...] = (
             "calibration it must be able to demonstrate."
         ),
         issues="Accredited test reports",
-        branch="accreditation",
     ),
     Actor(
         did="did:web:cab.example",
@@ -216,7 +193,6 @@ ACTORS: tuple[Actor, ...] = (
             "certifies that a product meets a standard, on the strength of test reports."
         ),
         issues="Certificates of conformity",
-        branch="accreditation",
     ),
     Actor(
         did="did:web:manufacturer.example",
@@ -228,103 +204,25 @@ ACTORS: tuple[Actor, ...] = (
             "Holds the certificate of conformity for its product and presents it when "
             "the product crosses a border."
         ),
-        branch="accreditation",
     ),
     Actor(
         did="did:web:surveillance.example",
         name="Market surveillance",
-        legal_name="Market Surveillance and Metrological Supervision (demonstration)",
-        role="Market surveillance and metrological supervision",
+        legal_name="Importing Market Surveillance Authority (demonstration)",
+        role="Verifier",
         country="XX",
         description=(
-            "Has no relationship with anyone upstream and has to decide anyway: whether "
-            "to clear goods at a border, and whether a scale in a shop is being used "
-            "lawfully. Supervision is a function rather than an organisation, and one "
-            "authority commonly performs both."
+            "Has no relationship with anyone upstream, trusts only the two "
+            "international anchors, and has to decide whether to clear the goods."
         ),
-        branch="legal",
-    ),
-    Actor(
-        did="did:web:oiml.example",
-        name="OIML",
-        legal_name="International Organization of Legal Metrology (demonstration)",
-        role="International harmonisation",
-        country="",
-        description=(
-            "Publishes Recommendations for regulated instruments and runs the "
-            "certification system that produces internationally usable type-evaluation "
-            "evidence. Deliberately not a trust anchor here: a Recommendation is not law "
-            "and an OIML certificate is not a national approval."
-        ),
-        issues="Recognition of OIML Issuing Authorities",
-        branch="legal",
-    ),
-    Actor(
-        did="did:web:legislator.example",
-        name="Federal legislator",
-        legal_name="Metrology Ordinance of the Confederation (demonstration)",
-        role="Legal trust anchor",
-        country="CH",
-        description=(
-            "Where legal force actually comes from. It decides which measurements are "
-            "regulated, and makes an authority competent to approve instrument types "
-            "and to designate the bodies that verify them."
-        ),
-        issues="Competence of the legal metrology authority",
-        branch="legal",
-    ),
-    Actor(
-        did="did:web:verifybody.example",
-        name="Gotthard Verification",
-        legal_name="Gotthard Verification Services AG (demonstration)",
-        role="Authorised verification body",
-        country="CH",
-        description=(
-            "A private company designated to perform legal verification. Delegating "
-            "verification does not delegate regulation: the designation, the oversight "
-            "and the power to withdraw it all remain public."
-        ),
-        issues="Verification certificates and verification marks",
-        branch="legal",
-    ),
-    Actor(
-        did="did:web:retailer.example",
-        name="Bergblick Delikatessen",
-        legal_name="Bergblick Delikatessen GmbH (demonstration)",
-        role="Instrument user",
-        country="CH",
-        description=(
-            "Weighs goods for sale, and is the party whose customers the law is "
-            "ultimately protecting. It holds the verification certificate for its scale."
-        ),
-        branch="legal",
     ),
 )
 
 #: The identifiers the verifier is configured to trust directly. Everything else has to
 #: be reached from one of these by following recognition, which is the entire point.
-#: They are independent, and each establishes exactly one thing: metrological standing
-#: from the BIPM, competence to assess from Global ACI, technical type evaluation from
-#: OIML, and legal force from the legislator alone. Reaching one says nothing about the
-#: others, which is why a document can be impeccably recognised and still not do the job
-#: it is being put to.
 TRUST_ANCHORS: frozenset[str] = frozenset(
-    {
-        "did:web:bipm.example",
-        "did:web:global-aci.example",
-        "did:web:legislator.example",
-        "did:web:oiml.example",
-    }
+    {"did:web:bipm.example", "did:web:global-aci.example"}
 )
-
-#: Reaching one of these establishes technical recognition and no legal force whatever.
-#: The distinction is easy to state and easy to lose: an OIML Issuing Authority really is
-#: recognised, its certificates really are evidence, and a national authority relying on
-#: them is exactly what the certification system exists for. What none of that does is
-#: make an instrument lawful anywhere, because a Recommendation is not law. So a chain
-#: that terminates here is a perfectly good chain, and it cannot support a conformity
-#: decision; conformity.legal-basis is where that is enforced.
-NOT_A_LEGAL_ANCHOR: frozenset[str] = frozenset({"did:web:oiml.example"})
 
 _BY_DID = {actor.did: actor for actor in ACTORS}
 

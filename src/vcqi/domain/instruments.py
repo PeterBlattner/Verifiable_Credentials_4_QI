@@ -145,35 +145,3 @@ SHARED_REFERENCE_PAIR: tuple[Instrument, Instrument] = (
 
 INSTRUMENTS = INSTRUMENTS + SHARED_REFERENCE_PAIR
 _BY_ID.update({instrument.id: instrument for instrument in SHARED_REFERENCE_PAIR})
-
-
-#: The artefacts of the legal metrology branch. The reference weight is what connects the
-#: two systems: it is calibrated by the institute under a published CMC, and it is what
-#: the verification body weighs with. The scale is the thing the law actually cares about.
-LEGAL_METROLOGY_INSTRUMENTS: tuple[Instrument, ...] = (
-    Instrument(
-        id="urn:instrument:verifybody:weight:M1-5KG-0007",
-        kind="ReferenceWeight",
-        name="5 kilogram reference weight, OIML class M1",
-        manufacturer="Haefeli (demonstration)",
-        model="M1 stainless steel",
-        serial_number="M1-5KG-0007",
-        owner="did:web:verifybody.example",
-        nominal_value=5.0,
-        unit="kg",
-    ),
-    Instrument(
-        id="urn:instrument:retailer:scale:NAWI-88421",
-        kind="NonAutomaticWeighingInstrument",
-        name="Retail counter scale, Max 15 kg, e = 5 g, accuracy class III",
-        manufacturer="Waagen Wyss AG (demonstration)",
-        model="WW-1500 III",
-        serial_number="NAWI-88421",
-        owner="did:web:retailer.example",
-        nominal_value=15.0,
-        unit="kg",
-    ),
-)
-
-INSTRUMENTS = INSTRUMENTS + LEGAL_METROLOGY_INSTRUMENTS
-_BY_ID.update({instrument.id: instrument for instrument in LEGAL_METROLOGY_INSTRUMENTS})

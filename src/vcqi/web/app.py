@@ -25,13 +25,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from vcqi.actors.registry import (
-    ACTORS,
-    NOT_A_LEGAL_ANCHOR,
-    TRUST_ANCHORS,
-    actor_by_did,
-    did_document,
-)
+from vcqi.actors.registry import ACTORS, TRUST_ANCHORS, actor_by_did, did_document
 from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
 from vcqi.config import DEFAULT_HOST, DEFAULT_PORT
@@ -39,7 +33,6 @@ from vcqi.crypto.dataintegrity import ProofTrace
 from vcqi.domain.accreditation import ACCREDITATION_SCOPES
 from vcqi.domain.gtc_archive import GTC_UNAVAILABLE_NOTE, gtc_available
 from vcqi.domain.kcdb import CMC_ENTRIES, cmc_by_id
-from vcqi.domain.legal import UNCERTAINTY_RATIO, TestPoint, evaluate_conformity
 from vcqi.domain.scope import MeasurementClaim, evaluate_scope
 from vcqi.domain.uncertainty import (
     evaluate,
@@ -128,20 +121,7 @@ def _graph() -> dict[str, Any]:
     current = world()
     edges: list[dict[str, Any]] = []
 
-    # Recognition and authority are drawn differently because they mean different
-    # things. Recognition says an organisation is competent; authority says it has legal
-    # power. An accreditation body vouching for a laboratory and an ordinance making an
-    # authority competent are not the same act, and the picture should not suggest they
-    # are.
-    recognitions = [
-        ("bipm-recognition", "recognition", "metrology"),
-        ("global-aci-recognition", "recognition", "accreditation"),
-        ("sas-recognition", "recognition", "accreditation"),
-        ("oiml-recognition", "recognition", "legal"),
-        ("legislator-recognition", "authority", "legal"),
-        ("metas-designation", "authority", "legal"),
-    ]
-    for name, kind, branch in recognitions:
+    for name in ("bipm-recognition", "global-aci-recognition", "sas-recognition"):
         credential = current.credential(name)
         source = issuer_id(credential)
         subjects = credential.get("credentialSubject", [])
@@ -153,8 +133,7 @@ def _graph() -> dict[str, Any]:
                 {
                     "source": source,
                     "target": entry.get("id"),
-                    "kind": kind,
-                    "branch": branch,
+                    "kind": "recognition",
                     "label": ", ".join(sorted({str(a.get("action")) for a in actions})),
                     "credential": name,
                     "credentialId": credential["id"],
@@ -162,16 +141,12 @@ def _graph() -> dict[str, Any]:
             )
 
     issuance = [
-        ("metas-calibration", "owner", "calibration certificate", "metrology"),
-        ("callab-calibration", "owner", "calibration certificate", "metrology"),
-        ("testlab-report", "client", "test report", "accreditation"),
-        ("cab-conformity", "holder", "certificate of conformity", "accreditation"),
-        ("metas-weight-calibration", "owner", "calibration certificate", "legal"),
-        ("oiml-certificate", "applicant", "OIML certificate, no legal effect", "legal"),
-        ("type-approval", "holder", "type approval", "legal"),
-        ("verification-certificate", "owner", "verification certificate", "legal"),
+        ("metas-calibration", "owner", "calibration certificate"),
+        ("callab-calibration", "owner", "calibration certificate"),
+        ("testlab-report", "client", "test report"),
+        ("cab-conformity", "holder", "certificate of conformity"),
     ]
-    for name, member, label, branch in issuance:
+    for name, member, label in issuance:
         credential = current.credential(name)
         subject = credential.get("credentialSubject", {})
         recipient = subject.get(member, {}) if isinstance(subject, dict) else {}
@@ -180,7 +155,6 @@ def _graph() -> dict[str, Any]:
                 "source": issuer_id(credential),
                 "target": recipient.get("id"),
                 "kind": "issuance",
-                "branch": branch,
                 "label": label,
                 "credential": name,
                 "credentialId": credential["id"],
@@ -192,21 +166,9 @@ def _graph() -> dict[str, Any]:
             "source": "did:web:manufacturer.example",
             "target": "did:web:surveillance.example",
             "kind": "presentation",
-            "branch": "accreditation",
             "label": "presents at the border",
             "credential": "cab-conformity",
             "credentialId": current.credential("cab-conformity")["id"],
-        }
-    )
-    edges.append(
-        {
-            "source": "did:web:retailer.example",
-            "target": "did:web:surveillance.example",
-            "kind": "presentation",
-            "branch": "legal",
-            "label": "presents at inspection",
-            "credential": "verification-certificate",
-            "credentialId": current.credential("verification-certificate")["id"],
         }
     )
 
@@ -214,8 +176,6 @@ def _graph() -> dict[str, Any]:
         "nodes": [actor.to_json() for actor in ACTORS],
         "edges": edges,
         "trustAnchors": sorted(TRUST_ANCHORS),
-        "notALegalAnchor": sorted(NOT_A_LEGAL_ANCHOR),
-        "branches": ["metrology", "accreditation", "legal"],
     }
 
 
@@ -805,84 +765,6 @@ def _shared_influences(first: str, second: str) -> list[dict[str, Any]]:
         for identifier, description in sorted(left.items())
         if identifier in right
     ]
-
-
-class ConformityRequest(BaseModel):
-    """A request to re-decide a verification from adjusted test points.
-
-    Attributes:
-        accuracy_class: The OIML R 76 accuracy class of the instrument.
-        scale_interval: The verification scale interval e, in kilograms.
-        in_service: Subsequent verification, which is allowed twice the initial limit.
-        decision: The decision to test the points against.
-        test_points: Loads with the error found and the uncertainty of finding it, as
-            triples of (load, indicationError, expandedUncertainty) in kilograms.
-    """
-
-    accuracy_class: str = "III"
-    scale_interval: float = 0.005
-    in_service: bool = True
-    decision: str = "pass"
-    test_points: list[tuple[float, float, float]] = [
-        (2.5, 0.002, 0.0010),
-        (5.0, 0.003, 0.0010),
-        (10.0, -0.004, 0.0010),
-        (15.0, 0.006, 0.0010),
-    ]
-
-
-@app.post("/api/conformity")
-def post_conformity(request: ConformityRequest) -> dict[str, Any]:
-    """Decide a verification from its test points, and say whether it is supportable.
-
-    Two answers come back and they are not the same answer. Whether the instrument
-    complies is decided by the errors against the limits. Whether anyone can *say* it
-    complies is decided by the uncertainties against a third of those limits. A
-    verification can be right and unsupportable, and an inspector needs to tell those
-    apart.
-
-    Args:
-        request: The instrument characteristics and the points measured.
-
-    Returns:
-        The verdict with every condition, and the rendered test points.
-
-    Raises:
-        HTTPException: If the accuracy class or the scale interval is not usable.
-    """
-    try:
-        rendered = [
-            TestPoint(
-                load=load,
-                indication_error=error,
-                expanded_uncertainty=uncertainty,
-                coverage_factor=2.0,
-                unit="kg",
-            ).to_json(
-                scale_interval=request.scale_interval,
-                accuracy_class=request.accuracy_class,
-                in_service=request.in_service,
-            )
-            for load, error, uncertainty in request.test_points
-        ]
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-    verdict = evaluate_conformity(
-        rendered,
-        decision=request.decision,
-        scale_interval=request.scale_interval,
-        accuracy_class=request.accuracy_class,
-        in_service=request.in_service,
-    )
-    return {
-        "testPoints": rendered,
-        "verdict": verdict.to_json(),
-        "impliedDecision": verdict.implied_decision,
-        "decisionFollows": verdict.decision_follows,
-        "adequatelyMeasured": verdict.adequately_measured,
-        "uncertaintyRatio": UNCERTAINTY_RATIO,
-    }
 
 
 @app.get("/api/gtc")
