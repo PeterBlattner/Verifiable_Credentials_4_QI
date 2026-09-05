@@ -785,6 +785,117 @@ async function chapterScope(context) {
 
 // ---------------------------------------------------------------- chapter 6
 
+/** Render the PTB/DKD DCC tab: the document, and what it does that the others do not. */
+function dccTab(body, representations, context) {
+  const dcc = representations.find((item) => item.format === 'PTB-DKD-DCC-XML');
+  if (!dcc) {
+    body.append(el('p', { class: 'muted', text: 'This certificate carries no PTB/DKD DCC.' }));
+    return;
+  }
+
+  body.append(
+    prose([
+      'The <strong>PTB/DKD DCC</strong> is doing something different from the other three, and the difference is worth pausing on. Note the name, too: several things are called a PTB/DKD DCC, and this is the one the PTB and the DKD define.',
+      'Classical, UncLib and GTC all describe a <em>result</em> — how good a number is, and what it rests on. A PTB/DKD DCC describes a <em>document</em>: who calibrated what, for whom, when, under which conditions, with which equipment, and what came out. It is a calibration certificate in a schema, not an uncertainty in a format.',
+      `Inside it the quantity is written in <strong>D-SI</strong>, which is where the two levels meet. And D-SI's <code>si:expandedUnc</code> carries a value, an uncertainty, a coverage factor and a probability — that is the classical statement exactly, and it is not the dependency structure. So the two do not compete: a certificate wanting a standardised document <em>and</em> transmissible dependencies carries a PTB/DKD DCC and an UncLib block together, which is what this one does.`,
+    ]),
+    keyValues([
+      ['Schema', `PTB/DKD DCC ${dcc.schemaVersion}, namespace https://ptb.de/dcc`],
+      ['Quantities', `${dcc.quantityFormat}, namespace https://ptb.de/si`],
+      ['Carried', 'content' in dcc ? 'inline in the credential' : `separately, at ${dcc.id}`],
+      ['Digest', el('span', { class: 'hash', text: dcc.digestMultibase })],
+    ]),
+    panel(
+      'How this certificate maps onto the schema',
+      'our field on the left, the element it becomes on the right',
+      table(
+        ['This demonstration', 'PTB/DKD DCC'],
+        [
+          ['certificate number', 'dcc:administrativeData / dcc:coreData / dcc:uniqueIdentifier'],
+          ['the calibrated instrument', 'dcc:administrativeData / dcc:items / dcc:item'],
+          ['the issuing laboratory', 'dcc:administrativeData / dcc:calibrationLaboratory'],
+          ['the owner', 'dcc:administrativeData / dcc:customer'],
+          ['date of calibration', 'dcc:coreData / dcc:beginPerformanceDate'],
+          ['conditions', 'dcc:measurementResult / dcc:influenceConditions'],
+          ['the reference standard', 'dcc:measurementResult / dcc:measuringEquipments'],
+          ['value and unit', 'si:real / si:value and si:unit'],
+          ['U and k', 'si:expandedUnc / si:uncertainty and si:coverageFactor'],
+        ]
+      )
+    ),
+    callout([
+      'One detail worth having been careful about: D-SI writes units the way siunitx does, as English names each preceded by a backslash. Ohm is <code>\\ohm</code>. Kilogram is <code>\\kilo\\gram</code> and <em>not</em> <code>\\kilogram</code>, because the prefix is a token of its own. The generator here refuses to emit a unit it has no mapping for, rather than guessing — a certificate that quietly states the wrong unit is worse than one that fails to be produced.',
+    ]),
+    el('h3', { text: 'The document' }),
+    el('pre', { class: 'code json json--tall', text: dcc.content || `published separately at ${dcc.id}` }),
+    callout([dcc.signatureNote])
+  );
+}
+
+/** Show every fact the credential and the PTB/DKD DCC both state, and whether they agree. */
+async function duplicationPanel(context, certificateName) {
+  const data = await api.credential(certificateName);
+  const report = await api.verify({ name: certificateName });
+
+  const find = (id) => {
+    const walk = (steps) => {
+      for (const step of steps) {
+        if (step.id === id) return step;
+        const found = walk(step.children || []);
+        if (found) return found;
+      }
+      return null;
+    };
+    return walk(report.steps);
+  };
+
+  const duplication = find('uncertainty.duplication');
+  const agreement = find('uncertainty.agreement');
+
+  const rows = (duplication && duplication.children ? duplication.children : []).map((child) => {
+    const parts = child.detail.split(', PTB/DKD DCC says ');
+    return [
+      badge(child.status),
+      child.title,
+      el('span', { class: 'hash', text: (parts[0] || '').replace('credential says ', '') }),
+      el('span', { class: 'hash', text: parts[1] || '' }),
+    ];
+  });
+
+  return panel(
+    'What is now said twice',
+    'the cost of putting one standardised document inside another',
+    [
+      prose([
+        'Wrapping a PTB/DKD DCC in a credential duplicates most of the certificate. That is not a flaw in either format — each was built to stand alone — but putting one inside the other makes the overlap unavoidable, and <strong>duplication permits disagreement</strong>. The signature stops anyone editing either copy after issue. It does nothing at all about an issuer writing them inconsistent in the first place.',
+      ]),
+      rows.length
+        ? table(['', 'Fact', 'The credential says', 'The PTB/DKD DCC says'], rows)
+        : el('p', { class: 'muted', text: 'No duplicated facts were compared.' }),
+      agreement
+        ? el('p', {
+            class: 'muted',
+            text: `And the measurement itself: ${agreement.detail}`,
+          })
+        : null,
+      el('h3', { text: 'Including the signature' }),
+      table(
+        ['', 'The credential proof', 'ds:Signature in a PTB/DKD DCC'],
+        [
+          ['canonicalization', 'RFC 8785 over the credential', 'XML C14N over the document'],
+          ['finding the key', 'resolve the issuer identifier', 'an X.509 certificate chain'],
+          ['revocation', 'a status list', 'CRL or OCSP'],
+          ['what it covers', 'the credential, including a digest of the PTB/DKD DCC', 'the PTB/DKD DCC alone'],
+        ]
+      ),
+      callout([
+        'A document carrying both can verify under one mechanism and fail under the other, and there is no natural rule for which wins. So this demonstration <strong>signs once</strong>: the credential proof covers the credential, the credential carries a digest of the PTB/DKD DCC bytes, and the <code>ds:Signature</code> slot stays empty. One trust path. That is a choice rather than an obligation.',
+        'There are three honest ways to live with the rest of the redundancy, and only the first is built here. <strong>Duplicate and check</strong>, so every repeated fact becomes somewhere a mistake gets caught. <strong>Do not duplicate</strong>, by making the PTB/DKD DCC the credential subject and letting <code>issuer</code> and <code>validFrom</code> be views of it — cleanest, and probably what a real deployment settles on. Or <strong>declare precedence</strong>, saying which copy governs, which works and needs governance and is never read at the moment it is needed.',
+      ]),
+    ]
+  );
+}
+
 /**
  * Show the same measurement in each way it can be handed to a customer.
  *
@@ -804,6 +915,7 @@ async function representationPanel(context, certificateName) {
     { key: 'classical', label: 'Classical' },
     { key: 'unclib', label: 'METAS UncLib' },
     { key: 'gtc', label: 'GTC' },
+    { key: 'dcc', label: 'PTB/DKD DCC' },
   ];
 
   const bar = el(
@@ -893,6 +1005,11 @@ async function representationPanel(context, certificateName) {
       return;
     }
 
+    if (kind === 'dcc') {
+      dccTab(body, representations, context);
+      return;
+    }
+
     const archive = representations.find((item) => item.format === 'GTC-archive-JSON');
     body.append(
       prose([
@@ -915,7 +1032,7 @@ async function representationPanel(context, certificateName) {
 
   show('classical');
   return panel(
-    'One measurement, three ways of handing it over',
+    'One measurement, four ways of handing it over',
     certificateName === 'metas-calibration' ? 'Certificate METAS-2026-0417' : certificateName,
     [bar, body]
   );
@@ -985,6 +1102,7 @@ async function chapterTraceability(context) {
   }
 
   fragment.append(await representationPanel(context, 'metas-calibration'));
+  fragment.append(await duplicationPanel(context, 'metas-calibration'));
 
   const live = el('div', {});
   const state = {
@@ -1279,7 +1397,8 @@ async function chapterImplications() {
       '<strong>Governance of the identifiers.</strong> Someone has to decide what the BIPM&rsquo;s identifier is, who controls it, how it is rotated, and what happens when a key is compromised. This is a governance problem wearing a technical costume, and it is the hard part.',
       '<strong>The KCDB as a signed registry.</strong> The CMC data already exists and is already peer reviewed. What is missing is publication in a form that carries a signature and a stable content digest.',
       '<strong>Long-term validation.</strong> Calibration certificates are kept for decades and signatures do not age well. Anything real needs timestamping and an archival strategy from the start, not added later.',
-      '<strong>Alignment with the DCC.</strong> The certificate payloads here are deliberately simplified for legibility. The obvious path is not to invent a format but to carry a PTB/DKD Digital Calibration Certificate as the credential subject, so the credential layer adds recognition and revocation to a payload the community has already agreed on.',
+      '<strong>Alignment with the PTB/DKD DCC.</strong> Every calibration certificate here now carries one, in the real namespaces with the quantity in D-SI, so the same calibration appears both as a readable subject and as a standardised document. What is still missing is the part that matters most for a deployment: it is a subset rather than a conformant document, it is not validated against the published XSD, the <code>ds:Signature</code> slot is unused, and the credential subject is still the readable shape rather than the PTB/DKD DCC itself. D-SI also does not model dependency structure, so an UncLib or GTC block still has to ride alongside it.',
+      '<strong>And what the redundancy taught, which generalises.</strong> Wrapping an existing standardised document inside a credential duplicates most of it, including its integrity mechanism. Who calibrated, for whom, when, under which number — all said twice, in two vocabularies, with nothing keeping them together. A real deployment has to choose deliberately between duplicating and checking, not duplicating at all, or declaring which copy governs. This demonstration duplicates and checks, because that is the cheapest thing to show and it turns every repeated fact into somewhere a mistake gets caught. The version worth building is probably the second: make the document the subject, and derive the rest from it.',
       '<strong>Selective disclosure.</strong> A calibration certificate names a customer and an instrument. A testing laboratory may need to prove its equipment is traceable and in scope without disclosing the certificate. That is what SD-JWT or BBS signatures are for, and none of it is implemented here.',
       '<strong>Relationship to eIDAS 2.0 and the EU Digital Identity Wallet.</strong> Organisational credentials are arriving in European regulation on their own schedule. Whatever the quality infrastructure does should meet that rather than run beside it.',
     ]))

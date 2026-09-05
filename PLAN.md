@@ -844,3 +844,328 @@ proof binds the claim to a key. Either check alone would let the forgery through
   the main line this time.
 - Pressing **Derive** twice with the same passphrase changed nothing on screen, which
   looked broken and is in fact the lesson. It now says so explicitly instead.
+
+---
+
+# Change set 5 - the PTB/DKD DCC as a carrier
+
+## Context
+
+Chapter 6 shows one measurement carried three ways: the classical `value ± U (k = 2)`,
+the METAS UncLib dependency structure, and a GTC archive. All three answer the same
+question — how do you transmit an uncertainty so the recipient can use it.
+
+The **PTB/DKD DCC** answers a different one, and that difference is the most useful thing
+the addition brings. It is not a way of expressing an uncertainty; it is a standardised
+way of expressing an entire calibration certificate — who calibrated what, when, for
+whom, under which conditions, with which equipment, and what came out. The uncertainty
+inside it is expressed in **D-SI**, and D-SI's `si:expandedUnc` carries a value, an
+uncertainty, a coverage factor and a coverage probability. That is the classical
+statement. It is not the dependency structure.
+
+So the four carriers are not four alternatives. They stack:
+
+| Carrier | Answers | Level |
+| --- | --- | --- |
+| Classical `value ± U` | how good is this number | a result |
+| METAS UncLib | what does it depend on | a result |
+| GTC archive | the same, independently | a result |
+| **PTB/DKD DCC** | what is the whole certificate | **a document** |
+
+A PTB/DKD DCC and an UncLib block are not competing; a certificate can carry both, the
+DCC standardising the document and the dependency representation supplying what D-SI does
+not model. Chapter 6 currently implies the three carriers are alternatives, and adding
+the fourth is what makes the levels visible.
+
+ARCHITECTURE.md already calls DCC alignment "the obvious next step". This does a
+deliberately partial version of it and says exactly how partial.
+
+**Naming.** Other DCCs exist. Every mention in code, prose and documentation says
+**PTB/DKD DCC**, and existing bare "DCC" mentions get normalised.
+
+Decisions taken with the user: a schema-shaped subset, carried alongside the readable
+subject rather than replacing it, with the `ds:Signature` slot left empty and discussed,
+and the agreement check extended to read it.
+
+## The document
+
+Real namespaces and real element names, in the real nesting, carrying only what this
+demonstration has data for — and labelled a subset rather than a conformant document.
+
+- DCC **3.3.0**, namespace `https://ptb.de/dcc`
+- D-SI **2.2.1**, namespace `https://ptb.de/si`
+
+```
+dcc:digitalCalibrationCertificate
+├── dcc:administrativeData
+│   ├── dcc:coreData        countryCodeISO3166_1, usedLangCodeISO639_1,
+│   │                       mandatoryLangCodeISO639_1, uniqueIdentifier,
+│   │                       beginPerformanceDate, endPerformanceDate,
+│   │                       performanceLocation, issueDate
+│   ├── dcc:items           the instrument: name, manufacturer, model, identifications
+│   ├── dcc:calibrationLaboratory   the issuer
+│   └── dcc:customer        the owner
+├── dcc:measurementResults
+│   └── dcc:measurementResult
+│       ├── dcc:usedMethods           the measurand and the method
+│       ├── dcc:measuringEquipments   the reference standard, by certificate
+│       ├── dcc:influenceConditions   the stated conditions
+│       └── dcc:results/dcc:result/dcc:data/dcc:list/dcc:quantity
+│           └── si:real   si:value, si:unit, si:expandedUnc
+│                                  └── si:uncertainty, si:coverageFactor,
+│                                      si:coverageProbability
+└── (dcc:comment, dcc:document, ds:Signature — deliberately absent)
+```
+
+**Units are D-SI, not our symbols.** D-SI writes units siunitx-style with backslashed
+English names, so `ohm` becomes `\ohm` and — the one that catches people — `kg` becomes
+`\kilo\gram`, not `\kilogram`, because the prefix is its own token. A small explicit
+mapping covers the units this world uses and **raises** on anything unmapped, so the
+demonstration can never quietly emit a wrong unit.
+
+## Redundancy: two copies of nearly everything
+
+Wrapping a PTB/DKD DCC in a verifiable credential duplicates most of the certificate,
+and this is the part of the exercise most worth being explicit about. It is not a flaw
+in either format — each was designed to stand alone — but putting one inside the other
+makes the overlap unavoidable.
+
+| Fact | In the credential | In the PTB/DKD DCC |
+| --- | --- | --- |
+| who calibrated | `issuer.id`, `issuer.name` | `dcc:calibrationLaboratory` |
+| for whom | `credentialSubject.owner` | `dcc:customer` |
+| certificate number | `id`, `calibration.certificateNumber` | `dcc:coreData/dcc:uniqueIdentifier` |
+| when | `validFrom`, `calibration.performedOn` | `dcc:beginPerformanceDate`, `dcc:endPerformanceDate`, `dcc:issueDate` |
+| the instrument | `credentialSubject` | `dcc:items` |
+| the result | `calibration.results[0]` | `si:real` |
+| **integrity** | `proof` | `ds:Signature` |
+
+**Duplication permits disagreement.** The signature stops anyone editing either copy
+after issue; it does nothing about an issuer emitting them inconsistent in the first
+place. Two copies of a fact inside one signed document are one copy too many unless
+something reads both.
+
+### The signatures in particular
+
+The DCC's `ds:Signature` and the credential's `proof` are two integrity mechanisms over
+overlapping content, and they do not merely repeat each other — they differ at every
+layer that matters:
+
+| | credential `proof` | `ds:Signature` in a DCC |
+| --- | --- | --- |
+| canonicalization | RFC 8785 over the credential | XML C14N over the document |
+| key discovery | resolve the issuer identifier | an X.509 certificate chain |
+| revocation | status list | CRL or OCSP |
+| what it covers | the credential, including a digest of the DCC | the DCC only |
+
+A document carrying both can verify under one and fail under the other, and there is no
+natural rule for which wins. So this demonstration signs once: the credential proof
+covers the credential, the credential carries a digest of the DCC bytes, the
+`ds:Signature` slot stays empty, and there is exactly one trust path. That is a choice,
+not an obligation, and the chapter says so.
+
+### Three ways to live with the rest
+
+Worth naming all three, because the demonstration only implements one and the other two
+are not worse:
+
+1. **Duplicate and check** — what this does. Every duplicated fact becomes a place the
+   verifier can catch an inconsistency, which turns a liability into an asset. Cheap,
+   and it is why the pipeline gains a duplication check rather than only a numeric one.
+2. **Do not duplicate** — make the DCC the credential subject and let `issuer` and
+   `validFrom` be derived views of it. Cleanest, and probably what a real deployment
+   settles on. It changes every chapter here, which is why it is described rather than
+   built.
+3. **Duplicate and declare precedence** — state in the credential which copy governs.
+   It works, it needs governance, and nobody reads the rule at the moment they need it.
+
+## Code
+
+### `src/vcqi/domain/dcc.py` (new)
+
+- `DSI_UNITS` — the mapping, with the `\kilo\gram` subtlety commented where someone
+  will actually read it.
+- `to_dcc_xml(result, *, certificate, instrument, issuer, owner, conditions, measurand,
+  reference)` — builds the document with `xml.etree.ElementTree`, which is already a
+  dependency of `domain/uncertainty.py`.
+- `parse_dcc_result(xml)` — reads `si:value`, `si:unit`, `si:uncertainty` and
+  `si:coverageFactor` back out. Used by the verifier, and written with a plain XML parser
+  so the check does not depend on the tool that wrote the document.
+
+### `src/vcqi/vc/model.py`
+
+`uncertainty_representations()` gains a `dcc_xml` parameter and emits a fifth entry with
+`type: "CertificateRepresentation"` and `format: "PTB-DKD-DCC-XML"`. It goes inline like
+the UncLib XML, since a one-result DCC is a couple of kilobytes, and carries a
+`digestMultibase` over the raw bytes exactly like every other entry.
+
+The member is still called `uncertaintyRepresentations`, which is now slightly narrow for
+what it holds. Renaming it would change every signed credential and both generated
+schemas for a cosmetic gain, so the name stays and `type` carries the distinction —
+recorded in ARCHITECTURE.md rather than left as a puzzle.
+
+### `src/vcqi/vc/verify.py`
+
+`_step_representations` already digest-checks anything it does not recognise, so the DCC
+is covered from the moment it exists. Two changes make it *read*:
+
+- pick up `PTB-DKD-DCC-XML`, parse it, and keep the value and Expanded Uncertainty;
+- `_step_agreement` compares **three** sources rather than two — the printed line, the
+  dependency representation, and the DCC — and reports which one disagrees.
+
+The DCC states an *Expanded* uncertainty with its coverage factor, so the comparison
+divides by `si:coverageFactor` before comparing with the printed `u`. Getting that
+backwards would be exactly the kind of error the check exists to catch, so the test
+asserts it both ways.
+
+A third child, **`uncertainty.duplication`**, reads the facts the two carriers state
+twice — the certificate number, the calibrating laboratory, the customer and the
+performance dates — and confirms they agree. This is what turns the redundancy above
+from a liability into something useful: every duplicated field becomes a place an
+inconsistent issuer gets caught.
+
+Two naming compromises come out of this change, and they are better recorded than
+rediscovered. The member is still `uncertaintyRepresentations` and the step is still
+`uncertainty`, both of which are now narrower than what they hold. Renaming the member
+would change every signed credential and both generated schemas; renaming the step would
+break ids that the tests and the interface refer to. So the names stay, the `type` and
+the step ids carry the meaning, and ARCHITECTURE.md says so in one place rather than
+leaving two puzzles.
+
+### `src/vcqi/actors/tamper.py`
+
+Two new metrological cases, both signed correctly with matching digests:
+
+- **`dcc-disagrees`** — the DCC states a different measured value from the printed line.
+  Caught by `uncertainty.agreement`.
+- **`dcc-names-another-laboratory`** — the DCC's `dcc:calibrationLaboratory` names a
+  different body from the credential's `issuer`. Every signature and digest is intact,
+  and the document contradicts itself about who performed the calibration. Caught by
+  `uncertainty.duplication`, and it exists precisely because that failure is invisible
+  without a check that reads both copies.
+
+Fifteen cases total.
+
+## Chapters
+
+### Chapter 6 — a fourth tab
+
+`representationPanel` gains **PTB/DKD DCC** beside Classical, METAS UncLib and GTC. It
+shows the generated document, a table mapping our fields onto the DCC and D-SI elements
+they become, and makes the level distinction explicit: the first three carry a *result*,
+this one carries a *document*, and they compose rather than compete.
+
+A second panel, **What is now said twice**, renders the redundancy table against the
+actual documents: each duplicated fact with the credential's value beside the DCC's, and
+a badge where the verifier compared them. It ends on the signature comparison — two
+mechanisms, different canonicalization, different key discovery, different revocation —
+and states plainly that the demonstration signs once and covers the DCC by digest, that
+this is a choice rather than an obligation, and that using both needs a precedence rule
+which is governance rather than engineering.
+
+### Chapter 9 — rewrite the alignment paragraph
+
+It currently says carrying a PTB/DKD DCC as the credential subject is the obvious next
+step. Part of that is now demonstrated, so the text should say what is real and what is
+not: the document is a subset, it is not validated against the published XSD, the
+`ds:Signature` slot is unused, D-SI does not model dependency structure so UncLib or GTC
+still has to ride alongside, and the credential subject is still the readable shape rather
+than the DCC itself.
+
+It should also gain what the redundancy actually taught, because it is the more
+transferable lesson: wrapping an existing standardised document in a credential
+duplicates most of it, including its integrity mechanism, and a real deployment has to
+decide deliberately between duplicating and checking, not duplicating at all, or
+declaring precedence. This demonstration duplicates and checks because that is the
+cheapest thing to show; the version worth building is probably the second.
+
+## Files
+
+```
+src/vcqi/domain/dcc.py              new
+src/vcqi/vc/model.py                the fifth representation
+src/vcqi/vc/verify.py               read the DCC, three-way agreement
+src/vcqi/actors/scenarios.py        generate it for both calibration certificates
+src/vcqi/actors/tamper.py           dcc-disagrees
+src/vcqi/web/static/js/chapters.js  chapter 6 tab, chapter 9 paragraph
+tests/test_dcc.py                   new
+README.md, ARCHITECTURE.md          normalise naming, record the compromises
+```
+
+Reused unchanged: `uncertainty_representations` digest and inline handling,
+`_step_representations`, `credential_reference`, the scenario wiring that already passes
+`gtc_archive` through.
+
+## Verification
+
+- `uv run pytest` — 213 existing plus roughly 20 new. Specifically: `\ohm` and
+  `\kilo\gram` are produced and an unmapped unit raises; the generated document parses,
+  declares both namespaces and the right schema version, and has the full element path
+  down to `si:real`; `parse_dcc_result` round-trips the value, unit, `U` and `k`; the
+  agreement check passes for both real certificates and fails when the DCC is altered;
+  and `si:coverageFactor` is applied in the right direction.
+- The duplication check: every field the two carriers state twice agrees for the real
+  certificates, and altering any one of them in the DCC alone is caught while every
+  signature and digest stays valid.
+- All 15 failure cases caught by the step each names.
+- `uv run vc-demo`, then chapter 6, all four tabs and the duplication panel.
+- `node tools/ui-clicks.mjs` — the tool is on `develop` now, so run it directly.
+- `python -m vcqi.actors.scenarios --dump` twice, byte-identical.
+
+## Git
+
+Branch from `develop`:
+
+```
+git switch -c feature/ptb-dkd-dcc develop
+```
+
+One commit. Nothing pushed without asking.
+
+**Note on line endings.** The repository has drifted into mixed CRLF and LF, which
+inflates every diff. It is unrelated to this change and still outstanding; the offer to
+normalise it with a `.gitattributes` stands, and is best done as its own commit rather
+than folded into this one.
+
+## Change set 5 - build order
+
+- [x] **D1 - The document.** `domain/dcc.py`: D-SI units, to_dcc_xml, parse_dcc_result.
+- [x] **D2 - Carried.** The fifth representation in `vc/model.py`, generated in
+      `scenarios.py` for both calibration certificates.
+- [x] **D3 - Read.** Three-way agreement and the duplication check in `vc/verify.py`.
+- [x] **D4 - Broken.** `dcc-disagrees` and `dcc-names-another-laboratory`.
+- [x] **D5 - Shown.** Chapter 6 fourth tab and the duplication panel; chapter 9 rewrite.
+- [x] **D6 - Tests and docs.** `tests/test_dcc.py`, naming normalised to PTB/DKD DCC.
+
+## Change set 5 - progress log
+
+Complete. 253 tests pass, 1 skipped (GTC). Ten chapters render, every control responds,
+the world still builds byte-identically.
+
+- `domain/dcc.py` generates a PTB/DKD DCC 3.3.0 with quantities in D-SI 2.2.1, using the
+  real namespaces, element names and nesting. Every calibration certificate carries one.
+- Both transport paths fall out naturally: the institute's document is 3639 characters
+  and travels inline, the laboratory's is 4292 and is published separately.
+- `uncertainty.agreement` now compares three carriers instead of two, dividing the DCC's
+  Expanded Uncertainty by its coverage factor first.
+- `uncertainty.duplication` compares the six facts the credential and the DCC both state.
+
+### What the redundancy is, concretely
+
+Six facts said twice, plus the integrity mechanism. The check found them all agreeing on
+the real certificates, and the two new failure cases show what happens when they do not:
+`dcc-disagrees` and `dcc-names-another-laboratory` both keep every signature and digest
+valid and are caught only because something reads both copies.
+
+### D-SI units
+
+Written siunitx-style with backslashed English names. Ohm is `\ohm`; kilogram is
+`\kilo\gram` and not `\kilogram`, because the prefix is its own token. `dsi_unit()`
+raises on an unmapped unit rather than guessing, and there is a test for the kilogram
+specifically.
+
+### One test was wrong, not the code
+
+`test_the_duplication_check_is_skipped_without_a_dcc` searched the whole report tree and
+found the duplication step belonging to the calibration certificate that the test report
+follows its traceability into. Scoped to the top level.
