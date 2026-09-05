@@ -39,7 +39,6 @@ import metas_unclib as mu
 from vcqi.crypto.dataintegrity import ProofTrace, sign_document
 from vcqi.domain import accreditation as accreditation_registry
 from vcqi.domain import kcdb as kcdb_registry
-from vcqi.domain import legal as legal_registry
 from vcqi.domain.instruments import SHARED_REFERENCE_PAIR, instrument_by_id
 from vcqi.domain.gtc_archive import build_gtc_archive
 from vcqi.domain.uncertainty import (
@@ -57,9 +56,6 @@ from vcqi.actors.registry import ACTORS, actor_by_did, actor_key, did_document, 
 from vcqi.vc.model import (
     CREDENTIAL_CONTEXT,
     artefact_document,
-    oiml_certificate_credential,
-    type_approval_credential,
-    verification_certificate_credential,
     calibration_certificate_credential,
     credential_reference,
     issuer_reference,
@@ -93,15 +89,6 @@ METAS_CHECK_B = "https://metas.example/certificates/METAS-2026-0419"
 TESTLAB_REPORT = "https://testlab.example/reports/HTS-2026-3391"
 CAB_CERTIFICATE = "https://cab.example/certificates/CPC-2026-0055"
 
-# The legal metrology branch.
-OIML_RECOGNITION = "https://oiml.example/recognition/issuing-authorities-2026"
-LEGISLATOR_RECOGNITION = "https://legislator.example/ordinance/competent-authorities-2026"
-METAS_DESIGNATION = "https://metas.example/designations/designated-bodies-2026"
-METAS_WEIGHT_CERTIFICATE = "https://metas.example/certificates/METAS-2026-0512"
-OIML_CERTIFICATE = "https://ptb.example/oiml/R76-2006-DE1-2024-11"
-TYPE_APPROVAL = "https://metas.example/approvals/CH-TA-2024-0271"
-VERIFICATION_CERTIFICATE = "https://verifybody.example/verifications/GVS-2026-04417"
-
 BIPM_STATUS = "https://bipm.example/status/recognition"
 GLOBAL_ACI_STATUS = "https://global-aci.example/status/recognition"
 SAS_STATUS = "https://sas.example/status/accreditation"
@@ -109,17 +96,9 @@ METAS_STATUS = "https://metas.example/status/certificates"
 CALLAB_STATUS = "https://callab.example/status/certificates"
 TESTLAB_STATUS = "https://testlab.example/status/reports"
 CAB_STATUS = "https://cab.example/status/certificates"
-OIML_STATUS = "https://oiml.example/status/recognition"
-OIML_CERTIFICATE_STATUS = "https://oiml.example/status/certificates"
-LEGISLATOR_STATUS = "https://legislator.example/status/competence"
-VERIFYBODY_STATUS = "https://verifybody.example/status/verifications"
-# A designation is suspended pending corrective action rather than revoked, so it
-# needs a list of its own: the two purposes cannot share one bitstring.
-METAS_AUTHORITY_STATUS = "https://metas.example/status/designations"
 
 CMC_SCHEMA_BASE = "https://bipm.example/schemas"
 ACCREDITATION_SCHEMA_BASE = "https://sas.example/schemas"
-DESIGNATION_SCHEMA_BASE = "https://metas.example/schemas"
 
 #: Position of each credential in the status list of its issuer.
 STATUS_INDEX = {
@@ -176,24 +155,6 @@ TESTLAB_EXPIRES = _utc(2031, 5, 8, 14, 0)
 CAB_ISSUED_ON = "2026-06-01"
 CAB_ISSUED = _utc(2026, 6, 1, 8, 0)
 CAB_EXPIRES = _utc(2031, 5, 31, 8, 0)
-
-# The legal metrology branch runs on its own timeline: a design is evaluated and
-# approved once, and the instruments made to it are verified periodically for years.
-# OIML has run its certification system for decades, and the metrology ordinance is
-# older still. Dating their recognitions from 2026 with Global ACI would make an
-# approval issued in 2024 rest on a competence that did not yet exist.
-LEGAL_RECOGNITION_FROM = _utc(2020, 1, 1)
-LEGAL_RECOGNITION_UNTIL = _utc(2031, 1, 1)
-OIML_ISSUED = _utc(2024, 9, 30)
-OIML_EXPIRES = _utc(2034, 9, 30)
-APPROVAL_ISSUED = _utc(2024, 11, 18)
-APPROVAL_EXPIRES = _utc(2034, 11, 18)
-WEIGHT_ISSUED = _utc(2026, 4, 24, 9, 0)
-WEIGHT_EXPIRES = _utc(2029, 4, 24, 9, 0)
-VERIFICATION_ISSUED = _utc(2026, 7, 14, 11, 0)
-# A verification expires when the next periodic verification falls due, which is what
-# makes a lapsed one unlawful without anything about the instrument having changed.
-VERIFICATION_EXPIRES = _utc(2028, 7, 31, 23, 59)
 
 #: The instant the demonstration treats as "now" when nothing else is specified.
 DEMO_NOW = _utc(2026, 9, 4, 12, 0)
@@ -525,11 +486,6 @@ def _status_lists(world: World) -> None:
         (CALLAB_STATUS, "did:web:callab.example", "revocation", "Calibration certificates of the laboratory"),
         (TESTLAB_STATUS, "did:web:testlab.example", "revocation", "Test reports of the laboratory"),
         (CAB_STATUS, "did:web:cab.example", "revocation", "Certificates of conformity"),
-        (OIML_STATUS, "did:web:oiml.example", "suspension", "Recognition of OIML Issuing Authorities"),
-        (OIML_CERTIFICATE_STATUS, "did:web:oiml.example", "revocation", "OIML certificates of type evaluation"),
-        (METAS_AUTHORITY_STATUS, "did:web:metas.example", "suspension", "Designations of verification bodies"),
-        (LEGISLATOR_STATUS, "did:web:legislator.example", "suspension", "Competence under the Metrology Ordinance"),
-        (VERIFYBODY_STATUS, "did:web:verifybody.example", "revocation", "Verification certificates"),
     ]
     for url, did, purpose, description in definitions:
         actor = actor_by_did(did)
@@ -1037,509 +993,6 @@ def _test_report_and_conformity(world: World) -> None:
     world._register("cab-conformity", signed, trace)
 
 
-def _legal_metrology(world: World) -> None:
-    """Build the legal metrology branch, from the ordinance down to one shop scale.
-
-    Four things happen here that do not happen anywhere else in this demonstration.
-
-    The legislator makes an authority competent. That is where legal force enters, and
-    it enters from a completely different direction than metrological standing: nothing
-    the BIPM says can make an instrument lawful, and nothing the legislator says can make
-    a measurement accurate.
-
-    OIML recognises an Issuing Authority, which type-evaluates a design and issues a
-    certificate that is genuine evidence and confers no permission at all. The national
-    authority then relies on that evidence to issue an approval that does.
-
-    The authority designates a private company to verify instruments, and can withdraw
-    the designation. Verification is delegated; regulation is not.
-
-    And the verification body verifies one scale in one shop, reaching a decision rather
-    than reporting a measurement, using a reference weight the institute calibrated. That
-    last link is where legal metrology sits down on top of the calibration chain.
-
-    Args:
-        world: The world being built.
-    """
-    oiml = actor_by_did("did:web:oiml.example")
-    legislator = actor_by_did("did:web:legislator.example")
-    metas = actor_by_did("did:web:metas.example")
-    ptb = actor_by_did("did:web:ptb.example")
-    verifier = actor_by_did("did:web:verifybody.example")
-    retailer = actor_by_did("did:web:retailer.example")
-    manufacturer = actor_by_did("did:web:manufacturer.example")
-    assert None not in (oiml, legislator, metas, ptb, verifier, retailer, manufacturer)
-
-    valid_from = _stamp(LEGAL_RECOGNITION_FROM)
-    valid_until = _stamp(LEGAL_RECOGNITION_UNTIL)
-    designation = legal_registry.designation_by_id("EV 042")
-    assert designation is not None
-
-    # --- OIML recognises an Issuing Authority ------------------------------------
-    credential = recognized_entity_credential(
-        credential_id=OIML_RECOGNITION,
-        issuer=issuer_reference("did:web:oiml.example", oiml.legal_name),
-        valid_from=valid_from,
-        valid_until=valid_until,
-        subjects=[
-            {
-                "id": "did:web:ptb.example",
-                "type": "RecognizedEntity",
-                "name": ptb.name,
-                "legalName": ptb.legal_name,
-                "url": ptb.url,
-                "description": (
-                    "An OIML Issuing Authority, able to type-evaluate instrument designs "
-                    "and issue OIML certificates under the certification system."
-                ),
-                "recognizedTo": [
-                    recognized_action(
-                        "issue",
-                        "did:web:oiml.example",
-                        description=(
-                            "Issue OIML certificates of type evaluation against OIML R 76. "
-                            "This recognition is technical and confers no legal effect in "
-                            "any jurisdiction."
-                        ),
-                        valid_from=valid_from,
-                        valid_until=valid_until,
-                    )
-                ],
-            }
-        ],
-        name="OIML Issuing Authorities, 2026 edition",
-        description=(
-            "Bodies recognised to issue OIML certificates of type evaluation. Recognition "
-            "here establishes technical competence internationally and creates no legal "
-            "permission anywhere: an OIML Recommendation is not law."
-        ),
-        credential_status=status_entry(OIML_STATUS, 1, purpose="suspension"),
-    )
-    signed, trace = sign_document(
-        credential, actor_key("did:web:oiml.example"), created=LEGAL_RECOGNITION_FROM
-    )
-    world._register("oiml-recognition", signed, trace)
-
-    # --- the ordinance makes the authority competent ------------------------------
-    credential = recognized_entity_credential(
-        credential_id=LEGISLATOR_RECOGNITION,
-        issuer=issuer_reference("did:web:legislator.example", legislator.legal_name),
-        valid_from=valid_from,
-        valid_until=valid_until,
-        subjects=[
-            {
-                "id": "did:web:metas.example",
-                "type": "RecognizedEntity",
-                "name": metas.name,
-                "legalName": metas.legal_name,
-                "url": metas.url,
-                "description": (
-                    "The authority made competent for legal metrology by the ordinance. "
-                    "It is also the national metrology institute, which is one common "
-                    "arrangement among several; the two roles are distinct even where "
-                    "one organisation holds both."
-                ),
-                "recognizedTo": [
-                    recognized_action(
-                        "approve",
-                        "did:web:legislator.example",
-                        description=(
-                            "Approve types of measuring instrument for use in legally "
-                            "regulated measurements in Switzerland."
-                        ),
-                        valid_from=valid_from,
-                        valid_until=valid_until,
-                    ),
-                    recognized_action(
-                        "designate",
-                        "did:web:legislator.example",
-                        description=(
-                            "Designate and supervise bodies that perform legal "
-                            "verification, and withdraw a designation."
-                        ),
-                        valid_from=valid_from,
-                        valid_until=valid_until,
-                    ),
-                ],
-            }
-        ],
-        name="Competent authorities under the Metrology Ordinance",
-        description=(
-            "The bodies that national legislation makes competent for legal metrology, "
-            "and what each is competent to do. This is the only route by which anything "
-            "in this demonstration acquires legal force."
-        ),
-        credential_status=status_entry(LEGISLATOR_STATUS, 1, purpose="suspension"),
-    )
-    signed, trace = sign_document(
-        credential, actor_key("did:web:legislator.example"), created=LEGAL_RECOGNITION_FROM
-    )
-    world._register("legislator-recognition", signed, trace)
-
-    # --- the authority designates a verification body -----------------------------
-    world.store.publish(designation.url, designation.to_json(), "registry-entry")
-    designation_schema = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": f"{DESIGNATION_SCHEMA_BASE}/{designation.identifier.replace(' ', '-')}.json",
-        "title": f"Verification certificate within designation {designation.identifier}",
-        "description": (
-            "Structural bounds for verification certificates issued under this "
-            "designation. Requires a decision, at least one test point, and a reference "
-            "to the type approval the instrument was verified against, so that a "
-            "conformity decision can never be recorded without its legal basis."
-        ),
-        "type": "object",
-        "required": ["type", "credentialSubject"],
-        "properties": {
-            "type": {
-                "type": "array",
-                "contains": {"const": "VerificationCertificateCredential"},
-            },
-            "credentialSubject": {
-                "type": "object",
-                "required": ["verification"],
-                "properties": {
-                    "verification": {
-                        "type": "object",
-                        "required": ["decision", "testPoints", "legalBasis", "accuracyClass"],
-                        "properties": {
-                            "decision": {"enum": ["pass", "fail"]},
-                            "accuracyClass": {"enum": list(designation.accuracy_classes)},
-                            "maximumCapacity": {
-                                "type": "number",
-                                "exclusiveMinimum": 0,
-                                "maximum": designation.maximum_capacity,
-                            },
-                            "testPoints": {"type": "array", "minItems": 1},
-                            "legalBasis": {
-                                "type": "object",
-                                "required": ["id", "digestMultibase"],
-                            },
-                        },
-                    }
-                },
-            },
-        },
-    }
-    world.schemas[designation_schema["$id"]] = designation_schema
-    world.store.publish(designation_schema["$id"], designation_schema, "schema")
-
-    credential = recognized_entity_credential(
-        credential_id=METAS_DESIGNATION,
-        issuer=issuer_reference(
-            "did:web:metas.example", metas.legal_name, recognized_in=LEGISLATOR_RECOGNITION
-        ),
-        valid_from=valid_from,
-        valid_until=valid_until,
-        subjects=[
-            {
-                "id": "did:web:verifybody.example",
-                "type": "RecognizedEntity",
-                "name": verifier.name,
-                "legalName": verifier.legal_name,
-                "url": verifier.url,
-                "description": verifier.description,
-                "recognizedTo": [
-                    recognized_action(
-                        "verify",
-                        "did:web:metas.example",
-                        description=(
-                            f"{designation.instrument_category}, accuracy class "
-                            f"{', '.join(designation.accuracy_classes)}, up to "
-                            f"{designation.maximum_capacity:g} {designation.unit}."
-                        ),
-                        output_validation=schema_reference(designation_schema),
-                        capability_reference={
-                            "id": designation.url,
-                            "type": "DesignationScope",
-                            "identifier": designation.identifier,
-                        },
-                        valid_from=f"{designation.valid_from}T00:00:00Z",
-                        valid_until=f"{designation.valid_until}T23:59:59Z",
-                    )
-                ],
-            }
-        ],
-        name="Designated verification bodies, 2026 edition",
-        description=(
-            "Bodies designated to perform legal verification, and the instruments each "
-            "may verify. Verification is delegated here; authorisation, supervision and "
-            "withdrawal remain with the authority."
-        ),
-        credential_status=status_entry(METAS_AUTHORITY_STATUS, 1, purpose="suspension"),
-    )
-    signed, trace = sign_document(
-        credential, actor_key("did:web:metas.example"), created=RECOGNITION_FROM
-    )
-    world._register("metas-designation", signed, trace)
-
-    # --- the institute calibrates the reference weight ----------------------------
-    weight = instrument_by_id("urn:instrument:verifybody:weight:M1-5KG-0007")
-    scale = instrument_by_id("urn:instrument:retailer:scale:NAWI-88421")
-    assert weight is not None and scale is not None
-
-    mass_cmc = kcdb_registry.cmc_by_id("CH-M-0015")
-    assert mass_cmc is not None
-
-    weight_result = evaluate(
-        lambda q: q["reference"] * q["ratio"] + q["buoyancy"] + q["drift"],
-        [
-            normal("reference", "National mass standard, 5 kg", 5.0000000, 4.0e-8, unit="kg"),
-            normal("ratio", "Mass comparator substitution", 1.00000002, 1.2e-8),
-            rectangular("buoyancy", "Air buoyancy correction", 0.0, 6.0e-8, unit="kg"),
-            rectangular("drift", "Drift since the previous calibration", 0.0, 5.0e-8, unit="kg"),
-        ],
-        unit="kg",
-        context="METAS-2026-0512",
-    )
-    world.results["metas-weight-calibration"] = weight_result
-
-    representations, artefacts = uncertainty_representations(
-        weight_result,
-        credential_id=METAS_WEIGHT_CERTIFICATE,
-        gtc_archive=build_gtc_archive(weight_result),
-    )
-    world.publish_artefacts(artefacts)
-
-    credential = calibration_certificate_credential(
-        credential_id=METAS_WEIGHT_CERTIFICATE,
-        representations=representations,
-        issuer=issuer_reference(
-            "did:web:metas.example", metas.legal_name, recognized_in=BIPM_RECOGNITION
-        ),
-        valid_from=_stamp(WEIGHT_ISSUED),
-        valid_until=_stamp(WEIGHT_EXPIRES),
-        certificate_number="METAS-2026-0512",
-        performed_on="2026-04-22",
-        instrument=weight.to_json(),
-        owner={"id": verifier.did, "name": verifier.legal_name},
-        measurand="mass",
-        conditions=mass_cmc.conditions,
-        result=weight_result,
-        nominal_value=5.0,
-        capability_reference={
-            "id": mass_cmc.url,
-            "type": "KcdbCmcEntry",
-            "identifier": mass_cmc.identifier,
-        },
-        mra_logo_asserted=True,
-        accredited=False,
-        traceable_to=None,
-        credential_status=status_entry(METAS_STATUS, 21),
-    )
-    weight_certificate, trace = sign_document(
-        credential, actor_key("did:web:metas.example"), created=WEIGHT_ISSUED
-    )
-    world._register("metas-weight-calibration", weight_certificate, trace)
-
-    # --- OIML type evaluation of the scale design ---------------------------------
-    instrument_type = {
-        "id": "urn:type:waagen-wyss:WW-1500-III",
-        "type": "MeasuringInstrumentType",
-        "name": "Retail counter scale WW-1500 III",
-        "manufacturer": "Waagen Wyss AG (demonstration)",
-        "model": "WW-1500 III",
-    }
-    characteristics = {
-        "accuracyClass": "III",
-        "maximumCapacity": 15.0,
-        "minimumCapacity": 0.1,
-        "verificationScaleInterval": 0.005,
-        "verificationScaleIntervals": 3000,
-        "unit": "kg",
-    }
-
-    credential = oiml_certificate_credential(
-        credential_id=OIML_CERTIFICATE,
-        issuer=issuer_reference(
-            "did:web:ptb.example", ptb.legal_name, recognized_in=OIML_RECOGNITION
-        ),
-        valid_from=_stamp(OIML_ISSUED),
-        valid_until=_stamp(OIML_EXPIRES),
-        certificate_number="R76/2006-DE1-2024.11",
-        issued_on="2024-09-30",
-        recommendation="OIML R 76, non-automatic weighing instruments",
-        instrument_type=instrument_type,
-        applicant={"id": manufacturer.did, "name": manufacturer.legal_name},
-        characteristics=characteristics,
-        test_report="OIML test report DE1-TR-2024-0388 (demonstration)",
-        credential_status=status_entry(OIML_CERTIFICATE_STATUS, 2),
-    )
-    oiml_certificate, trace = sign_document(
-        credential, actor_key("did:web:ptb.example"), created=OIML_ISSUED
-    )
-    world._register("oiml-certificate", oiml_certificate, trace)
-
-    # --- national type approval, resting on that evidence -------------------------
-    credential = type_approval_credential(
-        credential_id=TYPE_APPROVAL,
-        issuer=issuer_reference(
-            "did:web:metas.example", metas.legal_name, recognized_in=LEGISLATOR_RECOGNITION
-        ),
-        valid_from=_stamp(APPROVAL_ISSUED),
-        valid_until=_stamp(APPROVAL_EXPIRES),
-        approval_number="CH-TA-2024-0271",
-        issued_on="2024-11-18",
-        jurisdiction="CH",
-        legal_basis="Measuring Instruments Ordinance (demonstration)",
-        instrument_type=instrument_type,
-        holder={"id": manufacturer.did, "name": manufacturer.legal_name},
-        characteristics=characteristics,
-        evidence=[
-            {
-                **credential_reference(oiml_certificate, relation="OimlCertificateCredential"),
-                "note": (
-                    "Type-evaluation evidence relied upon. The evidence is international; "
-                    "the approval it supports is not."
-                ),
-            }
-        ],
-        credential_status=status_entry(METAS_STATUS, 22),
-    )
-    type_approval, trace = sign_document(
-        credential, actor_key("did:web:metas.example"), created=APPROVAL_ISSUED
-    )
-    world._register("type-approval", type_approval, trace)
-
-    # --- and finally, one scale in one shop ---------------------------------------
-    world._register(
-        "verification-certificate",
-        *_verification(
-            world,
-            scale=scale,
-            owner=retailer,
-            verifier=verifier,
-            type_approval=type_approval,
-            weight_certificate=weight_certificate,
-            designation=designation,
-            characteristics=characteristics,
-            test_points=DEFAULT_TEST_POINTS,
-            decision="pass",
-        ),
-    )
-
-
-#: The loads the scale was tested at, with the error found and the uncertainty of finding
-#: it. Every point is comfortably inside its limit, and every uncertainty is well under a
-#: third of that limit, so the verification both passes and is supportable.
-DEFAULT_TEST_POINTS: tuple[tuple[float, float, float], ...] = (
-    (2.5, 0.002, 0.0010),
-    (5.0, 0.003, 0.0010),
-    (10.0, -0.004, 0.0010),
-    (15.0, 0.006, 0.0010),
-)
-
-
-def _verification(
-    world: World,
-    *,
-    scale: Any,
-    owner: Any,
-    verifier: Any,
-    type_approval: dict[str, Any],
-    weight_certificate: dict[str, Any],
-    designation: Any,
-    characteristics: dict[str, Any],
-    test_points: tuple[tuple[float, float, float], ...],
-    decision: str,
-    legal_basis_override: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any], ProofTrace]:
-    """Sign one verification certificate.
-
-    Factored out because the failure cases need to reissue it with one thing changed,
-    and reissuing it properly, signed by the same body, is what makes those cases worth
-    demonstrating.
-
-    Args:
-        world: The world being built.
-        scale: The instrument verified.
-        owner: The organisation operating it.
-        verifier: The verification body.
-        type_approval: The approval the instrument was verified against.
-        weight_certificate: The calibration certificate of the reference weight.
-        designation: The designation the body acted under.
-        characteristics: Accuracy class, capacity and scale interval.
-        test_points: Loads with their error and Expanded Uncertainty.
-        decision: The conformity decision to record.
-        legal_basis_override: Cite something other than the type approval, which is how
-            the case for an OIML certificate standing in for an approval is built.
-
-    Returns:
-        The signed credential and its trace.
-    """
-    interval = float(characteristics["verificationScaleInterval"])
-    rendered = [
-        legal_registry.TestPoint(
-            load=load,
-            indication_error=error,
-            expanded_uncertainty=uncertainty,
-            coverage_factor=2.0,
-            unit="kg",
-        ).to_json(
-            scale_interval=interval,
-            accuracy_class=str(characteristics["accuracyClass"]),
-            in_service=True,
-        )
-        for load, error, uncertainty in test_points
-    ]
-
-    legal_basis = legal_basis_override or {
-        **credential_reference(type_approval, relation="TypeApprovalCredential"),
-        "jurisdiction": "CH",
-        "note": "The national approval that makes this type lawful for use in trade.",
-    }
-
-    credential = verification_certificate_credential(
-        credential_id=VERIFICATION_CERTIFICATE,
-        issuer=issuer_reference(
-            "did:web:verifybody.example", verifier.legal_name, recognized_in=METAS_DESIGNATION
-        ),
-        valid_from=_stamp(VERIFICATION_ISSUED),
-        valid_until=_stamp(VERIFICATION_EXPIRES),
-        certificate_number="GVS-2026-04417",
-        performed_on="2026-07-14",
-        kind="subsequent",
-        instrument=scale.to_json(),
-        owner={"id": owner.did, "name": owner.legal_name},
-        jurisdiction="CH",
-        characteristics=characteristics,
-        test_points=rendered,
-        decision=decision,
-        legal_basis=legal_basis,
-        capability_reference={
-            "id": designation.url,
-            "type": "DesignationScope",
-            "identifier": designation.identifier,
-        },
-        reference_standards=[
-            {
-                **credential_reference(
-                    weight_certificate, relation="CalibrationCertificateCredential"
-                ),
-                "instrument": "urn:instrument:verifybody:weight:M1-5KG-0007",
-                "note": (
-                    "The weight the scale was tested with. This is where a legal decision "
-                    "sits down on top of the calibration chain: without it the decision "
-                    "has nothing behind it."
-                ),
-            }
-        ],
-        verification_mark={
-            "type": "VerificationMark",
-            "identifier": "CH-EV042-2026-04417",
-            "appliedOn": "2026-07-14",
-            "description": (
-                "Adhesive verification mark with a tamper-evident substrate, applied over "
-                "the adjustment access."
-            ),
-        },
-        credential_status=status_entry(VERIFYBODY_STATUS, 1),
-    )
-    return sign_document(
-        credential, actor_key("did:web:verifybody.example"), created=VERIFICATION_ISSUED
-    )
-
-
 def _whois_presentations(world: World) -> None:
     """Publish, for each recognised actor, a presentation describing itself.
 
@@ -1558,7 +1011,6 @@ def _whois_presentations(world: World) -> None:
         "did:web:callab.example": "sas-recognition",
         "did:web:testlab.example": "sas-recognition",
         "did:web:cab.example": "sas-recognition",
-        "did:web:verifybody.example": "metas-designation",
     }
     for did, credential_name in membership.items():
         url = whois_url(did)
@@ -1594,7 +1046,6 @@ def build_world() -> World:
     _calibration_certificates(world)
     _shared_reference_pair(world, world.results['metas-calibration'])
     _test_report_and_conformity(world)
-    _legal_metrology(world)
     _whois_presentations(world)
     return world
 

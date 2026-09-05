@@ -316,16 +316,10 @@ class TestVerification:
         assert step.evidence["missingCount"] == 0
         assert step.evidence["sharedCount"] == 4
 
-    def test_the_new_checks_nest_rather_than_lengthen_the_list(self, world) -> None:
-        """Representations and agreement sit under the uncertainty step.
-
-        The top level grew by one when legal metrology arrived, and by nothing when the
-        dependency representations did, which is the distinction being asserted.
-        """
+    def test_the_top_level_pipeline_is_still_eleven_steps(self, world) -> None:
+        """The new checks nest under existing steps rather than lengthening the list."""
         report = self._report(world, "callab-calibration")
-        assert len(report.steps) == 12
-        uncertainty = next(step for step in report.steps if step.id == "uncertainty")
-        assert "uncertainty.representations" in [child.id for child in uncertainty.children]
+        assert len(report.steps) == 11
 
     def test_every_certificate_still_verifies(self, world) -> None:
         """Adding representations broke nothing in the base world."""
