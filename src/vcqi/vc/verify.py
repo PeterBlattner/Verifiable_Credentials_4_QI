@@ -45,6 +45,7 @@ from vcqi.domain.scope import (
     UncertaintyFloor,
     evaluate_scope,
 )
+from vcqi.domain.dcc import parse_dcc_administrative, parse_dcc_result
 from vcqi.domain.uncertainty import parse_input_quantities
 from vcqi.vc.model import artefact_payload
 from vcqi.vc.checks import (
@@ -1309,24 +1310,37 @@ def _step_agreement(
     credential: dict[str, Any],
     dependency_value: float | None,
     dependency_uncertainty: float | None,
+    dcc_result: dict[str, Any] | None = None,
 ) -> Step:
-    """Check the classical statement against the dependency representation.
+    """Check that every carrier of this result tells the same story.
+
+    A certificate that offers the same measurement three ways can offer it three
+    *different* ways, and the signature will not notice: it stops anyone editing a
+    carrier after issue and says nothing about them being inconsistent when written. So
+    each one is read and compared against the printed line.
+
+    The PTB/DKD DCC states an *Expanded* uncertainty with its coverage factor, so it has
+    to be divided by k before being compared with the printed Standard Uncertainty.
+    Getting that the wrong way round is exactly the sort of error this check exists to
+    catch, so the tests assert the direction explicitly.
 
     Args:
         credential: The credential being verified.
         dependency_value: The value the dependency representation states.
         dependency_uncertainty: The Standard Uncertainty its influences imply.
+        dcc_result: The quantity read out of the PTB/DKD DCC, when one is carried.
 
     Returns:
-        The step.
+        The step, naming whichever carrier disagrees.
     """
     result = _first_result(credential)
-    if result is None or dependency_value is None or dependency_uncertainty is None:
+    has_dependency = dependency_value is not None and dependency_uncertainty is not None
+    if result is None or (not has_dependency and dcc_result is None):
         return Step(
             id="uncertainty.agreement",
-            title="Printed result agrees with the transmitted dependencies",
+            title="Every carrier of this result tells the same story",
             status=SKIP,
-            detail="the certificate offers only one of the two, so there is nothing to compare",
+            detail="the certificate offers only one carrier, so there is nothing to compare",
         )
 
     try:
@@ -1335,30 +1349,170 @@ def _step_agreement(
     except (KeyError, TypeError, ValueError) as error:
         return Step(
             id="uncertainty.agreement",
-            title="Printed result agrees with the transmitted dependencies",
+            title="Every carrier of this result tells the same story",
             status=FAIL,
             detail=f"the printed result could not be read: {error}",
         )
 
-    value_ok = math.isclose(stated_value, dependency_value, rel_tol=1e-9, abs_tol=1e-12)
-    uncertainty_ok = math.isclose(
-        stated_uncertainty, dependency_uncertainty, rel_tol=1e-6, abs_tol=0.0
-    )
+    children: list[Step] = []
+    evidence: dict[str, Any] = {
+        "printedValue": stated_value,
+        "printedStandardUncertainty": stated_uncertainty,
+    }
+
+    if has_dependency:
+        matches = math.isclose(
+            stated_value, dependency_value, rel_tol=1e-9, abs_tol=1e-12
+        ) and math.isclose(
+            stated_uncertainty, dependency_uncertainty, rel_tol=1e-6, abs_tol=0.0
+        )
+        children.append(
+            Step(
+                id="uncertainty.agreement.dependencies",
+                title="The dependency representation agrees with the printed line",
+                status=PASS if matches else FAIL,
+                detail=(
+                    f"printed {stated_value:.10g} with u = {stated_uncertainty:.6g}; the "
+                    f"dependency representation gives {dependency_value:.10g} with "
+                    f"u = {dependency_uncertainty:.6g}"
+                ),
+            )
+        )
+        evidence["dependencyValue"] = dependency_value
+        evidence["dependencyStandardUncertainty"] = dependency_uncertainty
+
+    if dcc_result is not None:
+        coverage = float(dcc_result.get("coverageFactor") or 0.0)
+        dcc_value = float(dcc_result.get("value"))
+        # The PTB/DKD DCC states U; the printed line states u. Divide before comparing.
+        dcc_standard = (
+            float(dcc_result.get("expandedUncertainty")) / coverage if coverage else None
+        )
+        matches = (
+            dcc_standard is not None
+            and math.isclose(stated_value, dcc_value, rel_tol=1e-9, abs_tol=1e-12)
+            and math.isclose(stated_uncertainty, dcc_standard, rel_tol=1e-6, abs_tol=0.0)
+        )
+        children.append(
+            Step(
+                id="uncertainty.agreement.dcc",
+                title="The PTB/DKD DCC agrees with the printed line",
+                status=PASS if matches else FAIL,
+                detail=(
+                    f"printed {stated_value:.10g} with u = {stated_uncertainty:.6g}; the "
+                    f"PTB/DKD DCC gives {dcc_value:.10g} with "
+                    f"U = {float(dcc_result.get('expandedUncertainty')):.6g} at "
+                    f"k = {coverage:g}, so u = "
+                    f"{dcc_standard:.6g}" if dcc_standard is not None
+                    else "the PTB/DKD DCC states no usable coverage factor"
+                ),
+            )
+        )
+        evidence["dccValue"] = dcc_value
+        evidence["dccStandardUncertainty"] = dcc_standard
+
+    failed = [child for child in children if child.status == FAIL]
     return Step(
         id="uncertainty.agreement",
-        title="Printed result agrees with the transmitted dependencies",
-        status=PASS if value_ok and uncertainty_ok else FAIL,
+        title="Every carrier of this result tells the same story",
+        status=FAIL if failed else PASS,
         detail=(
-            f"printed {stated_value:.10g} with u = {stated_uncertainty:.6g}; the "
-            f"dependency representation gives {dependency_value:.10g} with "
-            f"u = {dependency_uncertainty:.6g}"
+            f"{len(children)} carrier(s) checked against the printed result, all agreeing"
+            if not failed
+            else "; ".join(child.detail for child in failed)
         ),
-        evidence={
-            "printedValue": stated_value,
-            "printedStandardUncertainty": stated_uncertainty,
-            "dependencyValue": dependency_value,
-            "dependencyStandardUncertainty": dependency_uncertainty,
-        },
+        evidence=evidence,
+        children=children,
+    )
+
+
+def _step_duplication(credential: dict[str, Any], dcc_xml: str | None) -> Step:
+    """Check the facts the credential and the PTB/DKD DCC both state.
+
+    Putting a standardised document inside a credential duplicates most of it. Who
+    calibrated, for whom, when, and under what number are all said twice, in different
+    vocabularies, and there is no mechanism that keeps them together. The signature
+    covers both copies and is perfectly happy for them to contradict each other.
+
+    Reading both is what turns that redundancy from a liability into an asset: every
+    duplicated field becomes somewhere an inconsistent issuer gets caught. The
+    alternative designs are to not duplicate at all, by making the PTB/DKD DCC the credential
+    subject, or to declare which copy governs; see ARCHITECTURE.md.
+
+    Args:
+        credential: The credential being verified.
+        dcc_xml: The PTB/DKD DCC it carries, when it carries one.
+
+    Returns:
+        The step, with one child per duplicated fact.
+    """
+    if dcc_xml is None:
+        return Step(
+            id="uncertainty.duplication",
+            title="Facts stated twice agree with each other",
+            status=SKIP,
+            detail="the certificate carries no second document to disagree with",
+        )
+
+    try:
+        administrative = parse_dcc_administrative(dcc_xml)
+    except ValueError as error:
+        return Step(
+            id="uncertainty.duplication",
+            title="Facts stated twice agree with each other",
+            status=FAIL,
+            detail=str(error),
+        )
+
+    payload = _payload(credential)
+    subject = credential.get("credentialSubject")
+    subject = subject if isinstance(subject, dict) else {}
+    issuer = credential.get("issuer")
+    issuer = issuer if isinstance(issuer, dict) else {}
+    owner = subject.get("owner")
+    owner = owner if isinstance(owner, dict) else {}
+
+    duplicated = [
+        (
+            "certificate number",
+            payload.get("certificateNumber"),
+            administrative.get("uniqueIdentifier"),
+        ),
+        ("calibrating laboratory", issuer.get("id"), administrative.get("calibrationLaboratoryId")),
+        ("laboratory name", issuer.get("name"), administrative.get("calibrationLaboratory")),
+        ("customer", owner.get("id"), administrative.get("customerId")),
+        ("customer name", owner.get("name"), administrative.get("customer")),
+        ("date of calibration", payload.get("performedOn"), administrative.get("beginPerformanceDate")),
+    ]
+
+    children = [
+        Step(
+            id=f"uncertainty.duplication.{index}",
+            title=title,
+            status=PASS if credential_side == dcc_side else FAIL,
+            detail=(
+                f"credential says {credential_side!r}, PTB/DKD DCC says {dcc_side!r}"
+            ),
+        )
+        for index, (title, credential_side, dcc_side) in enumerate(duplicated, start=1)
+    ]
+
+    failed = [child for child in children if child.status == FAIL]
+    return Step(
+        id="uncertainty.duplication",
+        title="Facts stated twice agree with each other",
+        status=FAIL if failed else PASS,
+        detail=(
+            f"the credential and the PTB/DKD DCC state {len(children)} facts twice and "
+            f"agree on all of them"
+            if not failed
+            else (
+                f"{len(failed)} of {len(children)} duplicated facts disagree: "
+                + "; ".join(child.title for child in failed)
+            )
+        ),
+        evidence={"comparedFields": len(children)},
+        children=children,
     )
 
 
@@ -1396,6 +1550,8 @@ def _step_representations(credential: dict[str, Any], resolver: Resolver) -> Ste
     children: list[Step] = []
     dependency_value: float | None = None
     dependency_uncertainty: float | None = None
+    dcc_result: dict[str, Any] | None = None
+    dcc_xml: str | None = None
 
     for index, representation in enumerate(representations, start=1):
         kind = str(representation.get("format", "unknown"))
@@ -1433,6 +1589,24 @@ def _step_representations(credential: dict[str, Any], resolver: Resolver) -> Ste
             continue
 
         detail = f"{where}, {len(payload)} bytes, digest matches"
+        if kind == "PTB-DKD-DCC-XML" and dcc_result is None:
+            try:
+                dcc_xml = payload.decode("utf-8")
+                dcc_result = parse_dcc_result(dcc_xml)
+                detail += (
+                    f", stating {dcc_result['value']:.10g} {dcc_result['unit']}"
+                    f" in D-SI notation"
+                )
+            except (ValueError, UnicodeDecodeError) as error:
+                children.append(
+                    Step(
+                        id=step_id,
+                        title=kind,
+                        status=FAIL,
+                        detail=f"{where}, but could not be read: {error}",
+                    )
+                )
+                continue
         if kind == "METAS-UncLib-XML" and dependency_value is None:
             try:
                 text = payload.decode("utf-8")
@@ -1451,7 +1625,10 @@ def _step_representations(credential: dict[str, Any], resolver: Resolver) -> Ste
 
         children.append(Step(id=step_id, title=kind, status=PASS, detail=detail))
 
-    children.append(_step_agreement(credential, dependency_value, dependency_uncertainty))
+    children.append(
+        _step_agreement(credential, dependency_value, dependency_uncertainty, dcc_result)
+    )
+    children.append(_step_duplication(credential, dcc_xml))
 
     failed = [child for child in children if child.status == FAIL]
     return Step(

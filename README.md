@@ -22,9 +22,9 @@ Then open <http://127.0.0.1:8000>. No npm, no build step — the interface is pl
 modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 
 ```
-uv run pytest                                  # 213 tests
+uv run pytest                                  # 253 tests
 uv run python -m vcqi.actors.scenarios         # list every signed credential
-uv run python -m vcqi.actors.scenarios --dump out/   # write all 58 documents as JSON
+uv run python -m vcqi.actors.scenarios --dump out/   # write all 59 documents as JSON
 ```
 
 GTC support is optional because it pulls in scipy. Without it everything works and the
@@ -97,10 +97,26 @@ So every certificate here offers its uncertainty three ways at once:
 | **Classical** | `value ± U (k = 2)` | judge the result; combine only as if independent |
 | **METAS UncLib** | every input quantity, its own identifier, its distribution, and the sensitivity to it — as [XML or binary][unclib] | recombine correctly, because shared influences are recognisable |
 | **GTC** | the same idea from [MSL New Zealand][gtc], UUID-identified elementary quantities in a JSON archive | the same, from an independent implementation |
+| **PTB/DKD DCC** | the whole certificate in the [PTB/DKD][dcc] schema 3.3.0, quantities in D-SI | read it as a standardised calibration certificate |
 
 The classical statement is always present and always first. It is what remains legally
 recognisable and the only thing an issuer without such a tool can offer. The others are
 additional, never a replacement.
+
+The last one sits at a different level, and that is the useful part. The first three
+describe a **result**; a PTB/DKD DCC describes a **document** — who calibrated what, for
+whom, when, under which conditions. Inside it the quantity is D-SI, and D-SI's
+`si:expandedUnc` carries a value, an uncertainty and a coverage factor, which is the
+classical statement and not the dependency structure. So they compose rather than
+compete, and a certificate wanting both carries both.
+
+Carrying it is not free. Wrapping a standardised document inside a credential says most
+of the certificate twice — who calibrated, for whom, when, under which number, and the
+integrity mechanism itself. Duplication permits disagreement, and a signature does
+nothing about copies that were written inconsistent. So the verifier reads both and
+compares them, and the demonstration signs once: the credential proof covers the
+credential, the credential carries a digest of the DCC bytes, and the `ds:Signature`
+slot stays empty. Chapter 6 lays out the alternatives.
 
 Chapter 6 makes the difference concrete. Two check standards, both calibrated against the
 same national standard, are correlated at r = 0.69. A customer forming their difference
@@ -140,12 +156,12 @@ parties in advance.
 3. **Issuing a calibration certificate** — canonical form, hashes, signature, step by step
 4. **Verification and recognition discovery** — the full pipeline, with the clock and the trust anchors under your control
 5. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
-6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, and the same measurement shown classically, as UncLib, and as GTC
+6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, the same measurement shown four ways including as a PTB/DKD DCC, and what gets said twice as a result
 7. **Why the dependencies matter** — two certificates, one shared standard, and what each way of reporting lets the customer do
-8. **Break it** — thirteen failure cases, each naming the one check that catches it
+8. **Break it** — fifteen failure cases, each naming the one check that catches it
 9. **What this would mean in practice** — the argument, and the open questions
 
-## The thirteen failure cases
+## The fifteen failure cases
 
 Grouped by what it takes to notice them.
 
@@ -153,7 +169,7 @@ Grouped by what it takes to notice them.
 | --- | --- | --- |
 | **Forgery** | edited value, invented issuer, loosened schema, reissued parent | proof, recognition, output-validation, traceability |
 | **Standing** | expired, suspended accreditation, issuing outside the accredited activity | validity, recognition, action |
-| **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance, dependency data disagreeing with the printed line, traceability claimed but not inherited | scope, mra-logo, traceability.inherited, uncertainty.agreement, traceability.shared-inputs |
+| **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance, dependency data disagreeing with the printed line, traceability claimed but not inherited, the PTB/DKD DCC contradicting the printed value, the PTB/DKD DCC crediting a different laboratory | scope, mra-logo, traceability.inherited, uncertainty.agreement, traceability.shared-inputs, uncertainty.duplication |
 
 The third group is the interesting one: in every case the signature is valid, the issuer
 is genuinely recognised, and the document is inside its validity period. A system that
@@ -181,6 +197,7 @@ extended to cover it. It is deliberately not covered here: legal metrology makes
 argument broader rather than clearer, and the two pillars modelled are enough to show
 what verifiable credentials offer.
 
+[dcc]: https://www.ptb.de/dcc/
 [unclib]: https://www.metas.admin.ch/en/metas-unclib
 [gtc]: https://gtc.readthedocs.io/
 [vc]: https://www.w3.org/TR/vc-data-model-2.0/
