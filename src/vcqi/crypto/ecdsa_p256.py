@@ -21,7 +21,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-__all__ = ["sign_deterministic", "P256"]
+__all__ = ["sign_deterministic", "public_point", "P256"]
 
 
 class _P256Curve:
@@ -186,3 +186,32 @@ def sign_deterministic(private_scalar: int, message: bytes) -> bytes:
         # RFC 6979 says to keep drawing from the generator if r or s comes out zero.
         # Neither has ever been observed for P-256; the branch exists for correctness.
         nonce = _generate_nonce(private_scalar, digest + b"\x00")
+
+def public_point(private_scalar: int) -> tuple[int, int]:
+    """Compute the public key belonging to a private key.
+
+    This is the whole of what makes a keypair asymmetric, and it is one line of
+    arithmetic: multiply the curve generator by the private scalar. Doing it takes a
+    fraction of a millisecond. Undoing it, recovering the scalar from the resulting
+    point, is the elliptic curve discrete logarithm problem, and nobody knows how to do
+    it for P-256 in any useful amount of time.
+
+    That asymmetry is the only reason a public key can be published safely.
+
+    Args:
+        private_scalar: The private key, an integer in the range [1, n).
+
+    Returns:
+        The public key as the affine coordinates (x, y) of the point d times G.
+
+    Raises:
+        ValueError: If the scalar is outside the valid range for the group, where the
+            result would either be the point at infinity or a repeat of another key.
+    """
+    if not 1 <= private_scalar < P256.n:
+        raise ValueError(
+            f"a private key must lie in [1, n) with n = {P256.n}; got {private_scalar}"
+        )
+    point = _scalar_multiply(private_scalar, (P256.gx, P256.gy))
+    assert point is not None, "a scalar below the group order cannot give infinity"
+    return point

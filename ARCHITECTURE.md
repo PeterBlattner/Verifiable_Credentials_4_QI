@@ -183,6 +183,48 @@ reason they are worth demonstrating.
 - **Any authority whatsoever.** No part of this reflects the position of any real
   institute, accreditation body, RMO, Global ACI, or the BIPM.
 
+## The keys chapter signs with keys the caller supplies
+
+`/api/keys/*` takes the private key as a request parameter rather than holding it server
+side, and hands it back to the browser in plain sight. That is deliberate teaching: a
+private key really is just a number somebody possesses, and watching it travel makes the
+custody problem concrete in a way prose does not.
+
+It is also the last thing a real system would do, and why it is harmless here is worth
+stating rather than assuming. The server binds to localhost. Every key in the
+demonstration comes from a seed published in this repository. And `/api/keys/sign` signs
+caller-supplied bytes with a caller-supplied key, so it is an oracle for nothing but the
+caller's own key. None of that would survive exposure to a network.
+
+`did:key` support in `vc/resolver.py` exists for the same chapter. A `did:key` carries
+its own public key, so resolving it fetches nothing — which makes the contrast with
+`did:web` visible: one identifier *is* a key, the other is a name that has to be resolved
+to find one. The organisations here use `did:web` because a `did:key` cannot rotate its
+key and cannot be the subject of a recognition credential; you would be recognising a key
+rather than an organisation.
+
+## Testing what the interface does, not only what it renders
+
+`tests/` covers everything the server computes, and it structurally cannot cover whether
+a button works. That gap has produced the same bug twice.
+
+The document inspector was appended to the page only for a hardcoded list of chapter ids,
+so a chapter not on that list could fetch a document, render it, and put the result into
+a node that had never been in the page. Every request succeeded and every test passed
+while the controls did nothing. It was found once, fixed on a branch that was later
+archived rather than merged, and arrived back on the main line the moment a new chapter
+was added.
+
+Two things came out of it. The inspector now attaches itself the first time a chapter
+asks for a document, so there is no list to fall off. And `tools/ui-clicks.mjs` drives
+the real application in a jsdom document, navigating to each chapter and clicking every
+control, failing if the page does not change. It skips controls that are already the
+selected option, because re-choosing the tab you are on is meant to do nothing and a
+check that cries wolf gets ignored.
+
+It needs jsdom, which is not a project dependency and should not become one: nothing that
+ships needs npm.
+
 ## Reproducibility
 
 `build_world()` is deterministic: fixed seed, fixed timestamps, deterministic

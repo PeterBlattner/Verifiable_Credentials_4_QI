@@ -37,6 +37,10 @@ export const api = {
   scope: (options) => post('/api/scope', options),
   uncertainty: (options) => post('/api/uncertainty', options),
   combine: (options) => post('/api/combine', options),
+  deriveKey: (options) => post('/api/keys/derive', options),
+  signMessage: (options) => post('/api/keys/sign', options),
+  verifySignature: (options) => post('/api/keys/verify', options),
+  issueAsReader: (options) => post('/api/keys/issue', options),
   gtc: () => request('/api/gtc'),
   // Dependency data is XML or a binary blob, so it comes back as text rather than JSON.
   uncertaintyData: async (url) => {

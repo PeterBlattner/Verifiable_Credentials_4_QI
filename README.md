@@ -22,7 +22,7 @@ Then open <http://127.0.0.1:8000>. No npm, no build step — the interface is pl
 modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 
 ```
-uv run pytest                                  # 168 tests
+uv run pytest                                  # 213 tests
 uv run python -m vcqi.actors.scenarios         # list every signed credential
 uv run python -m vcqi.actors.scenarios --dump out/   # write all 58 documents as JSON
 ```
@@ -36,6 +36,16 @@ uv sync --extra gtc     # certificates gain a GTC archive as well
 
 The build is deterministic: signing uses RFC 6979, so two runs produce byte-identical
 credentials and `--dump` output can be diffed between runs.
+
+There is also an optional interaction check. The Python suite verifies what the server
+computes; a separate harness verifies that the interface responds when you click it,
+which is a different question and has twice had a different answer:
+
+```
+cd tools && npm install jsdom && cd ..
+uv run vc-demo &
+node tools/ui-clicks.mjs     # clicks every control on every chapter
+```
 
 ## What it demonstrates
 
@@ -57,6 +67,14 @@ Note that one anchor is new: on 1 January 2026 the IAF and ILAC consolidated int
 **Global Accreditation Cooperation Incorporated (Global ACI)**, whose arrangement is the
 Global ACI *Multilateral* Recognition Arrangement. The CIPM MRA remains a *Mutual*
 Recognition Arrangement; the demo keeps the distinction exact.
+
+Chapter 1 answers the question the rest of the demonstration assumes: what a public and
+a private key actually are. It derives a keypair in front of you, computes the public key
+from the private one as `Q = d·G` on the P-256 curve, peels the four encodings between
+that point and the `publicKeyMultibase` in a DID document, and then lets you sign a real
+calibration certificate with your own key. All three ways of trying that fail, for three
+different reasons — including one that **passes** the recognition check while failing the
+proof, which is why the pipeline runs both.
 
 Two things go beyond the specification, because metrology needs them:
 
@@ -117,14 +135,15 @@ parties in advance.
 ## Chapters
 
 0. **What a verifiable credential is** — for someone who has not met one before
-1. **The quality infrastructure as a trust graph** — click any organisation or edge
-2. **Issuing a calibration certificate** — canonical form, hashes, signature, step by step
-3. **Verification and recognition discovery** — the full pipeline, with the clock and the trust anchors under your control
-4. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
-5. **Traceability and uncertainty** — budgets at each level, U growing down the chain, and the same measurement shown classically, as UncLib, and as GTC
-6. **Why the dependencies matter** — two certificates, one shared standard, and what each way of reporting lets the customer do
-7. **Break it** — thirteen failure cases, each naming the one check that catches it
-8. **What this would mean in practice** — the argument, and the open questions
+1. **Keys: what a signature actually proves** — make a keypair, sign something, break it four ways, then try to forge a certificate with it
+2. **The quality infrastructure as a trust graph** — click any organisation or edge
+3. **Issuing a calibration certificate** — canonical form, hashes, signature, step by step
+4. **Verification and recognition discovery** — the full pipeline, with the clock and the trust anchors under your control
+5. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
+6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, and the same measurement shown classically, as UncLib, and as GTC
+7. **Why the dependencies matter** — two certificates, one shared standard, and what each way of reporting lets the customer do
+8. **Break it** — thirteen failure cases, each naming the one check that catches it
+9. **What this would mean in practice** — the argument, and the open questions
 
 ## The thirteen failure cases
 

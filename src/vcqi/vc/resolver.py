@@ -25,7 +25,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from vcqi.crypto.keys import public_key_from_multikey
 
-__all__ = ["DocumentStore", "Resolver", "FetchRecord"]
+__all__ = ["DocumentStore", "Resolver", "FetchRecord", "did_key_document", "DID_KEY_PREFIX"]
 
 
 @dataclass(frozen=True)
@@ -53,6 +53,55 @@ class FetchRecord:
             The url, kind, outcome and source of the retrieval.
         """
         return {"url": self.url, "kind": self.kind, "found": self.found, "source": self.source}
+
+
+DID_KEY_PREFIX = "did:key:"
+
+
+def did_key_document(did: str) -> dict[str, Any] | None:
+    """Build the DID document a did:key identifier stands for.
+
+    A did:key needs no lookup at all, because the identifier *is* the public key: strip
+    the prefix and what remains is the Multikey. Nothing is fetched, nothing can be
+    stale, and nothing can be substituted on the way.
+
+    The cost is everything the demonstration otherwise relies on. The key can never be
+    rotated, because changing it changes the identifier and therefore the party. It
+    cannot carry a name, a website, or a service endpoint. And a recognition credential
+    naming it is naming a key rather than an organisation, which is not what an
+    accreditation body wants to say. So the organisations here use did:web and the
+    reader making a key on the keys page gets a did:key, and the difference between
+    those two lines is worth more than either on its own.
+
+    Args:
+        did: The identifier to expand.
+
+    Returns:
+        The equivalent DID document, or None when this is not a did:key.
+    """
+    if not did.startswith(DID_KEY_PREFIX):
+        return None
+    multikey = did[len(DID_KEY_PREFIX) :]
+    if not multikey:
+        return None
+    method_id = f"{did}#{multikey}"
+    return {
+        "@context": [
+            "https://www.w3.org/ns/did/v1",
+            "https://w3id.org/security/multikey/v1",
+        ],
+        "id": did,
+        "verificationMethod": [
+            {
+                "id": method_id,
+                "type": "Multikey",
+                "controller": did,
+                "publicKeyMultibase": multikey,
+            }
+        ],
+        "assertionMethod": [method_id],
+        "authentication": [method_id],
+    }
 
 
 class DocumentStore:
@@ -192,6 +241,14 @@ class Resolver:
         Returns:
             The DID document, or None when the identifier does not resolve.
         """
+        # A did:key carries its own key, so there is nothing to go and get. Resolving it
+        # locally is not a shortcut; it is what the method means.
+        local = did_key_document(did)
+        if local is not None:
+            self.log.append(
+                FetchRecord(url=did, kind="did-document", found=True, source="self-describing")
+            )
+            return local
         return self.fetch(did)
 
     def resolve_public_key(
