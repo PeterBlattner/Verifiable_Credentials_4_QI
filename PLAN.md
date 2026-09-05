@@ -580,3 +580,267 @@ Complete. 176 tests pass, 1 skipped (GTC not installed). All nine chapters rende
 - Every chapter renders headlessly against the live server with no console errors.
 - The headline figures are asserted in tests: r = 0.69 between the paired certificates,
   classical reporting overstating their difference by 1.81x and understating their mean.
+
+---
+
+# Change set 4 - a chapter on public and private keys
+
+## Context
+
+The demonstration asserts the thing it never explains. Chapter 0 says a credential is
+"a document with a digital signature over it, made with a key that its issuer
+publishes", and chapter 2 shows what gets hashed and signed — but nothing says what a
+key *is*, why one half signs and the other verifies, or how a verifier ends up holding
+the right public key. A reader who is unsure about that is unsure about everything
+downstream, because every later chapter rests on it.
+
+The request is explicit that the concept itself is not fully clear, so this is a
+teaching chapter first and a tour of the implementation second. It should confront the
+confusions people actually have rather than restate the mechanism.
+
+Four in particular:
+
+- **Which half is secret.** For signatures the *private* key signs and the *public* key
+  verifies. Many people arrive with the encryption intuition, where the public key
+  encrypts and the private key decrypts, and quietly map it the wrong way round.
+- **A credential is not secret.** Signing is not encryption. Anyone can read a
+  calibration certificate; the signature says who made it and that it has not changed.
+- **A valid signature proves almost nothing on its own.** Anyone can generate a keypair
+  and sign anything at all. The signature only becomes meaningful once you know whose
+  key it was, which is what identifiers and recognition are for.
+- **A key is not an identity.** It is something an identifier publishes, for a stated
+  purpose, and it can be replaced without the identifier changing.
+
+The demonstration already enforces all of this in `vc/checks.py`; the chapter makes it
+visible.
+
+Decisions taken with the user: the chapter goes immediately after chapter 0; all four
+interactive groups; show the one-way step mathematically; and wire the reader's own key
+into the real pipeline.
+
+## What the chapter contains
+
+### 1. A private key is a number. The public key is computed from it.
+
+A passphrase box, and a "give me a random one instead" button. Either way the result is
+a private scalar `d`, and the public key is then computed **in front of the reader** as
+`Q = d·G` by repeated point addition on the P-256 curve, using the code already in
+`crypto/ecdsa_p256.py`.
+
+```
+private key   d = 0x7f3a9c2e…            just a number, 32 bytes
+                    │  point multiplication
+                    ▼
+public key    Q = (x, y)                 a point on the curve
+```
+
+Then the encodings are peeled, which is what makes `publicKeyMultibase` stop looking
+arbitrary: point → SEC1 compressed (33 bytes, `02`/`03` prefix) → multicodec prefix
+`0x1200` for p256-pub → base58btc → `zDnae…`.
+
+The passphrase path is deliberately reproducible, and the chapter says plainly why that
+makes it a terrible way to make a real key: **type the same word, get the same key, and
+so can anyone else.** The random button exists to show the contrast — press it twice,
+get two different keys.
+
+Two honest warnings belong here, not in a footnote: every key in this demonstration is
+derived from a seed published in the repository and protects nothing, and the reader's
+"private" key is handed back to the browser in plain sight, which is exactly what you
+must never do with a real one.
+
+### 2. Which half does what
+
+A table that confronts the encryption confusion head on rather than hoping the reader
+does not have it.
+
+| | Signing — what credentials use | Encryption — a different job |
+| --- | --- | --- |
+| private key | **signs** | decrypts |
+| public key | **verifies** | encrypts |
+| kept secret by | the issuer | the recipient |
+| what you get | authenticity and integrity | confidentiality |
+| who can read the document | **anyone** | only the holder of the private key |
+
+### 3. Sign something, then break it four ways
+
+The reader types a message, signs it, and then four buttons each break it differently:
+verify with the right key (passes), with a different key (fails), after changing one
+character of the message (fails), after changing one character of the signature (fails).
+
+The signature is 64 bytes whatever the message length, because what is signed is a
+32-byte digest — which is also why chapter 3 has to canonicalize before hashing.
+
+### 4. Anyone can sign. That is the point, and the problem.
+
+Three certificates, all signed with the reader's own key, run through the demonstration's
+**real** verification pipeline. The outcomes were checked while planning and are all
+different, which is what makes the section worth building:
+
+| What the reader does | `proof` | `recognition` | Why |
+| --- | --- | --- | --- |
+| Signs as themselves, `did:key:zDnae…` | **pass** | **fail** | the mathematics is perfect and nobody has heard of them |
+| Claims to be METAS, names their own key | **fail** | pass | the key's controller is not the issuer the credential claims |
+| Claims to be METAS *and* claims METAS's key identifier | **fail** | pass | the verifier resolves that identifier and gets METAS's real key |
+
+The second row is the most instructive and was not obvious in advance: recognition
+**passes**, because it checks the issuer the credential *claims* and METAS really is
+recognised. Only `proof` binds that claim to a key. Two checks, two different questions,
+and a forgery that would sail through either one alone.
+
+This is where the chapter earns its place: it turns "a valid signature proves nothing on
+its own" from a sentence into something the reader watched happen.
+
+### 5. Where the public key actually lives, and what it is allowed to do
+
+Follow `proof.verificationMethod` outward: `did:web:metas.example#issuance-key-1` →
+controller `did:web:metas.example` → resolve → DID document → `verificationMethod` →
+`publicKeyMultibase` → decode → the same 33 bytes from section 1.
+
+Contrast the reader's `did:key:zDnae…`, where the identifier **is** the key and nothing
+needs fetching — then say why the demonstration uses `did:web` for organisations anyway:
+a `did:key` cannot rotate its key, and cannot be an organisation that a recognition
+credential names.
+
+Then purpose: a DID document lists keys under `assertionMethod` and `authentication`
+separately, and `check_proof` already refuses a key that is published only for logging
+in. Show the refusal.
+
+Close on compromise: the day a private key leaks, everything it ever signed becomes
+suspect and anyone can issue in that name. That is what key rotation and status lists
+are for, and it is why the ARCHITECTURE note calls key management an unsolved part of
+any real deployment.
+
+## Code
+
+### New endpoints in `web/app.py`
+
+Every call carries the private scalar explicitly rather than the server holding state.
+That is a deliberate teaching device: the private key really is just a number the caller
+has, and seeing it travel makes the custody problem concrete.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/keys/derive` | passphrase or random → scalar, point, encodings, `did:key`, DID document |
+| `POST /api/keys/sign` | scalar + message → digest, `r`, `s`, multibase signature |
+| `POST /api/keys/verify` | message + signature + multikey → verdict and reason |
+| `POST /api/keys/issue` | scalar + one of the three modes → the credential and its full report |
+
+`/api/keys/sign` signs caller-supplied bytes with a caller-supplied key, so it is an
+oracle for nothing but the caller's own key. Worth one line in ARCHITECTURE.md all the
+same, next to the existing note that the server binds to localhost.
+
+### Reused rather than rebuilt
+
+- `crypto/ecdsa_p256.py` — `_scalar_multiply` and `P256`, promoted to a public
+  `public_point(scalar)` so the chapter can show `Q = d·G` happening. Verified during
+  planning to agree with `cryptography` for a known scalar.
+- `crypto/keys.py` — `DemoKey` can be constructed directly from a raw scalar, so a
+  reader-supplied key works everywhere an actor key does. `build_did_document`,
+  `public_key_from_multikey`.
+- `crypto/multibase.py` — `encode_p256_multikey`, `base58btc_decode` for peeling.
+- `crypto/dataintegrity.py` — `sign_document` for the three certificates.
+- `vc/verify.py` — `verify_credential` unchanged; the three modes are ordinary
+  credentials through the ordinary pipeline.
+
+### One small addition: `did:key` resolution
+
+`vc/resolver.py` gains a branch in `resolve_public_key` and `assertion_methods`: when a
+controller starts with `did:key:`, build the verification method from the identifier
+itself instead of fetching. Around ten lines, it removes the need to publish a
+throwaway DID document for the reader, and it is the honest implementation of what
+`did:key` means — which the chapter then uses to contrast the two methods.
+
+### Chapter registration
+
+`chapters.js` gains `chapterKeys` registered at index 1, id `keys`, title *Keys: what a
+signature actually proves*. Everything after it shifts down one; the ids are stable
+strings so no links break. `ui.js` may need one small helper for the peeling panel;
+otherwise `panel`, `table`, `keyValues`, `stepTree` and `verdictBanner` already cover it.
+
+## Files
+
+```
+src/vcqi/crypto/ecdsa_p256.py       public_point()
+src/vcqi/vc/resolver.py             did:key resolution
+src/vcqi/web/app.py                 four /api/keys routes
+src/vcqi/web/static/js/api.js       the four calls
+src/vcqi/web/static/js/chapters.js  chapterKeys, registered at index 1
+src/vcqi/web/static/css/app.css     only if the peeling panel needs it
+tests/test_keys.py                  new
+tests/test_web.py                   the four routes
+README.md, ARCHITECTURE.md
+```
+
+## Verification
+
+- `uv run pytest` — 176 existing plus roughly 20 new. Specifically: `public_point` agrees
+  with `cryptography` across several scalars including 1 and n−1; a passphrase gives the
+  same key twice and different passphrases differ; two random keys differ; multikey and
+  `did:key` round-trip to the same public numbers; each of the four break-it cases fails
+  for the reason claimed; and the three issue modes produce the three step outcomes in
+  the table above, asserted by step id rather than by wording.
+- `uv run vc-demo`, then walk chapter 1: derive a key, sign, break it four ways, run all
+  three impostor modes, and follow the encoding chain from `publicKeyMultibase` back to
+  the point.
+- `node tools/ui-clicks.mjs` — **this matters here.** The last chapter added had dead
+  buttons that the Python suite could not see. That harness lives on the archived
+  `feature/legal-metrology` branch; cherry-pick it onto this branch first, since a
+  chapter this interactive is exactly what it exists to check.
+- Chapter renumbering: confirm the rail reads 0 to 9 and that every chapter still renders.
+
+## Git
+
+Branch from `develop`:
+
+```
+git switch -c feature/keys-chapter develop
+```
+
+Two commits: the crypto and API surface, then the chapter itself. Nothing pushed without
+asking.
+
+## Change set 4 - build order
+
+- [x] **K1 - Crypto surface.** `public_point()` in ecdsa_p256; `did:key` resolution in
+      the resolver.
+- [x] **K2 - API.** The four /api/keys routes.
+- [x] **K3 - Chapter.** chapterKeys at index 1, five sections, renumbering.
+- [x] **K4 - Tests and docs.** tests/test_keys.py, the routes in test_web.py, README and
+      ARCHITECTURE.
+- [x] **K5 - Interaction check.** `node tools/ui-clicks.mjs` against the live server.
+
+## Change set 4 - progress log
+
+Complete. 213 tests pass, 1 skipped (GTC). Ten chapters render, every control responds.
+
+- `public_point()` exposes the point multiplication, checked against `cryptography` at
+  d = 1, 2, 3, n-1 and an arbitrary scalar, and the result is confirmed to lie on the
+  curve.
+- The resolver understands `did:key`, which resolves with no retrieval at all and gives
+  the chapter its contrast with `did:web`.
+- Four `/api/keys/*` routes. The private key travels in the request on purpose;
+  ARCHITECTURE.md records why that is safe here and would not be anywhere else.
+- The chapter derives a key, computes the public one in front of the reader, peels four
+  encodings down to `publicKeyMultibase`, signs and breaks a message four ways, and runs
+  three forgery attempts through the real pipeline.
+
+### The three forgery attempts, all confirmed by test
+
+| Attempt | proof | recognition | first failure |
+| --- | --- | --- | --- |
+| Sign as yourself | pass | fail | no route to a trusted identifier |
+| Claim to be METAS, own key named | fail | pass | key controller is not the issuer |
+| Claim METAS and its key id | fail | pass | signature does not verify |
+
+The middle row is the one worth having built the chapter for: recognition **passes**,
+because it checks the issuer the credential names and METAS really is recognised. Only
+proof binds the claim to a key. Either check alone would let the forgery through.
+
+### Two things the click harness caught
+
+- The **dependencies** chapter had dead certificate chips on `develop`. The inspector fix
+  had been made on the archived legal-metrology branch and only `tools/ui-clicks.mjs` was
+  cherry-picked, so the bug came straight back the moment a chapter was added. Fixed on
+  the main line this time.
+- Pressing **Derive** twice with the same passphrase changed nothing on screen, which
+  looked broken and is in fact the lesson. It now says so explicitly instead.

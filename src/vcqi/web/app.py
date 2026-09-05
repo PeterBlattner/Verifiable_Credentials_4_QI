@@ -15,11 +15,18 @@ signatures changing underneath it.
 from __future__ import annotations
 
 import math
+import copy
+import hashlib
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -29,7 +36,14 @@ from vcqi.actors.registry import ACTORS, TRUST_ANCHORS, actor_by_did, did_docume
 from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
 from vcqi.config import DEFAULT_HOST, DEFAULT_PORT
-from vcqi.crypto.dataintegrity import ProofTrace
+from vcqi.crypto.dataintegrity import ProofTrace, sign_document
+from vcqi.crypto.ecdsa_p256 import P256, public_point, sign_deterministic
+from vcqi.crypto.keys import DemoKey, derive_key, public_key_from_multikey
+from vcqi.crypto.multibase import (
+    encode_p256_multikey,
+    multibase_decode,
+    multibase_encode_base58btc,
+)
 from vcqi.domain.accreditation import ACCREDITATION_SCOPES
 from vcqi.domain.gtc_archive import GTC_UNAVAILABLE_NOTE, gtc_available
 from vcqi.domain.kcdb import CMC_ENTRIES, cmc_by_id
@@ -42,6 +56,7 @@ from vcqi.domain.uncertainty import (
     rectangular,
 )
 from vcqi.vc.checks import credential_types, issuer_id
+from vcqi.vc.resolver import DID_KEY_PREFIX, did_key_document
 from vcqi.vc.verify import verify_credential
 
 STATIC_ROOT = Path(__file__).parent / "static"
@@ -775,3 +790,366 @@ def get_gtc_status() -> dict[str, Any]:
         Whether GTC can be imported, and the note to display when it cannot.
     """
     return {"available": gtc_available(), "note": GTC_UNAVAILABLE_NOTE}
+
+
+# ---------------------------------------------------------------- keys
+#
+# These four routes exist to teach one thing: what a keypair is and what a signature
+# does and does not prove. Every one of them takes the private key as a parameter rather
+# than holding it server side, which is deliberate. The private key really is just a
+# number the caller possesses, and watching it travel in and out of an HTTP request makes
+# the custody problem concrete in a way that any amount of prose does not.
+#
+# It is also, obviously, the last thing a real system would do. Nothing here protects
+# anything: the demonstration keys come from a seed published in the repository, the
+# server binds to localhost, and /api/keys/sign will sign whatever bytes it is handed
+# with whatever key it is handed. That is safe only because the key is always the
+# caller's own.
+
+
+class DeriveKeyRequest(BaseModel):
+    """A request to make a keypair.
+
+    Attributes:
+        passphrase: Words to derive the key from, reproducibly. The same passphrase
+            always gives the same key, which is the point being taught and the reason
+            nobody should ever do this for real.
+        random: Generate from the operating system random source instead, so that two
+            presses give two different keys.
+    """
+
+    passphrase: str = ""
+    random: bool = False
+
+
+def _key_material(scalar: int) -> dict[str, Any]:
+    """Describe a private key and everything derived from it.
+
+    Args:
+        scalar: The private key as an integer.
+
+    Returns:
+        The scalar, the public point, each encoding layer between that point and the
+        string a DID document actually carries, and the resulting did:key.
+
+    Raises:
+        HTTPException: If the scalar is outside the valid range for the curve.
+    """
+    try:
+        x, y = public_point(scalar)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    private = ec.derive_private_key(scalar, ec.SECP256R1())
+    compressed = private.public_key().public_bytes(
+        Encoding.X962, PublicFormat.CompressedPoint
+    )
+    multikey = encode_p256_multikey(compressed)
+    did = f"{DID_KEY_PREFIX}{multikey}"
+
+    return {
+        "privateScalarHex": f"{scalar:064x}",
+        "privateScalarDecimalDigits": len(str(scalar)),
+        "publicPoint": {"x": f"{x:064x}", "y": f"{y:064x}"},
+        # The layers between the point and the string in a DID document. Each one is
+        # reversible and none of them is cryptography; publicKeyMultibase looks opaque
+        # only because four ordinary encodings are stacked on top of each other.
+        "encodingLayers": [
+            {
+                "step": "the point on the curve",
+                "value": f"x = {x:#0{66}x}",
+                "note": "two coordinates, 32 bytes each",
+            },
+            {
+                "step": "SEC1 compressed point",
+                "value": compressed.hex(),
+                "note": (
+                    f"33 bytes: a {compressed[:1].hex()} prefix saying which of the two "
+                    f"y values it is, then x. y is recomputed from the curve equation."
+                ),
+            },
+            {
+                "step": "multicodec prefix for p256-pub",
+                "value": "8024" + compressed.hex(),
+                "note": "0x1200 as a varint, so a reader knows what kind of key follows",
+            },
+            {
+                "step": "base58btc, with a z to say so",
+                "value": multikey,
+                "note": "this is the publicKeyMultibase in every DID document here",
+            },
+        ],
+        "publicKeyMultibase": multikey,
+        "didKey": did,
+        "verificationMethodId": f"{did}#{multikey}",
+        "didDocument": did_key_document(did),
+        "curve": {
+            "name": "NIST P-256 (secp256r1)",
+            "order": f"{P256.n:#x}",
+            "generatorX": f"{P256.gx:#x}",
+        },
+    }
+
+
+@app.post("/api/keys/derive")
+def post_derive_key(request: DeriveKeyRequest) -> dict[str, Any]:
+    """Make a keypair and show every step from the private number to the published one.
+
+    Args:
+        request: A passphrase to derive from, or a request for a random key.
+
+    Returns:
+        The key material, and whether it is reproducible.
+
+    Raises:
+        HTTPException: If neither a passphrase nor the random flag was given.
+    """
+    if request.random:
+        scalar = ec.generate_private_key(ec.SECP256R1()).private_numbers().private_value
+        reproducible = False
+        note = (
+            "Generated from the random source of the operating system. Ask again and you "
+            "will get a different key, because a real key is chosen from about 2^256 "
+            "possibilities and never derived from anything guessable."
+        )
+    else:
+        if not request.passphrase.strip():
+            raise HTTPException(
+                status_code=400, detail="give a passphrase, or ask for a random key"
+            )
+        derived = derive_key(f"passphrase:{request.passphrase}", "key-1")
+        scalar = derived.private_key.private_numbers().private_value
+        reproducible = True
+        note = (
+            "Derived from this passphrase and a seed published in this repository. The "
+            "same passphrase always gives the same key, which is exactly why nobody "
+            "should ever make a real key this way: anyone who guesses the words has your "
+            "private key, and so does anyone reading the source."
+        )
+
+    return {**_key_material(scalar), "reproducible": reproducible, "note": note}
+
+
+class SignRequest(BaseModel):
+    """A request to sign a message with a supplied key.
+
+    Attributes:
+        private_scalar_hex: The private key, as 64 hex characters.
+        message: The text to sign.
+    """
+
+    private_scalar_hex: str
+    message: str = "The 10 kilohm standard reads 10000.0012 ohm."
+
+
+def _scalar_of(private_scalar_hex: str) -> int:
+    """Read a private key out of a request.
+
+    Args:
+        private_scalar_hex: The scalar as hexadecimal.
+
+    Returns:
+        The scalar as an integer.
+
+    Raises:
+        HTTPException: If it is not readable hexadecimal in the valid range.
+    """
+    try:
+        scalar = int(private_scalar_hex, 16)
+    except (TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="the private key is not hexadecimal") from error
+    if not 1 <= scalar < P256.n:
+        raise HTTPException(status_code=400, detail="the private key is outside the curve order")
+    return scalar
+
+
+@app.post("/api/keys/sign")
+def post_sign(request: SignRequest) -> dict[str, Any]:
+    """Sign a message and show what the signature is made of.
+
+    Args:
+        request: The key and the message.
+
+    Returns:
+        The digest that was actually signed, the two halves of the signature, and its
+        encoded form.
+
+    Raises:
+        HTTPException: If the key is unusable.
+    """
+    scalar = _scalar_of(request.private_scalar_hex)
+    payload = request.message.encode("utf-8")
+    signature = sign_deterministic(scalar, payload)
+
+    return {
+        "message": request.message,
+        "messageBytes": len(payload),
+        "digest": hashlib.sha256(payload).hexdigest(),
+        "signature": {
+            "r": signature[: P256.size].hex(),
+            "s": signature[P256.size :].hex(),
+            "bytes": len(signature),
+            "multibase": multibase_encode_base58btc(signature),
+        },
+        "publicKeyMultibase": _key_material(scalar)["publicKeyMultibase"],
+        "note": (
+            "The signature is 64 bytes whatever the message length, because what gets "
+            "signed is the 32-byte digest rather than the message. That is also why the "
+            "credentials in this demonstration are canonicalized before they are hashed: "
+            "the signature commits to exactly one sequence of bytes."
+        ),
+    }
+
+
+class VerifySignatureRequest(BaseModel):
+    """A request to check a signature.
+
+    Attributes:
+        message: The text the signature is claimed to be over.
+        signature_multibase: The signature as produced by the sign route.
+        public_key_multibase: The public key to check it against.
+    """
+
+    message: str
+    signature_multibase: str
+    public_key_multibase: str
+
+
+@app.post("/api/keys/verify")
+def post_verify_signature(request: VerifySignatureRequest) -> dict[str, Any]:
+    """Check a signature against a message and a public key.
+
+    All three inputs are checked together, which is the whole point: a signature is not
+    valid or invalid on its own, only valid *for this message and this key*. Change any
+    one of the three and it fails.
+
+    Args:
+        request: The message, the signature and the key.
+
+    Returns:
+        Whether it verified, and if not, a plain statement of why.
+    """
+    try:
+        public_key = public_key_from_multikey(request.public_key_multibase)
+    except ValueError as error:
+        return {"valid": False, "reason": f"that is not a usable public key: {error}"}
+
+    try:
+        signature = multibase_decode(request.signature_multibase)
+    except ValueError as error:
+        return {"valid": False, "reason": f"that is not a usable signature: {error}"}
+    if len(signature) != 2 * P256.size:
+        return {
+            "valid": False,
+            "reason": (
+                f"a P-256 signature is {2 * P256.size} bytes and this one is "
+                f"{len(signature)}, so it has been altered"
+            ),
+        }
+
+    r = int.from_bytes(signature[: P256.size], "big")
+    s = int.from_bytes(signature[P256.size :], "big")
+    try:
+        public_key.verify(
+            encode_dss_signature(r, s),
+            request.message.encode("utf-8"),
+            ec.ECDSA(hashes.SHA256()),
+        )
+    except InvalidSignature:
+        return {
+            "valid": False,
+            "reason": (
+                "the signature does not verify. Either it was made with a different key, "
+                "or the message is not the one that was signed, or the signature itself "
+                "has been altered. The arithmetic cannot tell you which."
+            ),
+        }
+    return {
+        "valid": True,
+        "reason": "this key signed exactly this message, and neither has changed since",
+    }
+
+
+class IssueAsReaderRequest(BaseModel):
+    """A request to sign a real credential with the reader's own key.
+
+    Attributes:
+        private_scalar_hex: The private key to sign with.
+        mode: One of ``honest``, ``impersonate`` or ``steal-key-id``.
+    """
+
+    private_scalar_hex: str
+    mode: str = "honest"
+
+
+ISSUE_MODES = {
+    "honest": "Sign as yourself, saying plainly that the credential is yours.",
+    "impersonate": "Claim to be METAS, but name your own key in the proof.",
+    "steal-key-id": "Claim to be METAS and claim METAS's key identifier as well.",
+}
+
+
+@app.post("/api/keys/issue")
+def post_issue_as_reader(request: IssueAsReaderRequest) -> dict[str, Any]:
+    """Sign a genuine calibration certificate with the reader's key and verify it.
+
+    Three ways to try it, and none of them works, for three different reasons. Being
+    able to see all three is the argument of the chapter: signing is easy, and a
+    signature on its own settles almost nothing.
+
+    Args:
+        request: The key and which of the three attempts to make.
+
+    Returns:
+        The signed credential and its full verification report.
+
+    Raises:
+        HTTPException: If the key is unusable or the mode is unknown.
+    """
+    if request.mode not in ISSUE_MODES:
+        raise HTTPException(status_code=400, detail=f"unknown mode {request.mode}")
+
+    scalar = _scalar_of(request.private_scalar_hex)
+    private = ec.derive_private_key(scalar, ec.SECP256R1())
+    compressed = private.public_key().public_bytes(
+        Encoding.X962, PublicFormat.CompressedPoint
+    )
+    multikey = encode_p256_multikey(compressed)
+    did = f"{DID_KEY_PREFIX}{multikey}"
+    reader = DemoKey(
+        did=did, fragment=multikey, private_key=private, public_key_multibase=multikey
+    )
+
+    current = world()
+    credential = copy.deepcopy(current.credential("metas-calibration"))
+    credential.pop("credentialStatus", None)
+
+    if request.mode == "honest":
+        credential["id"] = "https://reader.example/certificates/MINE-0001"
+        credential["issuer"] = {
+            "id": did,
+            "type": "RecognizedIssuer",
+            "name": "A reader of this page",
+        }
+    # In the other two modes the issuer is left as METAS, which is the impersonation.
+
+    signed, _ = sign_document(credential, reader, created=DEMO_NOW)
+    if request.mode == "steal-key-id":
+        # Claiming the identifier of a key you do not have. The verifier will resolve it
+        # and get the real one.
+        signed["proof"]["verificationMethod"] = "did:web:metas.example#issuance-key-1"
+
+    report = verify_credential(
+        signed, store=current.store, now=DEMO_NOW, trusted_issuers=TRUST_ANCHORS
+    )
+    steps = {step.id: step.status for step in report.steps}
+
+    return {
+        "mode": request.mode,
+        "modeDescription": ISSUE_MODES[request.mode],
+        "didKey": did,
+        "credential": signed,
+        "report": report.to_json(),
+        "proof": steps.get("proof"),
+        "recognition": steps.get("recognition"),
+    }
