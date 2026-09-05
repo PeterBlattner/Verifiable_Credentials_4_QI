@@ -127,6 +127,310 @@ async function chapterOrientation(context) {
 
 // ---------------------------------------------------------------- chapter 1
 
+const ISSUE_MODES = [
+  { key: 'honest', label: 'Sign as yourself' },
+  { key: 'impersonate', label: 'Claim to be METAS' },
+  { key: 'steal-key-id', label: 'Claim METAS and its key id' },
+];
+
+async function chapterKeys(context) {
+  const fragment = document.createDocumentFragment();
+  const state = { key: null };
+
+  fragment.append(
+    prose([
+      'The previous chapter said a credential is a document signed with a key that its issuer publishes. That sentence carries the whole idea, and it is worth slowing down on, because everything after it depends on what a key actually is.',
+      'A <strong>private key</strong> is a number. Not a file, not a password: a number, about 78 digits long. A <strong>public key</strong> is a second value computed from the first. The computation goes one way only, which is the entire trick and the reason the second one can be published.',
+    ])
+  );
+
+  // ---- 1. make a keypair ------------------------------------------------------
+  const keyOutput = el('div', {});
+  const passphrase = el('input', {
+    type: 'text',
+    value: 'a passphrase you would never use for real',
+    style: 'min-width: 320px',
+  });
+
+  async function derive(body) {
+    const previous = state.key ? state.key.publicKeyMultibase : null;
+    clear(keyOutput).append(el('p', { class: 'spinner', text: 'Computing…' }));
+    const data = await api.deriveKey(body);
+    const repeated = previous !== null && previous === data.publicKeyMultibase;
+    state.key = data;
+
+    clear(keyOutput).append(
+      repeated
+        ? el('div', { class: 'verdict verdict--pass' }, [
+            el('div', { class: 'verdict__mark', text: '=' }),
+            el('div', { class: 'verdict__text' }, [
+              el('strong', { text: 'Exactly the same key came back' }),
+              el('span', {
+                text:
+                  'Which is the whole problem with deriving a key from words. Nothing about this key is unpredictable: anyone who tries the same passphrase gets the same private key, and it is the private key that is supposed to be the secret. Change a character, or ask for a random one, and watch it move.',
+              }),
+            ]),
+          ])
+        : null,
+      el('div', { class: 'callout' }, el('p', { text: data.note })),
+      el('h3', { text: 'Your private key' }),
+      el('pre', { class: 'code', text: wrap(data.privateScalarHex, 64) }),
+      el('p', {
+        class: 'muted',
+        text: `That is the whole secret: one number, 32 bytes, ${data.privateScalarDecimalDigits} digits in decimal. Anyone who has it can sign anything at all in your name.`,
+      }),
+      el('h3', { text: 'The public key, computed from it' }),
+      el('pre', {
+        class: 'code',
+        text:
+          `  d = 0x${data.privateScalarHex.slice(0, 24)}…\n` +
+          '        |\n' +
+          '        |   Q = d x G      multiply the curve generator by d\n' +
+          '        v\n' +
+          `  x = 0x${data.publicPoint.x.slice(0, 24)}…\n` +
+          `  y = 0x${data.publicPoint.y.slice(0, 24)}…`,
+      }),
+      prose([
+        `That multiplication is a few hundred point additions on the ${data.curve.name} curve and takes well under a millisecond. Going the other way — recovering <em>d</em> from the point — is the elliptic curve discrete logarithm problem, and after forty years of trying, nobody knows how to do it. That asymmetry is the only reason the right-hand value can be published at all.`,
+      ]),
+      panel(
+        'From a point to publicKeyMultibase',
+        'four ordinary encodings stacked up, none of them cryptography',
+        table(
+          ['Step', 'Value', 'What it adds'],
+          data.encodingLayers.map((layer) => [
+            layer.step,
+            el('span', { class: 'hash', text: layer.value.slice(0, 52) + (layer.value.length > 52 ? '…' : '') }),
+            layer.note,
+          ])
+        )
+      ),
+      keyValues([
+        ['Your identifier', el('span', { class: 'hash', text: data.didKey })],
+        ['Its DID document', el('button', {
+          class: 'chip',
+          text: 'show it',
+          onclick: (event) => {
+            event.target.replaceWith(jsonView(data.didDocument, context.inspect));
+          },
+        })],
+      ]),
+      prose([
+        'Notice what that identifier is. A <code>did:key</code> <em>contains</em> the public key, so a verifier needs to fetch nothing at all to check a signature made with it. Compare <code>did:web:metas.example</code>, which has to be resolved to a document before you learn anything. The trade is that a <code>did:key</code> can never rotate its key, cannot carry a name or a website, and cannot be the subject of a recognition credential — you would be recognising a key rather than an organisation.',
+      ])
+    );
+  }
+
+  fragment.append(
+    panel('Make a keypair', 'nothing here is secret; see the warning below', [
+      el('div', { class: 'controls' }, [
+        el('label', { class: 'field' }, [el('span', { text: 'Passphrase' }), passphrase]),
+        el('button', {
+          class: 'action action--primary',
+          text: 'Derive a key from it',
+          onclick: () => derive({ passphrase: passphrase.value }),
+        }),
+        el('button', {
+          class: 'action',
+          text: 'Give me a random one instead',
+          onclick: () => derive({ random: true }),
+        }),
+      ]),
+      keyOutput,
+    ]),
+    callout([
+      'Press <strong>Derive</strong> twice with the same words and you get the same key every time. Press <strong>random</strong> twice and you get two different keys. That contrast is the point: a real private key is chosen at random from about 2<sup>256</sup> possibilities, and one derived from words you can remember is one an attacker can guess.',
+      'And to be explicit about what you are looking at: this page shows you a private key and sends it back and forth over HTTP. Every key in this demonstration comes from a seed published in the source and protects nothing. A real private key is generated on the device that will use it and never leaves it.',
+    ])
+  );
+
+  // ---- 2. which half does what ------------------------------------------------
+  fragment.append(
+    el('h3', { text: 'Which half does what' }),
+    prose([
+      'This is where most of the confusion lives, and it comes from encryption. In encryption the <em>public</em> key encrypts and the <em>private</em> key decrypts, so people reasonably assume signing works the same way round. It does not.',
+    ]),
+    table(
+      ['', 'Signing — what credentials use', 'Encryption — a different job'],
+      [
+        [el('strong', { text: 'private key' }), el('strong', { text: 'signs' }), 'decrypts'],
+        [el('strong', { text: 'public key' }), el('strong', { text: 'verifies' }), 'encrypts'],
+        ['kept secret by', 'the issuer', 'the recipient'],
+        ['what you get', 'authenticity and integrity', 'confidentiality'],
+        ['who can read the document', el('strong', { text: 'anyone' }), 'only the holder of the private key'],
+      ]
+    ),
+    callout([
+      'So a verifiable credential is <strong>not secret</strong>. A calibration certificate signed this way is as readable as one on paper. The signature does not hide anything; it says who wrote it and that nobody has changed it since. If you also need it kept confidential, that is a separate mechanism on top.',
+    ])
+  );
+
+  // ---- 3. sign, then break it -------------------------------------------------
+  const message = el('input', { type: 'text', value: 'The 10 kilohm standard reads 10000.0012 ohm.', style: 'min-width: 380px' });
+  const signOutput = el('div', {});
+
+  async function signAndBreak() {
+    if (!state.key) {
+      clear(signOutput).append(el('p', { class: 'muted', text: 'Make a keypair above first.' }));
+      return;
+    }
+    clear(signOutput).append(el('p', { class: 'spinner', text: 'Signing…' }));
+
+    const scalar = state.key.privateScalarHex;
+    const text = message.value;
+    const signed = await api.signMessage({ private_scalar_hex: scalar, message: text });
+    const other = await api.deriveKey({ passphrase: `${passphrase.value} but different` });
+
+    const attempts = [
+      ['the right key and the right message', text, signed.signature.multibase, state.key.publicKeyMultibase],
+      ['a different public key', text, signed.signature.multibase, other.publicKeyMultibase],
+      ['one character changed in the message', `${text} `, signed.signature.multibase, state.key.publicKeyMultibase],
+      ['one character changed in the signature', text, flipLast(signed.signature.multibase), state.key.publicKeyMultibase],
+    ];
+
+    const rows = [];
+    for (const [label, msg, sig, pub] of attempts) {
+      const result = await api.verifySignature({
+        message: msg,
+        signature_multibase: sig,
+        public_key_multibase: pub,
+      });
+      rows.push([badge(result.valid ? 'pass' : 'fail'), label, result.reason]);
+    }
+
+    clear(signOutput).append(
+      keyValues([
+        ['SHA-256 of the message', el('span', { class: 'hash', text: signed.digest })],
+        ['r', el('span', { class: 'hash', text: signed.signature.r })],
+        ['s', el('span', { class: 'hash', text: signed.signature.s })],
+        ['as it travels', el('span', { class: 'hash', text: signed.signature.multibase })],
+      ]),
+      el('p', { class: 'muted', text: signed.note }),
+      table(['', 'Verifying with…', 'What the verifier can say'], rows)
+    );
+  }
+
+  fragment.append(
+    panel('Sign something, then break it four ways', 'a signature is never valid on its own, only for one message and one key', [
+      el('div', { class: 'controls' }, [
+        el('label', { class: 'field' }, [el('span', { text: 'Message' }), message]),
+        el('button', { class: 'action action--primary', text: 'Sign it, then try to break it', onclick: signAndBreak }),
+      ]),
+      signOutput,
+    ])
+  );
+
+  // ---- 4. anyone can sign -----------------------------------------------------
+  const issueOutput = el('div', {});
+
+  async function attempt(mode) {
+    if (!state.key) {
+      clear(issueOutput).append(el('p', { class: 'muted', text: 'Make a keypair above first.' }));
+      return;
+    }
+    clear(issueOutput).append(el('p', { class: 'spinner', text: 'Signing a certificate and verifying it…' }));
+    const data = await api.issueAsReader({ private_scalar_hex: state.key.privateScalarHex, mode });
+
+    clear(issueOutput).append(
+      prose([data.modeDescription]),
+      el('div', { class: 'stat-row' }, [
+        stat(data.proof, 'proof'),
+        stat(data.recognition, 'recognition'),
+        stat(data.report.outcome, 'overall'),
+      ]),
+      verdictBanner(data.report),
+      panel('Every check the verifier ran', 'the same pipeline every other chapter uses', stepTree(data.report.steps, 0)),
+      panel('The credential you just signed', null, jsonView(data.credential, context.inspect, { tall: true }))
+    );
+    issueOutput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  fragment.append(
+    el('h3', { text: 'Anyone can sign. That is the point, and the problem.' }),
+    prose([
+      'Nothing stopped you making that key, and nothing stops you signing a calibration certificate with it right now. The mathematics does not know or care who you are. So try it: take the real METAS certificate from this demonstration, sign it with your own key, and put it through the same verification pipeline every other chapter uses.',
+      'Three ways to try, and all three fail — for three <em>different</em> reasons, which is what makes this worth doing rather than reading.',
+    ]),
+    panel('Sign a real calibration certificate with your key', null, [
+      el(
+        'div',
+        { class: 'chips' },
+        ISSUE_MODES.map((mode) =>
+          el('button', { class: 'chip', text: mode.label, onclick: () => attempt(mode.key) })
+        )
+      ),
+      issueOutput,
+    ]),
+    callout([
+      'The second attempt is the one to think about. Claiming to be METAS while naming your own key <strong>passes</strong> the recognition check, because recognition asks whether the issuer the credential <em>names</em> is recognised — and METAS genuinely is. Only the proof check binds that claim to a key, and only then does the forgery come apart.',
+      'Two checks, two different questions. A forgery would sail straight through either one on its own, which is why the pipeline runs both and why a valid signature, by itself, settles almost nothing.',
+    ])
+  );
+
+  // ---- 5. where the key lives, and what it may do -----------------------------
+  const chainOutput = el('div', {});
+
+  async function followChain() {
+    clear(chainOutput).append(el('p', { class: 'spinner', text: 'Resolving…' }));
+    const data = await api.credential('metas-calibration');
+    const actor = await api.actor('did:web:metas.example');
+    const method = data.credential.proof.verificationMethod;
+    const controller = method.split('#')[0];
+    const published = actor.didDocument.verificationMethod[0];
+
+    clear(chainOutput).append(
+      table(
+        ['Step', 'Value'],
+        [
+          ['the proof names a key', el('span', { class: 'hash', text: method })],
+          ['everything before the # is the controller', el('span', { class: 'hash', text: controller })],
+          ['resolve that identifier', 'https://metas.example/.well-known/did.json'],
+          ['the document lists the key', el('span', { class: 'hash', text: published.publicKeyMultibase })],
+          ['decode it', '33 bytes: the compressed point, exactly as above'],
+        ]
+      ),
+      prose([
+        'And crucially, the verifier takes the key from <strong>the controller the credential names</strong>, never from the credential itself. A document that carried its own public key would prove only that whoever wrote it owned a key — which is precisely the second attempt above.',
+        'The document also says what each key may be <em>used</em> for. A key listed under <code>authentication</code> is for proving you are present, logging in; one listed under <code>assertionMethod</code> is for making statements that outlive the conversation. The pipeline refuses a credential signed with a key its controller published only for authentication, and that is not pedantry: a key used to log in is exposed far more often than one kept for issuing.',
+      ]),
+      jsonView(actor.didDocument, context.inspect)
+    );
+  }
+
+  fragment.append(
+    el('h3', { text: 'How the verifier gets the right key' }),
+    panel('Follow it from the proof back to the published key', null, [
+      el('button', { class: 'action', text: 'Follow the chain for METAS-2026-0417', onclick: followChain }),
+      chainOutput,
+    ])
+  );
+
+  // ---- and what happens when it leaks -----------------------------------------
+  fragment.append(
+    el('h3', { text: 'And the day it leaks' }),
+    prose([
+      'If a private key gets out, everything it ever signed becomes questionable, because there is no longer any way to tell what the holder signed from what the thief signed. Anyone can issue in that name, backdated, indefinitely.',
+      'That is what revocation lists, key rotation and validity periods are really for, and why an identifier that can publish a <em>new</em> key without becoming a different party matters more than it first appears. It is also why <code>ARCHITECTURE.md</code> lists key management and long-term validation among the things a real deployment would have to solve that this demonstration does not.',
+    ]),
+    el('p', {
+      class: 'footnote',
+      text:
+        'Every key here is derived from a seed published in this repository, including the one you just made. They exist to be looked at, not to protect anything.',
+    })
+  );
+
+  await derive({ passphrase: passphrase.value });
+  return fragment;
+}
+
+/** Change the last character of a multibase string, to break a signature by one digit. */
+function flipLast(value) {
+  const last = value.slice(-1);
+  return value.slice(0, -1) + (last === '1' ? '2' : '1');
+}
+
+// ---------------------------------------------------------------- chapter 2
+
 async function chapterGraph(context) {
   const fragment = document.createDocumentFragment();
   fragment.append(
@@ -206,7 +510,7 @@ async function chapterGraph(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 2
+// ---------------------------------------------------------------- chapter 3
 
 async function chapterIssuing(context) {
   const fragment = document.createDocumentFragment();
@@ -274,7 +578,7 @@ function wrap(text, width) {
   return lines.join('\n');
 }
 
-// ---------------------------------------------------------------- chapter 3
+// ---------------------------------------------------------------- chapter 4
 
 async function chapterVerification(context) {
   const fragment = document.createDocumentFragment();
@@ -385,7 +689,7 @@ async function chapterVerification(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 4
+// ---------------------------------------------------------------- chapter 5
 
 async function chapterScope(context) {
   const fragment = document.createDocumentFragment();
@@ -479,7 +783,7 @@ async function chapterScope(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 5
+// ---------------------------------------------------------------- chapter 6
 
 /**
  * Show the same measurement in each way it can be handed to a customer.
@@ -766,7 +1070,7 @@ async function chapterTraceability(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 6
+// ---------------------------------------------------------------- chapter 7
 
 const OPERATIONS = [
   { key: 'difference', label: 'R1 − R2', hint: 'checking two standards against each other' },
@@ -874,7 +1178,7 @@ async function chapterDependencies(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 7
+// ---------------------------------------------------------------- chapter 8
 
 const GROUP_LABELS = {
   forgery: 'Forgery — the cryptography catches these',
@@ -949,7 +1253,7 @@ async function chapterBreakIt(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 8
+// ---------------------------------------------------------------- chapter 9
 
 async function chapterImplications() {
   const fragment = document.createDocumentFragment();
@@ -1010,6 +1314,13 @@ export const CHAPTERS = [
     eyebrow: 'Start here',
     lede: 'Written for someone who has not met verifiable credentials before, and who does know what a calibration certificate is.',
     render: chapterOrientation,
+  },
+  {
+    id: 'keys',
+    title: 'Keys: what a signature actually proves',
+    eyebrow: 'The idea underneath',
+    lede: 'A private key is a number, a public key is computed from it, and the computation goes one way only. Make a keypair, sign something, and watch what a signature does and does not settle.',
+    render: chapterKeys,
   },
   {
     id: 'graph',

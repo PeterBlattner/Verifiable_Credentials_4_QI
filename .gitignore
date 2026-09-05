@@ -13,3 +13,7 @@ out/
 
 # Working notes, not part of the demonstration
 temp/
+
+# Optional UI click harness; see tools/ui-clicks.mjs
+tools/node_modules/
+tools/package*.json
