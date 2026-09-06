@@ -234,6 +234,33 @@ in blocks something interpolates. One convention underpins the rest — content 
 literal strings at the call site, never computed — and its own test enforces that,
 because a computed key would make every other check unable to see it.
 
+### The scripts have to agree with each other
+
+The interface is separate ES modules loaded straight from disk, which is what keeps it
+readable and free of a build step. It also means the modules have to be consistent with
+one another, and nothing was enforcing that.
+
+Starlette's `StaticFiles` sends an `ETag` and a `Last-Modified` but no `Cache-Control`,
+and that combination is not neutral: with no explicit policy a browser applies
+*heuristic* freshness and may reuse a file for a while without asking whether it changed.
+So a browser holding an older `app.js` beside a newer `chapters.js` rendered "This
+chapter failed to render: `context.text` is not a function" -- the two disagreed about
+what the render context contains. On a deployed copy that is the pair a returning visitor
+would hold after any release.
+
+Static assets are therefore served `no-cache`, which permits storing a file and requires
+asking first; the `ETag` already there makes that a 304 with no body. The whole interface
+is about 150 kB, so the cost is one conditional request per module per load. API
+responses are `no-store`, because `/api/content` is rendered from files an editor is
+editing and being told to reload twice would undo the modification-time cache behind it.
+Content-hashed filenames are the usual alternative and need the build step this project
+does not have.
+
+The underlying mistake was a contract between two files that nothing checked, so that is
+checked now: `tests/test_content.py` reads every `context.*` property `chapters.js` uses
+and asserts `app.js` passes it. That found one property being passed and never read --
+`api`, which chapters import directly -- and it is no longer passed.
+
 ### The network is a dictionary
 
 `vc/resolver.py` stands in for retrieval. Every document is published at the address a

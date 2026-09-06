@@ -98,6 +98,45 @@ class TestTheConventionHolds:
         assert referenced_keys(), "no chapter reads its prose from a content file"
 
 
+class TestTheRenderContextContract:
+    """What a chapter expects from app.js, and what app.js actually passes.
+
+    A chapter render function receives one object and reaches into it. Nothing checked
+    that the two files agreed about what is in it, and when `context.text` was added
+    for the content layer they briefly did not: a browser running a cached older
+    `app.js` beside the new `chapters.js` showed "This chapter failed to render:
+    context.text is not a function".
+
+    Caching was the reason the mismatch reached a reader, and that is fixed separately.
+    This is the check for the mismatch itself, which would otherwise only ever show up
+    in a browser.
+    """
+
+    def test_every_context_property_a_chapter_uses_is_passed(self) -> None:
+        """The contract, read off both sides rather than assumed."""
+        used = set(re.findall(r"context\.([a-zA-Z][\w]*)", CHAPTERS_JS))
+        assert used, "no chapter reads anything from its context; this test is not working"
+
+        # The single object literal passed to chapter.render(...).
+        call = re.search(r"chapter\.render\(\{(.*?)\}\)", APP_JS, re.DOTALL)
+        assert call, "could not find the chapter.render call in app.js"
+        provided = set(re.findall(r"^\s*([a-zA-Z][\w]*)\s*[,:]", call.group(1), re.MULTILINE))
+
+        missing = used - provided
+        assert not missing, (
+            f"chapters.js reads context.{{{', '.join(sorted(missing))}}} but app.js does "
+            "not pass it; a chapter would fail to render"
+        )
+
+    def test_nothing_is_passed_that_no_chapter_uses(self) -> None:
+        """The other direction, which is only untidiness but is free to check."""
+        used = set(re.findall(r"context\.([a-zA-Z][\w]*)", CHAPTERS_JS))
+        call = re.search(r"chapter\.render\(\{(.*?)\}\)", APP_JS, re.DOTALL)
+        provided = set(re.findall(r"^\s*([a-zA-Z][\w]*)\s*[,:]", call.group(1), re.MULTILINE))
+        unused = provided - used
+        assert not unused, f"app.js passes {sorted(unused)}, which no chapter reads"
+
+
 class TestKeysAndBlocksAgree:
     """The two halves cannot drift apart without this failing."""
 

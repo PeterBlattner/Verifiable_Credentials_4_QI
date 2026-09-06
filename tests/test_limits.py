@@ -177,17 +177,43 @@ class TestRateLimiting:
             assert client.post("/api/world").status_code == 200
 
     def test_the_bucket_refills(self) -> None:
-        """Waiting is enough; the limit throttles rather than banning."""
-        client = self._limited(burst=5, per_second=1000.0)
-        assert client.post("/api/keys/derive").status_code == 200
-        assert client.post("/api/keys/derive").status_code == 429
-        # At a thousand tokens a second the bucket is full again almost at once, which
-        # keeps the test fast without making it depend on wall-clock sleeping.
-        for _ in range(200):
-            if client.post("/api/keys/derive").status_code == 200:
-                break
-        else:
-            pytest.fail("the bucket never refilled")
+        """Waiting is enough; the limit throttles rather than bans.
+
+        Tested against the arithmetic with the clock supplied, rather than through HTTP
+        against the real one. Refilling is a calculation, and racing wall-clock time to
+        observe it makes a test that fails on a busy machine for no reason -- which is
+        what the first version of this did.
+        """
+        limiter = RateLimitMiddleware(None, burst=10, per_second=2.0)
+
+        # Two requests at five tokens each empty it exactly.
+        assert limiter._charge("a", 5, 100.0) == 0.0
+        assert limiter._charge("a", 5, 100.0) == 0.0
+
+        # The third has to wait for two and a half seconds of refill at 2/s.
+        assert limiter._charge("a", 5, 100.0) == pytest.approx(2.5)
+
+        # Half of that buys nothing yet, and the wait shrinks by what accrued.
+        assert limiter._charge("a", 5, 101.0) == pytest.approx(1.5)
+
+        # And once it has accrued, the request goes through.
+        assert limiter._charge("a", 5, 103.0) == 0.0
+
+    def test_the_bucket_never_fills_past_its_burst(self) -> None:
+        """Idling for an hour does not buy an hour's worth of requests."""
+        limiter = RateLimitMiddleware(None, burst=10, per_second=2.0)
+        assert limiter._charge("a", 10, 0.0) == 0.0
+        # A long silence, then a burst: it should be capped at ten tokens, so the
+        # second ten-token request has to wait rather than being free.
+        assert limiter._charge("a", 10, 3600.0) == 0.0
+        assert limiter._charge("a", 10, 3600.0) > 0.0
+
+    def test_clients_do_not_share_a_bucket(self) -> None:
+        """One caller exhausting theirs must not refuse everybody else."""
+        limiter = RateLimitMiddleware(None, burst=5, per_second=1.0)
+        assert limiter._charge("first", 5, 0.0) == 0.0
+        assert limiter._charge("first", 5, 0.0) > 0.0
+        assert limiter._charge("second", 5, 0.0) == 0.0
 
 
 class TestResponseHeaders:
@@ -227,6 +253,43 @@ class TestResponseHeaders:
     def test_hsts_is_not_claimed_over_plain_http(self, client: TestClient) -> None:
         """Asserting transport security on a connection that has none is noise."""
         assert "strict-transport-security" not in client.get("/").headers
+
+    @pytest.mark.parametrize(
+        "path",
+        ["/", "/static/js/app.js", "/static/js/chapters.js", "/static/js/content.js",
+         "/static/css/app.css"],
+    )
+    def test_scripts_must_be_revalidated(self, client: TestClient, path: str) -> None:
+        """The interface's modules have to agree with each other.
+
+        This is a regression test for a real failure rather than a precaution.
+        StaticFiles sends an ETag and a Last-Modified but no Cache-Control, and that
+        combination lets a browser reuse a file on heuristic freshness without asking.
+        A browser holding an older `app.js` beside a newer `chapters.js` rendered
+        "This chapter failed to render: context.text is not a function", because the
+        two modules disagreed about the render context.
+
+        `no-cache` means store it but ask first, and the ETag makes that a 304 with no
+        body, so the cost is a conditional request and the guarantee is that the
+        scripts a reader runs were built together.
+        """
+        assert client.get(path).headers["cache-control"] == "no-cache"
+
+    def test_the_api_is_not_cached_at_all(self, client: TestClient) -> None:
+        """The content endpoint is rendered from files someone is editing.
+
+        Being told to reload twice before seeing an edit would undo the point of the
+        modification-time cache behind it.
+        """
+        for path in ("/api/world", "/api/content"):
+            assert client.get(path).headers["cache-control"] == "no-store"
+
+    def test_revalidation_costs_no_body(self, client: TestClient) -> None:
+        """Which is what makes revalidating every module affordable."""
+        first = client.get("/static/js/app.js")
+        again = client.get("/static/js/app.js", headers={"if-none-match": first.headers["etag"]})
+        assert again.status_code == 304
+        assert not again.content
 
 
 class TestHealth:

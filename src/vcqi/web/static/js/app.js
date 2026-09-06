@@ -92,9 +92,11 @@ async function show(id) {
   inspectorHeading = el('h3', { text: 'Follow a reference' });
 
   try {
+    // Only what a chapter actually reads. `api` used to be passed here and never
+    // was: chapters import it directly from api.js, so having it in the context
+    // suggested a second way to reach the server that nothing used.
     const body = await chapter.render({
       world,
-      api,
       inspect,
       text: (chapterId) => chapterText(content, chapterId),
     });

@@ -173,6 +173,41 @@ _SECURITY_HEADERS: Final[dict[str, str]] = {
 }
 
 
+def _cache_control(path: str) -> str:
+    """Return the caching policy for a path.
+
+    Starlette's ``StaticFiles`` sends an ``ETag`` and a ``Last-Modified`` but no
+    ``Cache-Control``, and that combination is not neutral: with no explicit policy a
+    browser applies *heuristic* freshness and may reuse a file for a while without
+    asking whether it changed.
+
+    For a page whose scripts are separate ES modules, that is a correctness problem
+    rather than a performance one. The modules have to agree with each other, and a
+    browser holding yesterday's ``app.js`` beside today's ``chapters.js`` produces a
+    chapter that fails to render for a reason nothing on the page explains. That
+    happened, which is why this exists.
+
+    So: revalidate. ``no-cache`` permits storing the file and requires asking first,
+    and the ``ETag`` already there turns that into a 304 with no body. The whole
+    interface is about 150 kB, so the cost is a conditional request per module per
+    load, and the guarantee is that the scripts a reader runs were all built together.
+    Content-hashed filenames would be the alternative, and they need a build step this
+    project deliberately does not have.
+
+    Args:
+        path: The request path.
+
+    Returns:
+        The ``Cache-Control`` value.
+    """
+    if path.startswith("/api/"):
+        # Small, quick to produce, and expected to change: the content endpoint is
+        # rendered from files an editor is editing, and being told to reload twice
+        # would undo the point of the mtime cache behind it.
+        return "no-store"
+    return "no-cache"
+
+
 @app.middleware("http")
 async def security_headers(request: Any, call_next: Any) -> Any:
     """Attach the headers a public deployment should carry.
@@ -193,6 +228,7 @@ async def security_headers(request: Any, call_next: Any) -> Any:
     response = await call_next(request)
     for name, value in _SECURITY_HEADERS.items():
         response.headers.setdefault(name, value)
+    response.headers.setdefault("cache-control", _cache_control(request.url.path))
     if not ALLOW_INDEXING:
         response.headers.setdefault("x-robots-tag", "noindex, nofollow")
     # Only over TLS, where uvicorn knows the scheme from X-Forwarded-Proto. Sending it
