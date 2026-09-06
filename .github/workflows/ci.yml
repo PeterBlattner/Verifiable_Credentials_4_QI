@@ -1,0 +1,75 @@
+# The test suite, run in the configuration a deployment actually uses.
+#
+# No system packages and no extras: METAS UncLib is not installed here and cannot be,
+# since its licence does not permit redistribution to a CI runner any more than to a
+# hosting provider. So this job exercises the pure-Python engine, which is the whole
+# point -- the deployed configuration is the tested one.
+#
+# The equivalence tests that need both engines skip here and run on a licensed machine.
+# The two that do not need a licence still run, and they are the ones a deployment rests
+# on: the committed binary blobs are keyed by digests of the XML UncLib wrote, so
+# reproducing those keys proves byte-identity without UncLib being present to ask.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.17"
+          enable-cache: true
+
+      - name: Install dependencies
+        # --frozen so a lockfile that has drifted from pyproject.toml fails here rather
+        # than being quietly re-resolved into something nobody reviewed.
+        run: uv sync --frozen
+
+      - name: METAS UncLib is absent, as it must be
+        # Guards against the licensed dependency creeping back into the base install.
+        # If this ever passes, a deploy would be redistributing the library.
+        run: |
+          if uv run python -c "import metas_unclib" 2>/dev/null; then
+            echo "::error::metas_unclib is installed in the base environment; it is licensed for a designated computer and must stay behind the 'unclib' extra"
+            exit 1
+          fi
+          echo "confirmed absent"
+
+      - name: The pure-Python engine is the one selected
+        run: |
+          uv run python -c "
+          from vcqi.domain.engine import ENGINE, unclib_available
+          assert ENGINE == 'linprop', ENGINE
+          assert not unclib_available()
+          print('engine:', ENGINE)
+          "
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: The world builds and is byte-identical across two runs
+        # Determinism is a documented property (README, ARCHITECTURE) and the thing that
+        # makes --dump output diffable, so it is worth asserting rather than trusting.
+        run: |
+          uv run python -m vcqi.actors.scenarios --dump first/ > /dev/null
+          uv run python -m vcqi.actors.scenarios --dump second/ > /dev/null
+          diff -r first/ second/
+          echo "$(ls first/ | wc -l) documents, identical across runs"
