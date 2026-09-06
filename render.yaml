@@ -33,8 +33,17 @@ services:
     # cut over to a process that is still warming up.
     healthCheckPath: /healthz
 
-    # Deploys are triggered by CI after the tests pass, not by the push itself.
-    autoDeploy: false
+    # Deploy when main changes.
+    #
+    # This said false, which was wrong: nothing else was set up to trigger a deploy, so
+    # the service would have built once and then never again. The alternative was a
+    # deploy hook and a GitHub secret, and it is not worth it here, because the gate
+    # already exists in the branching policy. Feature branches merge into develop, and
+    # only develop merges into main, by pull request -- and ci.yml runs on pull requests
+    # into main. So the tests have already passed on exactly this content before it can
+    # arrive here, and a deploy is still a deliberate act rather than a side effect of
+    # any push.
+    autoDeploy: true
 
     envVars:
       # These duplicate the Dockerfile's defaults on purpose: the Dockerfile makes the
