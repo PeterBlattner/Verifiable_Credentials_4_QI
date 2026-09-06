@@ -261,6 +261,20 @@ checked now: `tests/test_content.py` reads every `context.*` property `chapters.
 and asserts `app.js` passes it. That found one property being passed and never read --
 `api`, which chapters import directly -- and it is no longer passed.
 
+**The more useful lesson was about the harness**, which reported that every control on
+every chapter responded while chapter 0 was visibly broken. Two reasons, both now fixed
+and both worth knowing about any test that drives an interface. It imported the modules
+from the working tree rather than over HTTP, so it exercised the code and never the
+delivery. And it counted inert buttons — but a chapter that throws renders an error
+banner and *no* buttons, so "0 controls, all responded" was true and meaningless, and the
+console errors it collected were printed and then ignored by the exit code.
+
+`tools/served-modules.mjs` now fetches the interface from the running server, failing
+loudly on a module that 404s or arrives with a content type a browser will not execute.
+`ui-clicks.mjs` fails on a chapter that did not render and on anything written to
+`console.error`. Against a server deliberately serving one stale module it now reports
+`FAILED: 1 chapter(s) failed to render` and exits non-zero.
+
 ### The network is a dictionary
 
 `vc/resolver.py` stands in for retrieval. Every document is published at the address a
