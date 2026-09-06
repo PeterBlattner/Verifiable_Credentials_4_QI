@@ -1379,8 +1379,9 @@ question was asked as "could this be simplified by faking UncLib?"
 
 - [x] `feature/linprop` — the engine, the blobs, the equivalence tests, CI
 - [x] `feature/hosting` — config, hardening, Dockerfile, domain, doc updates
-- [ ] `feature/content-layer` — loader, `/api/content`, `content.js`, tests, editor README
-- [ ] `feature/content-chapter-0` — pilot migration plus the snapshot tool
+- [x] `feature/content-layer` — loader, `/api/content`, `content.js`, tests, editor README,
+      plus the chapter 0 pilot and the snapshot tool (merged: a mechanism with no consumer
+      cannot be reviewed, so the pilot landed with it)
 - [ ] `feature/content-chapters-*` — the remaining eleven chapters, one commit each
 - [ ] `feature/docs-viewer` — the three repository documents on the site
 
@@ -1496,3 +1497,50 @@ the equivalence tests need UncLib, which by then had left the local venv — see
   configuration partway through. So the equivalence tests skipped for the rest of the
   branch. They passed on this machine earlier in change set 7 (332 passed, 2 skipped);
   restoring that needs `uv sync --extra unclib`.
+
+`feature/content-layer` complete. 350 tests pass (46 skipped, still the UncLib
+comparisons). Chapter 0 reads its prose from markdown; the other eleven are unchanged and
+keep working, which is the property that makes the rest of the migration incremental.
+
+- Merged with what the plan called PR 4. A mechanism with no consumer cannot be reviewed
+  meaningfully, and chapter 0 exercises prose, callout, a static table and a panel
+  title/hint in one go.
+- **The renderer is in-repo rather than `markdown-it-py`, and the reason was forced
+  before it was chosen.** The session had no network, and the package is not in the uv
+  cache, so a dependency could not have been added or tested. Having to decide, the
+  in-repo answer turned out to be the better one here: the repository already does this
+  for JCS and multibase with a section in ARCHITECTURE.md explaining why, the README's
+  claim of nothing to install stays true, and — the argument that would decide it alone —
+  a general parser has to be *told* not to pass HTML through, whereas this one has no
+  such path. Twelve adversarial inputs confirm no tag survives that the module did not
+  emit. The repository's own documents use reference-style links and nested lists, which
+  this does not support, so the docs viewer will need it extended or the library after
+  all; that is recorded in the module and in ARCHITECTURE.md rather than left to be
+  rediscovered.
+- **No word changed.** `tools/chapter-snapshot.mjs` captured all twelve chapters before
+  the migration and again after; stripping tags from both and comparing gives an empty
+  diff across every chapter. The only HTML difference anywhere is the `content-block`
+  wrapper `t.block()` puts around chapter 0's table, and no CSS selector depends on that
+  table's depth, so it still looks the same.
+- Fifty-five lines of `chapters.js` became nine, and `triangle()`, the stat row and every
+  handler were untouched — which is the whole reason this was tractable rather than a
+  rewrite: `prose()` already took HTML.
+- Six ways an editor can break a file were each introduced deliberately and confirmed to
+  fail the suite: a renamed key, markdown in a panel hint, a block nothing renders, a
+  table row with too few cells, an empty heading block, and a placeholder in a block
+  nothing interpolates.
+- Two of the first four test failures were the tests catching my own prose: the word
+  "throws" in a comment in `content.js`, and `lede:` inside the comment that replaced the
+  descriptor fields. Both reworded rather than the checks loosened. A third was a real
+  gap — the missing-content marker had no CSS, so it would have been easy to skim past.
+- The mtime cache was verified live: renaming a key in a file and re-requesting
+  `/api/content` reflected it with no restart, and the chapter then rendered with the red
+  marker in place of that paragraph, no render failure, everything else intact.
+- `heading()` in `app.js` reads title/eyebrow/lede from the content file where there is
+  one and from the CHAPTERS descriptor otherwise, so migrated and unmigrated chapters
+  coexist without either being a fallback for a failure. A test asserts a migrated chapter
+  does not define its heading in both places.
+- Left for the remaining chapters: about 110 string literals across eleven chapters, and
+  the eight places a sentence interpolates a computed value, which need `t.fill`. The
+  order should follow whichever chapter someone actually wants to edit rather than the
+  numbering.

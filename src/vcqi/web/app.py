@@ -74,6 +74,7 @@ from vcqi.domain.uncertainty import (
 from vcqi.vc.checks import credential_types, issuer_id
 from vcqi.vc.resolver import DID_KEY_PREFIX, did_key_document
 from vcqi.vc.verify import verify_credential
+from vcqi.web.content import content_payload
 from vcqi.web.limits import BodySizeLimitMiddleware, RateLimitMiddleware
 
 STATIC_ROOT = Path(__file__).parent / "static"
@@ -224,6 +225,22 @@ def healthz() -> dict[str, Any]:
             os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GIT_COMMIT") or ""
         )[:7],
     }
+
+
+@app.get("/api/content")
+def get_content() -> dict[str, Any]:
+    """Serve the chapter prose, rendered.
+
+    Fetched once per page load alongside ``/api/world``. Cached against the content
+    files' modification times, so editing a markdown file and pressing reload is enough
+    -- there is no build step and no restart, which is the property that makes the
+    files editable by someone who is not running a development server.
+
+    Returns:
+        Every chapter's blocks, each with its HTML, a plain-text form for the slots
+        `ui.js` fills with ``text:``, and what shape it rendered as.
+    """
+    return content_payload()
 
 
 @app.get("/robots.txt", include_in_schema=False)

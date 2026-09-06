@@ -557,3 +557,23 @@ svg.graph { display: block; width: 100%; height: auto; }
 }
 .checklist--has li::before { content: '✓'; color: var(--pass); }
 .checklist--needs li::before { content: '+'; color: var(--warn); }
+
+/* ---------- content blocks ---------- */
+
+/* A table or list that came from a content file, dropped into a panel. The table
+   itself already carries table.data, so this only has to give it room. */
+.content-block > table.data { margin-top: 0; }
+.content-block ul, .content-block ol { margin: 0; padding-left: 22px; max-width: 72ch; }
+.content-block li { color: var(--ink-soft); margin-bottom: 6px; }
+
+/* A block key the page asked for and no content file defines. Loud on purpose: the
+   alternative is a paragraph silently missing, which nobody notices in review. */
+.content-missing {
+  background: var(--fail-soft);
+  color: var(--fail);
+  border: 1px dashed var(--fail);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}

@@ -22,7 +22,7 @@ Then open <http://127.0.0.1:8000>. No npm, no build step — the interface is pl
 modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 
 ```
-uv run pytest                                  # 272 tests
+uv run pytest                                  # the whole suite
 uv run python -m vcqi.actors.scenarios         # list every signed credential
 uv run python -m vcqi.actors.scenarios --dump out/   # write all 59 documents as JSON
 ```
@@ -266,6 +266,10 @@ src/vcqi/
 tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py
              test_domain.py  test_pipeline.py  test_web.py
 ```
+
+`CONTENT.md` says where the words are and how to change them without touching code. The
+chapter prose lives in markdown files, edited in the GitHub web interface and merged by
+pull request; the tests run on the pull request and say plainly if an edit is wrong.
 
 `ARCHITECTURE.md` records the design decisions, the simplifications, and what a real
 deployment would need that this does not have.
