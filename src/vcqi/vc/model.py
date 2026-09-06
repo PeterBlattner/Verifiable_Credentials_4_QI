@@ -21,8 +21,9 @@ Four credential types carry the story:
     the test reports it rests on.
 
 The credential subjects are kept deliberately readable rather than being modelled on
-the PTB Digital Calibration Certificate schema. See ARCHITECTURE.md for what a DCC
-alignment would change.
+the PTB/DKD DCC schema. A calibration certificate additionally carries a PTB/DKD DCC
+alongside its readable subject, so the same calibration appears in both forms; see
+ARCHITECTURE.md for what remains before the PTB/DKD DCC could *be* the subject.
 """
 
 from __future__ import annotations
@@ -531,6 +532,7 @@ def uncertainty_representations(
     *,
     credential_id: str,
     gtc_archive: str | None = None,
+    dcc_xml: str | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, tuple[str, bytes]]]:
     """Build the ways this result can be handed to a customer.
 
@@ -555,6 +557,11 @@ def uncertainty_representations(
         credential_id: Identifier of the certificate, used as the base for the
             addresses of any representation published separately.
         gtc_archive: A GTC archive of the same result as JSON, when GTC is installed.
+        dcc_xml: The same calibration expressed as a PTB/DKD DCC. This one sits at a
+            different level from the others: the classical statement and the dependency
+            representations describe a *result*, while a PTB/DKD DCC describes the whole
+            *document*. They compose rather than compete, which is why a certificate can
+            reasonably carry both.
 
     Returns:
         A tuple of the representations and the artefacts to publish, the latter keyed by
@@ -659,6 +666,41 @@ def uncertainty_representations(
             gtc_entry["byteCount"] = len(archive_bytes)
             artefacts[address] = ("application/json", archive_bytes)
         representations.append(gtc_entry)
+
+    if dcc_xml is not None:
+        dcc_bytes = dcc_xml.encode("utf-8")
+        dcc_entry: dict[str, Any] = {
+            "type": "CertificateRepresentation",
+            "format": "PTB-DKD-DCC-XML",
+            "mediaType": "application/xml",
+            "specification": "https://www.ptb.de/dcc/",
+            "schemaVersion": "3.3.0",
+            "quantityFormat": "D-SI 2.2.1",
+            "digestMultibase": digest_multibase(dcc_bytes),
+            "note": (
+                "The whole certificate in the schema the PTB and the DKD publish, with "
+                "the quantity in D-SI. It carries what the other representations do not, "
+                "which is everything around the number: the item, the customer, the "
+                "dates, the conditions and the equipment. What it does not carry is the "
+                "dependency structure, because D-SI expresses an uncertainty as a value, "
+                "a coverage factor and a probability. That is the classical statement, "
+                "so a certificate wanting both keeps the UncLib block as well."
+            ),
+            "signatureNote": (
+                "The dcc:digitalCalibrationCertificate has its own ds:Signature slot and "
+                "it is deliberately empty here. The credential signs once and covers "
+                "these bytes by digest, so there is one trust path rather than two that "
+                "could disagree."
+            ),
+        }
+        if len(dcc_xml) <= INLINE_LIMIT:
+            dcc_entry["content"] = dcc_xml
+        else:
+            address = f"{credential_id}/certificate.dcc.xml"
+            dcc_entry["id"] = address
+            dcc_entry["byteCount"] = len(dcc_bytes)
+            artefacts[address] = ("application/xml", dcc_bytes)
+        representations.append(dcc_entry)
 
     return representations, artefacts
 

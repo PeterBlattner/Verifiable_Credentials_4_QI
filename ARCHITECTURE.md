@@ -59,74 +59,63 @@ key.
 lines with RFC 8785 conformance tests, because the signing path is the thing being
 explained and a reader should be able to follow it without leaving the repository.
 
-### Simplified certificate payloads
+### Certificate payloads, and the PTB/DKD DCC alongside them
 
-`credentialSubject` is a readable custom shape, not the PTB/DKD
-[Digital Calibration Certificate][dcc]. This was a deliberate choice for legibility on
-screen: a DCC carries far more structure than a demonstration needs, and the JSON would
-stop fitting in a panel.
+`credentialSubject` is a readable custom shape rather than a PTB/DKD Digital Calibration
+Certificate. Note the name: several things are called a DCC, and this project always
+means the one the PTB and the DKD define, schema 3.3.0 in `https://ptb.de/dcc`, with
+quantities in D-SI 2.2.1 in `https://ptb.de/si`.
 
-The obvious next step is not to keep this shape but to carry a DCC as the credential
-subject, so the credential layer contributes recognition, scope enforcement and
-revocation to a payload the community has already standardised. Nothing in `vc/`
-depends on the payload shape; `domain/` reads results through a handful of accessors in
-`verify.py` (`_payload`, `_first_result`) which are the only places that would change.
+Every calibration certificate now *carries* a PTB/DKD DCC alongside its readable subject,
+in `domain/dcc.py`. It uses the real namespaces, element names and nesting, and includes
+only the elements this world has data for. Deliberately not done: validating against the
+published XSD, filling the `ds:Signature` slot, and making the DCC the credential subject
+rather than a passenger.
 
-### Transmitting the dependency on input quantities
+The levels are the point. The classical statement, the UncLib serialisation and the GTC
+archive all describe a **result**. A PTB/DKD DCC describes a **document**. And D-SI's
+`si:expandedUnc` carries a value, an uncertainty, a coverage factor and a probability,
+which is exactly the classical statement and is not the dependency structure — so the two
+compose rather than compete, and a certificate wanting both carries both.
 
-A calibration certificate states a value and an Expanded Uncertainty. Two certificates
-reported that way are, to any recipient, unrelated — even when both rest on the same
-reference standard in the same laboratory. The information needed to know better exists
-at the issuer and is simply not sent.
+**Units.** D-SI writes units siunitx-style: English names each preceded by a backslash,
+prefixes and powers as separate tokens. Ohm is `\ohm`; kilogram is `\kilo\gram`, not
+`\kilogram`. `dsi_unit()` raises on any unit it has no mapping for rather than guessing,
+because a certificate quietly stating the wrong unit is worse than one that fails to be
+produced.
 
-METAS UncLib can send it. `metas_unclib.ustorage` serialises an uncertain number with
-its full dependency structure: every input quantity, the distribution assumed for it,
-the sensitivity of the result to it, and an identifier for the quantity itself. That
-identifier is the load-bearing part. Two results that share an influence share its
-identifier, so a later calculation involving both treats it as one influence rather than
-two, and the correlation comes out right without anyone having to notice it was there.
+### Redundancy, and signing once
 
-`domain/uncertainty.py` offers both routes, and the contrast between them is the point:
+Putting a standardised document inside a credential duplicates most of it: who
+calibrated, for whom, when, under which number, the item, the result — and the integrity
+mechanism. Duplication permits disagreement, and the signature does nothing about it: it
+stops anyone editing a copy after issue and is perfectly content for the copies to have
+been written inconsistent.
 
-- `from_expanded_uncertainty` is the classical path. It takes the two printed numbers
-  and declares a **new** input quantity. Correct for this measurement, and everything
-  about provenance is gone.
-- `from_certificate` deserialises what the issuing laboratory actually computed, so the
-  input quantities arrive **with their original identifiers**.
+The two integrity mechanisms differ at every layer that matters. A credential proof
+canonicalizes with RFC 8785, finds its key by resolving an identifier, and is revoked
+through a status list. A `ds:Signature` canonicalizes with XML C14N, finds its key
+through an X.509 chain, and is revoked through a CRL or OCSP. A document carrying both
+can verify under one and fail under the other, with no natural rule for which wins.
 
-Both produce an identical Expanded Uncertainty. Nothing on the face of the certificate
-reveals which was used. What differs is only what a recipient can do next, which is why
-`traceability.shared-inputs` checks for the inherited identifiers rather than taking the
-declared traceability at its word.
+So this demonstration **signs once**. The credential proof covers the credential, the
+credential carries a digest of the DCC bytes, and the `ds:Signature` slot stays empty.
+That is a choice, not an obligation.
 
-**Seeded identifiers are a demonstration device.** UncLib generates a random GUID per
-input quantity, which is right — two laboratories using the same wording are not
-describing the same influence. That would also make every run of this demonstration
-produce different documents. So `seeded_input_id(label, context)` derives them from the
-published seed, scoped by the certificate they belong to. The scoping is not cosmetic: an
-early version seeded on the label alone, and every budget saying "temperature correction"
-became one shared influence, which made unrelated results perfectly correlated. In
-production this function should not exist.
+For the rest of the redundancy there are three honest options, and only the first is
+built: **duplicate and check**, which is why `uncertainty.duplication` compares the six
+facts stated twice and turns the redundancy into somewhere mistakes get caught;
+**do not duplicate**, by making the DCC the credential subject and deriving `issuer` and
+`validFrom` from it, which is cleanest and probably right for a real deployment; or
+**declare precedence**, which works, needs governance, and is never read when needed.
 
-**Transport.** Representations under `INLINE_LIMIT` characters are carried inside the
-credential; larger ones are published separately and referenced. The binary form is
-always referenced, both because that is what it is for and so the referenced path is
-exercised on every run. In each case `digestMultibase` is over the **raw** payload rather
-than over the JSON envelope it is published in, so the signature on the credential covers
-the dependency data wherever it lives.
-
-**GTC** is supported as an optional extra rather than a dependency, because it pulls in
-scipy. It matters to the argument regardless: GTC reached the same design independently,
-giving elementary uncertain numbers UUID-based identifiers and serialising archives
-against published schemas. Two implementations agreeing is why the credential names a
-format rather than assuming a library. `domain/gtc_archive.py` rebuilds the budget in
-GTC rather than converting the UncLib object, because no bridge between the two libraries
-exists and inventing one would misrepresent what is being shown.
-
-**The cost, stated plainly.** A dependency representation exposes the internal structure
-of an uncertainty budget, which many laboratories treat as commercially confidential.
-That is a real objection and not an oversight. Selective disclosure is where it would be
-addressed, and it is not implemented here.
+**Two names outgrew their contents** when the DCC arrived, and it is better to record
+that than to leave it as a puzzle. The credential member is still
+`uncertaintyRepresentations` although it now also holds a whole certificate, and the
+pipeline step is still `uncertainty` although its children compare administrative facts.
+Renaming the member would change every signed credential and both generated schemas;
+renaming the step would break ids that the tests and the interface refer to. The names
+stayed and the `type` values carry the meaning.
 
 ### The network is a dictionary
 

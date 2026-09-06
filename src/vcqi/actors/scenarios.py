@@ -40,6 +40,7 @@ from vcqi.crypto.dataintegrity import ProofTrace, sign_document
 from vcqi.domain import accreditation as accreditation_registry
 from vcqi.domain import kcdb as kcdb_registry
 from vcqi.domain.instruments import SHARED_REFERENCE_PAIR, instrument_by_id
+from vcqi.domain.dcc import to_dcc_xml
 from vcqi.domain.gtc_archive import build_gtc_archive
 from vcqi.domain.uncertainty import (
     MeasurementResult,
@@ -361,6 +362,56 @@ def _callab_result(
         contributions,
         unit="ohm",
         context=context,
+    )
+
+
+
+def _dcc_for(
+    result: MeasurementResult,
+    *,
+    certificate_number: str,
+    performed_on: str,
+    issued: datetime,
+    measurand: str,
+    conditions: str,
+    instrument: Any,
+    laboratory: Any,
+    customer: Any,
+    reference_certificate: str | None = None,
+) -> str:
+    """Express one calibration as a PTB/DKD DCC.
+
+    Every calibration certificate here carries one, alongside its readable subject and
+    its dependency representations. The point of carrying all of them is that they are
+    not alternatives: the dependency representations describe the result, and the PTB/DKD
+    PTB/DKD DCC describes the document the result appears in.
+
+    Args:
+        result: The evaluated measurement result.
+        certificate_number: The certificate number.
+        performed_on: Date the calibration was performed.
+        issued: When the certificate was issued.
+        measurand: Machine-readable identifier of the measured quantity.
+        conditions: The stated measurement conditions.
+        instrument: The calibrated artefact.
+        laboratory: The issuing organisation.
+        customer: The organisation it was issued to.
+        reference_certificate: The certificate of the reference standard used, if any.
+
+    Returns:
+        The document as an XML string.
+    """
+    return to_dcc_xml(
+        result,
+        certificate_number=certificate_number,
+        performed_on=performed_on,
+        issued_on=issued.strftime("%Y-%m-%d"),
+        measurand=measurand,
+        conditions=conditions,
+        instrument=instrument.to_json(),
+        laboratory={"id": laboratory.did, "name": laboratory.legal_name},
+        customer={"id": customer.did, "name": customer.legal_name},
+        reference_certificate=reference_certificate,
     )
 
 
@@ -698,6 +749,17 @@ def _calibration_certificates(world: World) -> None:
         metas_result,
         credential_id=METAS_CERTIFICATE,
         gtc_archive=build_gtc_archive(metas_result),
+        dcc_xml=_dcc_for(
+            metas_result,
+            certificate_number="METAS-2026-0417",
+            performed_on=METAS_CALIBRATED_ON,
+            issued=METAS_ISSUED,
+            measurand="dc.resistance",
+            conditions=cmc.conditions,
+            instrument=standard,
+            laboratory=metas,
+            customer=callab,
+        ),
     )
     world.publish_artefacts(metas_artefacts)
 
@@ -746,6 +808,18 @@ def _calibration_certificates(world: World) -> None:
         callab_result,
         credential_id=CALLAB_CERTIFICATE,
         gtc_archive=build_gtc_archive(callab_result),
+        dcc_xml=_dcc_for(
+            callab_result,
+            certificate_number="AC-2026-1182",
+            performed_on=CALLAB_CALIBRATED_ON,
+            issued=CALLAB_ISSUED,
+            measurand="dc.resistance",
+            conditions=scope.conditions,
+            instrument=multimeter,
+            laboratory=callab,
+            customer=testlab,
+            reference_certificate=METAS_CERTIFICATE,
+        ),
     )
     world.publish_artefacts(callab_artefacts)
 
@@ -845,7 +919,20 @@ def _shared_reference_pair(world: World, unused: MeasurementResult) -> None:
         world.results[f"metas-{instrument.serial_number}"] = result
 
         representations, artefacts = uncertainty_representations(
-            result, credential_id=address, gtc_archive=build_gtc_archive(result)
+            result,
+            credential_id=address,
+            gtc_archive=build_gtc_archive(result),
+            dcc_xml=_dcc_for(
+                result,
+                certificate_number=number,
+                performed_on=METAS_CALIBRATED_ON,
+                issued=METAS_ISSUED,
+                measurand="dc.resistance",
+                conditions=cmc.conditions,
+                instrument=instrument,
+                laboratory=metas,
+                customer=callab,
+            ),
         )
         world.publish_artefacts(artefacts)
 

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
 from vcqi.actors.tamper import TAMPER_CASES
-from vcqi.web.app import app
+from vcqi.web.app import STATIC_ROOT, app
 
 
 @pytest.fixture(scope="module")
@@ -193,3 +195,91 @@ def test_certificates_carry_a_classical_statement_and_dependencies(client: TestC
     assert formats[0] == "value-and-expanded-uncertainty"
     assert "METAS-UncLib-XML" in formats
     assert "METAS-UncLib-binary" in formats
+
+
+def test_infrastructure_separates_hosting_from_issuance(client: TestClient) -> None:
+    """What an issuer hosts is small, and does not grow with what it issues.
+
+    This is the claim chapter 10 rests on, so it is measured rather than trusted: an
+    institute that issued several certificates keeps fewer documents online than it
+    issued, because a credential reaches a verifier in its holder's hands.
+    """
+    data = client.get("/api/infrastructure").json()
+    roles = {role["actor"]["id"]: role for role in data["roles"]}
+    assert "did:web:bipm.example" in roles
+
+    metas = roles["did:web:metas.example"]
+    assert metas["issuedCount"] >= 3
+    assert metas["hosting"]["onlineCount"] < metas["issuedCount"]
+    assert metas["hosting"]["travellingCount"] >= metas["issuedCount"]
+
+    kinds = {group["kind"] for group in metas["hosting"]["online"]}
+    assert "did-document" in kinds
+    assert "status-list" in kinds
+    assert "credential" not in kinds
+
+
+def test_infrastructure_hosting_lists_reachable_addresses(client: TestClient) -> None:
+    """Everything the burden counts can really be fetched, as the chapter lets a reader do."""
+    data = client.get("/api/infrastructure").json()
+    roles = {role["actor"]["id"]: role for role in data["roles"]}
+    for group in roles["did:web:bipm.example"]["hosting"]["online"]:
+        for url in group["urls"]:
+            assert url.startswith("https://bipm.example/")
+            assert client.get("/api/document", params={"url": url}).status_code == 200
+
+
+def test_infrastructure_verifier_trace_is_a_real_verification(client: TestClient) -> None:
+    """The retrieval figures come from verifying the deepest chain, not from a table."""
+    trace = client.get("/api/infrastructure").json()["verifierTrace"]
+    assert trace["outcome"] == "verified"
+    assert trace["hostCount"] == len(trace["hosts"])
+    # Every fetch is one of a handful of hosts, and the uncached count is the honest one:
+    # this resolver has no cache, so it must be at least the number of distinct documents.
+    assert 0 < trace["distinct"] <= trace["documents"]
+    assert "bipm.example" in trace["hosts"]
+
+
+def test_every_chapter_in_the_rail_has_a_render_function() -> None:
+    """The chapter list and the functions behind it cannot drift apart unnoticed."""
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    ids = re.findall(r"^    id: '([a-z-]+)',$", source, flags=re.MULTILINE)
+    assert "infrastructure" in ids
+    assert "harmonisation" in ids
+    assert len(ids) == len(set(ids))
+    for name in re.findall(r"^    render: (\w+),$", source, flags=re.MULTILINE):
+        assert f"async function {name}(" in source
+
+
+def test_harmonisation_serves_three_tiers_and_a_ladder(client: TestClient) -> None:
+    """The chapter reads the tiers in order, so the endpoint has to serve them in order."""
+    data = client.get("/api/harmonisation").json()
+    assert [tier["key"] for tier in data["tiers"]] == ["floor", "irreversible", "optional"]
+    assert all(tier["items"] for tier in data["tiers"])
+    assert [step["order"] for step in data["nextSteps"]] == [1, 2, 3, 4, 5, 6]
+
+
+def test_harmonisation_items_carry_what_the_chapter_renders(client: TestClient) -> None:
+    """Every field the chapter puts on the page is present and non-empty."""
+    data = client.get("/api/harmonisation").json()
+    items = [item for tier in data["tiers"] for item in tier["items"]]
+    assert len(items) >= 10
+    for item in items:
+        assert item["status"] in {"available", "emerging", "open"}
+        for field in ("title", "requirement", "demonstrated", "consequence", "forum"):
+            assert item[field].strip(), f"{item['key']} has an empty {field}"
+
+
+def test_harmonisation_quotes_the_cryptosuite_the_demonstration_actually_uses(
+    client: TestClient,
+) -> None:
+    """The text interpolates the constant rather than repeating it, so it cannot drift.
+
+    If the cryptosuite is ever changed, this catches a chapter that would otherwise go on
+    describing the old one in a sentence that still reads perfectly well.
+    """
+    from vcqi.config import CRYPTOSUITE
+
+    data = client.get("/api/harmonisation").json()
+    items = {item["key"]: item for tier in data["tiers"] for item in tier["items"]}
+    assert CRYPTOSUITE in items["cryptosuite"]["demonstrated"]

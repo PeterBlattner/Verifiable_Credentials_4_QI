@@ -37,9 +37,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable
 
-from vcqi.actors.registry import actor_key
+from vcqi.actors.registry import actor_by_did, actor_key
 from vcqi.actors.scenarios import (
     CALLAB_CERTIFICATE,
+    METAS_CALIBRATED_ON,
+    METAS_ISSUED,
+    _dcc_for,
     _callab_result,
     DEMO_NOW,
     METAS_CERTIFICATE,
@@ -50,6 +53,7 @@ from vcqi.actors.scenarios import (
 )
 from vcqi.crypto.dataintegrity import sign_document
 from vcqi.crypto.keys import build_did_document, derive_key
+from vcqi.domain.instruments import instrument_by_id
 from vcqi.domain.uncertainty import evaluate, from_expanded_uncertainty, normal, rectangular
 from vcqi.vc.model import (
     budget_to_json,
@@ -706,3 +710,114 @@ NEW_CASES: tuple[TamperCase, ...] = (
 
 TAMPER_CASES = TAMPER_CASES + NEW_CASES
 _BY_KEY.update({case.key: case for case in NEW_CASES})
+
+
+def _rebuild_metas_with_dcc(mutate) -> TamperResult:
+    """Reissue the institute certificate with an altered PTB/DKD DCC.
+
+    The document is changed, the digest recomputed and the credential signed again, so
+    every cryptographic check passes and the only thing wrong is that the certificate now
+    contradicts itself.
+
+    Args:
+        mutate: Takes the generated PTB/DKD DCC and returns the altered one.
+
+    Returns:
+        The tampered world and the reissued certificate.
+    """
+    world = build_world()
+    credential = copy.deepcopy(world.credential("metas-calibration"))
+    result = world.results["metas-calibration"]
+
+    representations, artefacts = uncertainty_representations(
+        result,
+        credential_id=METAS_CERTIFICATE,
+        dcc_xml=mutate(
+            _dcc_for(
+                result,
+                certificate_number="METAS-2026-0417",
+                performed_on=METAS_CALIBRATED_ON,
+                issued=METAS_ISSUED,
+                measurand="dc.resistance",
+                conditions="(23.0 +/- 1.0) degC, DC, four-terminal connection",
+                instrument=instrument_by_id(
+                    "urn:instrument:callab:standard-resistor:SR10K-0042"
+                ),
+                laboratory=actor_by_did("did:web:metas.example"),
+                customer=actor_by_did("did:web:callab.example"),
+            )
+        ),
+    )
+    world.publish_artefacts(artefacts)
+
+    calibration = credential["credentialSubject"]["calibration"]
+    calibration["results"][0]["uncertaintyRepresentations"] = representations
+
+    signed = _resign(credential, "did:web:metas.example", DEMO_NOW)
+    _republish(world, "metas-calibration", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
+def _dcc_disagrees() -> TamperResult:
+    """State one value on the certificate and a different one inside the document."""
+    return _rebuild_metas_with_dcc(
+        lambda xml: xml.replace(
+            "<si:value>10000.001200000035</si:value>",
+            "<si:value>10000.004200000035</si:value>",
+        )
+    )
+
+
+def _dcc_names_another_laboratory() -> TamperResult:
+    """Let the document credit a different laboratory from the credential."""
+    return _rebuild_metas_with_dcc(
+        lambda xml: xml.replace(
+            "<dcc:eMail>did:web:metas.example</dcc:eMail>",
+            "<dcc:eMail>did:web:ptb.example</dcc:eMail>",
+            1,
+        )
+    )
+
+
+DCC_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="dcc-disagrees",
+        title="The PTB/DKD DCC states a different value from the printed line",
+        group="metrological",
+        description=(
+            "The certificate prints 10000.0012 ohm and the PTB/DKD DCC inside it says "
+            "10000.0042. The credential is signed correctly and every digest matches; "
+            "the document simply disagrees with itself."
+        ),
+        expected_step="uncertainty.agreement",
+        catches=(
+            "Carrying a measurement several ways means the ways can be compared. A "
+            "recipient reading the printed line and one parsing the PTB/DKD DCC would "
+            "otherwise walk away with different numbers from the same certificate, and "
+            "neither would have any reason to suspect it."
+        ),
+        apply=_dcc_disagrees,
+    ),
+    TamperCase(
+        key="dcc-names-another-laboratory",
+        title="The PTB/DKD DCC credits a different laboratory",
+        group="metrological",
+        description=(
+            "The credential is issued by METAS and the PTB/DKD DCC inside it names PTB "
+            "as the calibrating laboratory. Signature valid, digest correct, and the "
+            "certificate contradicts itself about who did the work."
+        ),
+        expected_step="uncertainty.duplication",
+        catches=(
+            "Wrapping a standardised document in a credential says almost everything "
+            "twice: who calibrated, for whom, when, under which number. The signature "
+            "covers both copies and is perfectly content for them to disagree. Only a "
+            "check that reads both notices, which is the argument for either comparing "
+            "them or not duplicating them at all."
+        ),
+        apply=_dcc_names_another_laboratory,
+    ),
+)
+
+TAMPER_CASES = TAMPER_CASES + DCC_CASES
+_BY_KEY.update({case.key: case for case in DCC_CASES})

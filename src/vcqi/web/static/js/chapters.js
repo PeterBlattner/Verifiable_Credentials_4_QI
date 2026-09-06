@@ -785,6 +785,117 @@ async function chapterScope(context) {
 
 // ---------------------------------------------------------------- chapter 6
 
+/** Render the PTB/DKD DCC tab: the document, and what it does that the others do not. */
+function dccTab(body, representations, context) {
+  const dcc = representations.find((item) => item.format === 'PTB-DKD-DCC-XML');
+  if (!dcc) {
+    body.append(el('p', { class: 'muted', text: 'This certificate carries no PTB/DKD DCC.' }));
+    return;
+  }
+
+  body.append(
+    prose([
+      'The <strong>PTB/DKD DCC</strong> is doing something different from the other three, and the difference is worth pausing on. Note the name, too: several things are called a PTB/DKD DCC, and this is the one the PTB and the DKD define.',
+      'Classical, UncLib and GTC all describe a <em>result</em> — how good a number is, and what it rests on. A PTB/DKD DCC describes a <em>document</em>: who calibrated what, for whom, when, under which conditions, with which equipment, and what came out. It is a calibration certificate in a schema, not an uncertainty in a format.',
+      `Inside it the quantity is written in <strong>D-SI</strong>, which is where the two levels meet. And D-SI's <code>si:expandedUnc</code> carries a value, an uncertainty, a coverage factor and a probability — that is the classical statement exactly, and it is not the dependency structure. So the two do not compete: a certificate wanting a standardised document <em>and</em> transmissible dependencies carries a PTB/DKD DCC and an UncLib block together, which is what this one does.`,
+    ]),
+    keyValues([
+      ['Schema', `PTB/DKD DCC ${dcc.schemaVersion}, namespace https://ptb.de/dcc`],
+      ['Quantities', `${dcc.quantityFormat}, namespace https://ptb.de/si`],
+      ['Carried', 'content' in dcc ? 'inline in the credential' : `separately, at ${dcc.id}`],
+      ['Digest', el('span', { class: 'hash', text: dcc.digestMultibase })],
+    ]),
+    panel(
+      'How this certificate maps onto the schema',
+      'our field on the left, the element it becomes on the right',
+      table(
+        ['This demonstration', 'PTB/DKD DCC'],
+        [
+          ['certificate number', 'dcc:administrativeData / dcc:coreData / dcc:uniqueIdentifier'],
+          ['the calibrated instrument', 'dcc:administrativeData / dcc:items / dcc:item'],
+          ['the issuing laboratory', 'dcc:administrativeData / dcc:calibrationLaboratory'],
+          ['the owner', 'dcc:administrativeData / dcc:customer'],
+          ['date of calibration', 'dcc:coreData / dcc:beginPerformanceDate'],
+          ['conditions', 'dcc:measurementResult / dcc:influenceConditions'],
+          ['the reference standard', 'dcc:measurementResult / dcc:measuringEquipments'],
+          ['value and unit', 'si:real / si:value and si:unit'],
+          ['U and k', 'si:expandedUnc / si:uncertainty and si:coverageFactor'],
+        ]
+      )
+    ),
+    callout([
+      'One detail worth having been careful about: D-SI writes units the way siunitx does, as English names each preceded by a backslash. Ohm is <code>\\ohm</code>. Kilogram is <code>\\kilo\\gram</code> and <em>not</em> <code>\\kilogram</code>, because the prefix is a token of its own. The generator here refuses to emit a unit it has no mapping for, rather than guessing — a certificate that quietly states the wrong unit is worse than one that fails to be produced.',
+    ]),
+    el('h3', { text: 'The document' }),
+    el('pre', { class: 'code json json--tall', text: dcc.content || `published separately at ${dcc.id}` }),
+    callout([dcc.signatureNote])
+  );
+}
+
+/** Show every fact the credential and the PTB/DKD DCC both state, and whether they agree. */
+async function duplicationPanel(context, certificateName) {
+  const data = await api.credential(certificateName);
+  const report = await api.verify({ name: certificateName });
+
+  const find = (id) => {
+    const walk = (steps) => {
+      for (const step of steps) {
+        if (step.id === id) return step;
+        const found = walk(step.children || []);
+        if (found) return found;
+      }
+      return null;
+    };
+    return walk(report.steps);
+  };
+
+  const duplication = find('uncertainty.duplication');
+  const agreement = find('uncertainty.agreement');
+
+  const rows = (duplication && duplication.children ? duplication.children : []).map((child) => {
+    const parts = child.detail.split(', PTB/DKD DCC says ');
+    return [
+      badge(child.status),
+      child.title,
+      el('span', { class: 'hash', text: (parts[0] || '').replace('credential says ', '') }),
+      el('span', { class: 'hash', text: parts[1] || '' }),
+    ];
+  });
+
+  return panel(
+    'What is now said twice',
+    'the cost of putting one standardised document inside another',
+    [
+      prose([
+        'Wrapping a PTB/DKD DCC in a credential duplicates most of the certificate. That is not a flaw in either format — each was built to stand alone — but putting one inside the other makes the overlap unavoidable, and <strong>duplication permits disagreement</strong>. The signature stops anyone editing either copy after issue. It does nothing at all about an issuer writing them inconsistent in the first place.',
+      ]),
+      rows.length
+        ? table(['', 'Fact', 'The credential says', 'The PTB/DKD DCC says'], rows)
+        : el('p', { class: 'muted', text: 'No duplicated facts were compared.' }),
+      agreement
+        ? el('p', {
+            class: 'muted',
+            text: `And the measurement itself: ${agreement.detail}`,
+          })
+        : null,
+      el('h3', { text: 'Including the signature' }),
+      table(
+        ['', 'The credential proof', 'ds:Signature in a PTB/DKD DCC'],
+        [
+          ['canonicalization', 'RFC 8785 over the credential', 'XML C14N over the document'],
+          ['finding the key', 'resolve the issuer identifier', 'an X.509 certificate chain'],
+          ['revocation', 'a status list', 'CRL or OCSP'],
+          ['what it covers', 'the credential, including a digest of the PTB/DKD DCC', 'the PTB/DKD DCC alone'],
+        ]
+      ),
+      callout([
+        'A document carrying both can verify under one mechanism and fail under the other, and there is no natural rule for which wins. So this demonstration <strong>signs once</strong>: the credential proof covers the credential, the credential carries a digest of the PTB/DKD DCC bytes, and the <code>ds:Signature</code> slot stays empty. One trust path. That is a choice rather than an obligation.',
+        'There are three honest ways to live with the rest of the redundancy, and only the first is built here. <strong>Duplicate and check</strong>, so every repeated fact becomes somewhere a mistake gets caught. <strong>Do not duplicate</strong>, by making the PTB/DKD DCC the credential subject and letting <code>issuer</code> and <code>validFrom</code> be views of it — cleanest, and probably what a real deployment settles on. Or <strong>declare precedence</strong>, saying which copy governs, which works and needs governance and is never read at the moment it is needed.',
+      ]),
+    ]
+  );
+}
+
 /**
  * Show the same measurement in each way it can be handed to a customer.
  *
@@ -804,6 +915,7 @@ async function representationPanel(context, certificateName) {
     { key: 'classical', label: 'Classical' },
     { key: 'unclib', label: 'METAS UncLib' },
     { key: 'gtc', label: 'GTC' },
+    { key: 'dcc', label: 'PTB/DKD DCC' },
   ];
 
   const bar = el(
@@ -893,6 +1005,11 @@ async function representationPanel(context, certificateName) {
       return;
     }
 
+    if (kind === 'dcc') {
+      dccTab(body, representations, context);
+      return;
+    }
+
     const archive = representations.find((item) => item.format === 'GTC-archive-JSON');
     body.append(
       prose([
@@ -915,7 +1032,7 @@ async function representationPanel(context, certificateName) {
 
   show('classical');
   return panel(
-    'One measurement, three ways of handing it over',
+    'One measurement, four ways of handing it over',
     certificateName === 'metas-calibration' ? 'Certificate METAS-2026-0417' : certificateName,
     [bar, body]
   );
@@ -985,6 +1102,7 @@ async function chapterTraceability(context) {
   }
 
   fragment.append(await representationPanel(context, 'metas-calibration'));
+  fragment.append(await duplicationPanel(context, 'metas-calibration'));
 
   const live = el('div', {});
   const state = {
@@ -1279,7 +1397,8 @@ async function chapterImplications() {
       '<strong>Governance of the identifiers.</strong> Someone has to decide what the BIPM&rsquo;s identifier is, who controls it, how it is rotated, and what happens when a key is compromised. This is a governance problem wearing a technical costume, and it is the hard part.',
       '<strong>The KCDB as a signed registry.</strong> The CMC data already exists and is already peer reviewed. What is missing is publication in a form that carries a signature and a stable content digest.',
       '<strong>Long-term validation.</strong> Calibration certificates are kept for decades and signatures do not age well. Anything real needs timestamping and an archival strategy from the start, not added later.',
-      '<strong>Alignment with the DCC.</strong> The certificate payloads here are deliberately simplified for legibility. The obvious path is not to invent a format but to carry a PTB/DKD Digital Calibration Certificate as the credential subject, so the credential layer adds recognition and revocation to a payload the community has already agreed on.',
+      '<strong>Alignment with the PTB/DKD DCC.</strong> Every calibration certificate here now carries one, in the real namespaces with the quantity in D-SI, so the same calibration appears both as a readable subject and as a standardised document. What is still missing is the part that matters most for a deployment: it is a subset rather than a conformant document, it is not validated against the published XSD, the <code>ds:Signature</code> slot is unused, and the credential subject is still the readable shape rather than the PTB/DKD DCC itself. D-SI also does not model dependency structure, so an UncLib or GTC block still has to ride alongside it.',
+      '<strong>And what the redundancy taught, which generalises.</strong> Wrapping an existing standardised document inside a credential duplicates most of it, including its integrity mechanism. Who calibrated, for whom, when, under which number — all said twice, in two vocabularies, with nothing keeping them together. A real deployment has to choose deliberately between duplicating and checking, not duplicating at all, or declaring which copy governs. This demonstration duplicates and checks, because that is the cheapest thing to show and it turns every repeated fact into somewhere a mistake gets caught. The version worth building is probably the second: make the document the subject, and derive the rest from it.',
       '<strong>Selective disclosure.</strong> A calibration certificate names a customer and an instrument. A testing laboratory may need to prove its equipment is traceable and in scope without disclosing the certificate. That is what SD-JWT or BBS signatures are for, and none of it is implemented here.',
       '<strong>Relationship to eIDAS 2.0 and the EU Digital Identity Wallet.</strong> Organisational credentials are arriving in European regulation on their own schedule. Whatever the quality infrastructure does should meet that rather than run beside it.',
     ]))
@@ -1294,11 +1413,296 @@ async function chapterImplications() {
     ]))
   );
 
+  return fragment;
+}
+
+// ---------------------------------------------------------------- chapter 10
+
+// Blue for the anchor, amber for a key an organisation has to hold itself, green for
+// not holding one. The ordering is the argument: the further down the chain, the less
+// ceremony the key demands.
+const CUSTODY = {
+  root: ['anchor', 'Root-grade custody'],
+  service: ['warn', 'Service-grade custody'],
+  delegated: ['pass', 'Delegated, or no key at all'],
+};
+
+const ONLINE_KIND_LABELS = {
+  'did-document': 'DID document — the signing key, and nothing secret',
+  'status-list': 'Status list — what has been withdrawn since',
+  'registry-entry': 'Registry entries — the published CMCs and scopes',
+  schema: 'Schemas — the shape each claim has to take',
+  presentation: 'whois — the fallback that recognition discovery uses',
+};
+
+async function chapterInfrastructure(context) {
+  const fragment = document.createDocumentFragment();
+  const data = await api.infrastructure();
+
+  fragment.append(
+    prose([
+      'Two properties of the design settle most of this question, and neither of them is about capacity.',
+      '<strong>Verification is a computation, not a conversation.</strong> A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier&rsquo;s behalf, and nothing here grows with the number of people who check.',
+      '<strong>A credential travels with whoever holds it.</strong> The certificate arrives from the customer, not from the laboratory that wrote it. What an issuer must keep online is therefore only what describes the issuer itself — its key, and which of its credentials it has since withdrawn. The certificates need not be hosted at all.',
+      'Everything below is computed from what this demonstration actually published, so the figures move if the world does.',
+    ])
+  );
+
+  const trace = data.verifierTrace;
+  const uncached = trace.documents - trace.distinct;
+
+  fragment.append(
+    panel('What a verifier actually goes and fetches', `verifying ${trace.title}, the deepest chain here`, [
+      el('div', { class: 'stat-row' }, [
+        stat(trace.distinct, 'distinct documents'),
+        stat(trace.hostCount, 'hosts contacted'),
+        stat(0, 'accounts needed at any of them'),
+        stat(trace.documents, 'retrievals, with no cache'),
+      ]),
+      callout([
+        `The gap between ${trace.documents} retrievals and ${trace.distinct} distinct documents is this implementation resolving the same DID documents again at every hop. An ordinary HTTP cache removes all ${uncached} of them. Nothing in the design requires that work, and the unflattering number is quoted here rather than quietly dropped.`,
+        `The ${trace.hostCount} hosts are simply the organisations in the chain, and the verifier holds no relationship with any of them. That is the entire online surface the system depends on.`,
+      ]),
+    ])
+  );
+
+  fragment.append(
+    prose([
+      'The burden is then very unevenly spread. Pick a role to see what it would have to stand up, and — usually the larger half — what it already runs today.',
+    ])
+  );
+
+  const output = el('div', {});
+  const state = { did: data.roles[0].actor.id };
+
+  const picker = el(
+    'div',
+    { class: 'chips' },
+    data.roles.map((role) =>
+      el('button', {
+        class: 'chip',
+        text: role.actor.name,
+        title: role.actor.role,
+        'aria-pressed': String(role.actor.id === state.did),
+        onclick: () => {
+          state.did = role.actor.id;
+          picker.querySelectorAll('.chip').forEach((chip, index) =>
+            chip.setAttribute('aria-pressed', String(data.roles[index].actor.id === state.did))
+          );
+          render();
+        },
+      })
+    )
+  );
+
+  function checklist(modifier, items) {
+    return el(
+      'ul',
+      { class: `checklist checklist--${modifier}` },
+      items.map((item) => el('li', { text: item }))
+    );
+  }
+
+  function render() {
+    const role = data.roles.find((item) => item.actor.id === state.did);
+    const profile = role.profile;
+    const hosting = role.hosting;
+    const [tone, custodyLabel] = CUSTODY[profile.custodyGrade];
+
+    clear(output).append(
+      panel(role.actor.legalName, role.actor.role, [
+        callout([profile.posture]),
+        el('div', { class: 'stat-row' }, [
+          stat(hosting.onlineCount, 'documents it must keep online'),
+          stat(role.issuedCount, 'credentials it issued'),
+          stat(hosting.travellingCount, 'documents that travel, unhosted'),
+        ]),
+        el('p', {
+          class: 'muted',
+          text:
+            role.issuedCount === 0
+              ? 'A pure verifier publishes nothing. The single document counted here is a DID document that exists only because every organisation in this demonstration was given one; nothing in the system needs it.'
+              : 'Note that the first figure does not grow with the second. An institute issuing ten times as many certificates keeps exactly the same documents online.',
+        }),
+      ]),
+
+      panel(
+        'Everything it must keep reachable',
+        'click any of them — all of it is public, and this is precisely what a verifier retrieves',
+        hosting.online.map((group) =>
+          el('div', {}, [
+            el('p', { class: 'muted', text: ONLINE_KIND_LABELS[group.kind] || group.kind }),
+            el(
+              'div',
+              { class: 'chips' },
+              group.urls.map((url) =>
+                el('button', {
+                  class: 'chip',
+                  text: url.replace('https://', ''),
+                  onclick: () => context.inspect(url),
+                })
+              )
+            ),
+          ])
+        )
+      ),
+
+      panel('The signing key', null, [
+        el('div', { style: 'margin-bottom:10px' }, [badge(tone, custodyLabel)]),
+        prose([profile.custody]),
+      ]),
+
+      el('div', { class: 'split' }, [
+        panel('Already runs today', 'reused, not replaced', [checklist('has', profile.alreadyRuns)]),
+        panel('Would genuinely have to be added', null, [checklist('needs', profile.mustAdd)]),
+      ]),
+
+      panel('Availability and scale', null, [
+        keyValues([
+          ['If it is unreachable', profile.availability],
+          ['Volume', profile.scale],
+        ]),
+      ]),
+
+      callout([`<strong>The part that would actually take the effort.</strong> ${profile.hardestPart}`])
+    );
+  }
+
+  fragment.append(panel('Whose infrastructure?', null, picker), output);
+
+  fragment.append(
+    panel('What is genuinely new, across all of them', null, prose([
+      '<strong>Key custody is the whole problem.</strong> Every role above reduces to a question about who holds a key and what happens when it is lost. None of that is answered by buying hardware, and the hardware is where the attention usually goes.',
+      '<strong>Long-term validation is the second problem, and it is the one with a deadline.</strong> Signatures have to be timestamped at the moment of issue. A certificate signed today and archived without a timestamp cannot be given one in 2040, when the question of whether P-256 still means anything will be a live one. Almost everything else here can be retrofitted. This cannot.',
+      '<strong>And there is a new way to fail.</strong> A paper certificate keeps working when a web server does not. These do not: an unreachable DID document means an unverifiable certificate, and for a trust anchor that is a global outage. Static files behind a long cache lifetime make that a manageable risk rather than an unlikely one — but it is a dependency the present arrangement simply does not have, and it belongs on the other side of the ledger from the benefits in the previous chapter.',
+    ]))
+  );
+
+  fragment.append(
+    prose([
+      'All of that is what a single organisation would have to run. It says nothing about what they would have to agree with each other, which is the harder half and the next chapter.',
+    ])
+  );
+
+  render();
+  return fragment;
+}
+
+// ---------------------------------------------------------------- chapter 11
+
+// Green where a register already exists and the work is adoption, amber where somebody
+// else is already building it, blue where the page is genuinely blank.
+const HARMONISATION_STATUS = {
+  available: ['pass', 'A register already exists'],
+  emerging: ['warn', 'Being built elsewhere'],
+  open: ['anchor', 'Nothing exists yet'],
+};
+
+async function chapterHarmonisation(context) {
+  const fragment = document.createDocumentFragment();
+  const data = await api.harmonisation();
+  const titleOf = {};
+  for (const tier of data.tiers) {
+    for (const item of tier.items) titleOf[item.key] = item.title;
+  }
+
+  fragment.append(
+    prose([
+      'The previous chapter asked what one organisation would have to run. This asks the harder question: what would they all have to agree with each other, so that a certificate written in one country means the same thing in another. That is the problem the quality infrastructure exists to solve, and signatures do not touch it.',
+      'Start with something this demonstration gets wrong, because it is the clearest case on the page.',
+    ])
+  );
+
+  const cmc = (context.world.cmcEntries || []).find((entry) => entry.measurand === 'dc.resistance');
+  const scope = (context.world.accreditations || []).find((entry) => entry.measurand === 'dc.resistance');
+
+  fragment.append(
+    panel('Two organisations, one string', 'fetch both — the BIPM publishes one, the accreditation body the other', [
+      el('div', { class: 'chips' }, [
+        cmc
+          ? el('button', {
+              class: 'chip',
+              text: `CMC ${cmc.identifier}`,
+              onclick: () => context.inspect(cmc.id),
+            })
+          : null,
+        scope
+          ? el('button', {
+              class: 'chip',
+              text: `Accreditation scope ${scope.identifier}`,
+              onclick: () => context.inspect(scope.id),
+            })
+          : null,
+      ]),
+      callout([
+        'Both say <code>dc.resistance</code>, and chapter 5 decides whether a calibration may carry the CIPM MRA logo by comparing those two strings for equality. They match because one author wrote both files. Two organisations that had never spoken would not have produced the same string, and the comparison would fail — not because the laboratory was outside its scope, but because nobody had agreed a name for resistance.',
+        'The instinct is to conclude that the metrology vocabularies are missing and would have to be invented. That is wrong, and worth correcting carefully: the BIPM already publishes permanent digital identifiers for every SI unit through the <a href="https://si-digital-framework.org/SI?lang=en">SI Digital Framework</a>, resolvable CMC identifiers already exist through the <a href="https://si-digital-framework.org/kcdb-cmc/">KCDB-CMC service</a>, and identifiers for measurands are being worked on at ISO and IEC. The finding is not that no vocabulary exists. It is that one exists and this demonstration did not use it.',
+      ]),
+    ])
+  );
+
+  fragment.append(
+    prose([
+      'What follows is sorted by one test, and anything failing it was left out: <strong>two conforming implementations that differ here cannot interoperate.</strong> That is what separates a harmonisation need from a deployment gap, and chapter 9 has the deployment gaps already. The tiers are meant to be read in order, because the order is the argument.',
+    ])
+  );
+
+  for (const tier of data.tiers) {
+    fragment.append(
+      el('h3', { text: tier.label }),
+      el('p', { class: 'muted', style: 'max-width:70ch;margin-top:-6px', text: tier.test })
+    );
+
+    for (const item of tier.items) {
+      const [tone, statusLabel] = HARMONISATION_STATUS[item.status];
+      const pairs = [
+        ['What would have to be agreed', item.requirement],
+        ['This demonstration', item.demonstrated],
+        item.exists ? ['What already exists', item.exists] : null,
+        ['If two parties answer differently', item.consequence],
+        ['Who would have to agree it', item.forum],
+      ].filter(Boolean);
+
+      fragment.append(
+        panel(item.title, null, [
+          el('div', { style: 'margin-bottom:12px' }, [badge(tone, statusLabel)]),
+          keyValues(pairs),
+        ])
+      );
+    }
+  }
+
+  fragment.append(
+    prose([
+      'The steps below are dependency structure rather than advice. Each rung is possible without the ones above it, and none of the upper rungs delivers anything without the lower ones — so whoever turns out to act, this is the order the blocking relationships force.',
+    ])
+  );
+
+  for (const step of data.nextSteps) {
+    fragment.append(
+      panel(`${step.order}. ${step.title}`, step.scope, [
+        prose([step.detail]),
+        step.unblocks.length
+          ? el('p', {
+              class: 'muted',
+              text: `Advances: ${step.unblocks.map((key) => titleOf[key] || key).join(' · ')}`,
+            })
+          : null,
+      ])
+    );
+  }
+
+  fragment.append(
+    callout([
+      'Notice where the ladder stops. Every rung up to the fourth needs nobody’s permission, and the fifth needs one organisation to decide something about data it already owns. Only the last one requires two arrangements to agree — and it is the only item here with no existing forum to agree it in. The CIPM MRA and the Global ACI arrangement have no standing joint technical body. Creating somewhere for the conversation to happen is the real first step, and it is institutional rather than technical, which is usually the finding nobody wants.',
+    ])
+  );
+
   fragment.append(
     el('p', {
       class: 'footnote',
-      text:
-        'Built as an exploration, not a proposal. Every organisation, identifier, certificate, capability and key in this demonstration is fictional; the identifiers use the .example domain reserved by RFC 2606, and the signing keys are derived from a seed published in the source tree.',
+      html:
+        'Built as an exploration, not a proposal. This chapter names real organisations — the BIPM, the Global ACI arrangement, the PTB, ISO, IEC, the JCGM — because the dependencies genuinely run through them, and the ordering above is what the blocking relationships force rather than a course of action anyone has been asked to take. Nothing here reflects the position of any of them. The registers linked above are real; everything else in this demonstration remains fictional, the identifiers use the <code>.example</code> domain reserved by RFC 2606, and the signing keys are derived from a seed published in the source tree.',
     })
   );
 
@@ -1377,5 +1781,19 @@ export const CHAPTERS = [
     eyebrow: 'The argument',
     lede: 'What genuinely changes, what a real deployment would need, and what remains an open question.',
     render: chapterImplications,
+  },
+  {
+    id: 'infrastructure',
+    title: 'What it would take to run',
+    eyebrow: 'Deployment',
+    lede: 'The hosting requirement, computed rather than asserted, and why it is so unevenly spread between a trust anchor, a national institute, a fifteen-person laboratory and a verifier.',
+    render: chapterInfrastructure,
+  },
+  {
+    id: 'harmonisation',
+    title: 'What would have to be agreed',
+    eyebrow: 'Harmonisation',
+    lede: 'The minimum that has to be common for any of this to cross a border, what cannot be decided later however convenient that would be, and what a deployment can do without.',
+    render: chapterHarmonisation,
   },
 ];

@@ -32,6 +32,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from vcqi.actors.deployment import DEPLOYMENT_PROFILES, host_of, hosting_burden
+from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS
 from vcqi.actors.registry import ACTORS, TRUST_ANCHORS, actor_by_did, did_document
 from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
@@ -1152,4 +1154,89 @@ def post_issue_as_reader(request: IssueAsReaderRequest) -> dict[str, Any]:
         "report": report.to_json(),
         "proof": steps.get("proof"),
         "recognition": steps.get("recognition"),
+    }
+
+
+@app.get("/api/infrastructure")
+def get_infrastructure() -> dict[str, Any]:
+    """Return what each role would have to operate, and what a verifier actually fetches.
+
+    Two independent things are reported. The per-role hosting burden is computed from
+    what the demonstration published, so the claim that an issuer hosts a handful of
+    documents regardless of how many certificates it issues is measured rather than
+    asserted. The verifier trace is the retrieval log of a real verification of the
+    hardest chain in the demonstration, which is the honest account of the online
+    surface a recipient depends on.
+
+    Returns:
+        The profiled roles with their computed burden, and the verifier trace.
+    """
+    current = world()
+    kinds = {url: current.store.kind_of(url) for url in current.store.contents()}
+
+    roles = []
+    for profile in DEPLOYMENT_PROFILES:
+        actor = actor_by_did(profile.did)
+        if actor is None:  # pragma: no cover - the profiles name demonstration actors
+            continue
+        roles.append(
+            {
+                "actor": actor.to_json(),
+                "profile": profile.to_json(),
+                "hosting": hosting_burden(kinds, actor.domain),
+                "issuedCount": sum(
+                    1
+                    for credential in current.credentials.values()
+                    if issuer_id(credential) == profile.did
+                ),
+            }
+        )
+
+    # The certificate of conformity is the deepest chain here: it reaches a verdict on a
+    # product by way of a certification body, an accreditation body, a testing
+    # laboratory, a calibration laboratory and a national institute.
+    report = verify_credential(
+        current.credential("cab-conformity"),
+        store=current.store,
+        now=DEMO_NOW,
+        trusted_issuers=TRUST_ANCHORS,
+    )
+    hosts = sorted({host_of(fetch["url"]) for fetch in report.fetches} - {""})
+    distinct = {fetch["url"] for fetch in report.fetches}
+
+    return {
+        "roles": roles,
+        "verifierTrace": {
+            "title": "Certificate of conformity CPC-2026-0055",
+            "documents": len(report.fetches),
+            "distinct": len(distinct),
+            "hosts": hosts,
+            "hostCount": len(hosts),
+            "outcome": report.outcome,
+        },
+    }
+
+
+@app.get("/api/harmonisation")
+def get_harmonisation() -> dict[str, Any]:
+    """Return what would have to be agreed between organisations, and by whom.
+
+    Unlike the hosting burden, none of this is computed: it is an argument about what
+    would have to happen, and it is served as data only so the chapter renders it the
+    same way it renders everything else.
+
+    Returns:
+        The tiers in reading order, the items grouped under them, and the step ladder.
+    """
+    return {
+        "tiers": [
+            {
+                **tier.to_json(),
+                "items": [
+                    item.to_json() for item in HARMONISATION_ITEMS if item.tier == tier.key
+                ],
+            }
+            for tier in TIERS
+        ],
+        "nextSteps": [step.to_json() for step in NEXT_STEPS],
     }

@@ -844,3 +844,492 @@ proof binds the claim to a key. Either check alone would let the forgery through
   the main line this time.
 - Pressing **Derive** twice with the same passphrase changed nothing on screen, which
   looked broken and is in fact the lesson. It now says so explicitly instead.
+
+---
+
+# Change set 5 - the PTB/DKD DCC as a carrier
+
+## Context
+
+Chapter 6 shows one measurement carried three ways: the classical `value ± U (k = 2)`,
+the METAS UncLib dependency structure, and a GTC archive. All three answer the same
+question — how do you transmit an uncertainty so the recipient can use it.
+
+The **PTB/DKD DCC** answers a different one, and that difference is the most useful thing
+the addition brings. It is not a way of expressing an uncertainty; it is a standardised
+way of expressing an entire calibration certificate — who calibrated what, when, for
+whom, under which conditions, with which equipment, and what came out. The uncertainty
+inside it is expressed in **D-SI**, and D-SI's `si:expandedUnc` carries a value, an
+uncertainty, a coverage factor and a coverage probability. That is the classical
+statement. It is not the dependency structure.
+
+So the four carriers are not four alternatives. They stack:
+
+| Carrier | Answers | Level |
+| --- | --- | --- |
+| Classical `value ± U` | how good is this number | a result |
+| METAS UncLib | what does it depend on | a result |
+| GTC archive | the same, independently | a result |
+| **PTB/DKD DCC** | what is the whole certificate | **a document** |
+
+A PTB/DKD DCC and an UncLib block are not competing; a certificate can carry both, the
+DCC standardising the document and the dependency representation supplying what D-SI does
+not model. Chapter 6 currently implies the three carriers are alternatives, and adding
+the fourth is what makes the levels visible.
+
+ARCHITECTURE.md already calls DCC alignment "the obvious next step". This does a
+deliberately partial version of it and says exactly how partial.
+
+**Naming.** Other DCCs exist. Every mention in code, prose and documentation says
+**PTB/DKD DCC**, and existing bare "DCC" mentions get normalised.
+
+Decisions taken with the user: a schema-shaped subset, carried alongside the readable
+subject rather than replacing it, with the `ds:Signature` slot left empty and discussed,
+and the agreement check extended to read it.
+
+## The document
+
+Real namespaces and real element names, in the real nesting, carrying only what this
+demonstration has data for — and labelled a subset rather than a conformant document.
+
+- DCC **3.3.0**, namespace `https://ptb.de/dcc`
+- D-SI **2.2.1**, namespace `https://ptb.de/si`
+
+```
+dcc:digitalCalibrationCertificate
+├── dcc:administrativeData
+│   ├── dcc:coreData        countryCodeISO3166_1, usedLangCodeISO639_1,
+│   │                       mandatoryLangCodeISO639_1, uniqueIdentifier,
+│   │                       beginPerformanceDate, endPerformanceDate,
+│   │                       performanceLocation, issueDate
+│   ├── dcc:items           the instrument: name, manufacturer, model, identifications
+│   ├── dcc:calibrationLaboratory   the issuer
+│   └── dcc:customer        the owner
+├── dcc:measurementResults
+│   └── dcc:measurementResult
+│       ├── dcc:usedMethods           the measurand and the method
+│       ├── dcc:measuringEquipments   the reference standard, by certificate
+│       ├── dcc:influenceConditions   the stated conditions
+│       └── dcc:results/dcc:result/dcc:data/dcc:list/dcc:quantity
+│           └── si:real   si:value, si:unit, si:expandedUnc
+│                                  └── si:uncertainty, si:coverageFactor,
+│                                      si:coverageProbability
+└── (dcc:comment, dcc:document, ds:Signature — deliberately absent)
+```
+
+**Units are D-SI, not our symbols.** D-SI writes units siunitx-style with backslashed
+English names, so `ohm` becomes `\ohm` and — the one that catches people — `kg` becomes
+`\kilo\gram`, not `\kilogram`, because the prefix is its own token. A small explicit
+mapping covers the units this world uses and **raises** on anything unmapped, so the
+demonstration can never quietly emit a wrong unit.
+
+## Redundancy: two copies of nearly everything
+
+Wrapping a PTB/DKD DCC in a verifiable credential duplicates most of the certificate,
+and this is the part of the exercise most worth being explicit about. It is not a flaw
+in either format — each was designed to stand alone — but putting one inside the other
+makes the overlap unavoidable.
+
+| Fact | In the credential | In the PTB/DKD DCC |
+| --- | --- | --- |
+| who calibrated | `issuer.id`, `issuer.name` | `dcc:calibrationLaboratory` |
+| for whom | `credentialSubject.owner` | `dcc:customer` |
+| certificate number | `id`, `calibration.certificateNumber` | `dcc:coreData/dcc:uniqueIdentifier` |
+| when | `validFrom`, `calibration.performedOn` | `dcc:beginPerformanceDate`, `dcc:endPerformanceDate`, `dcc:issueDate` |
+| the instrument | `credentialSubject` | `dcc:items` |
+| the result | `calibration.results[0]` | `si:real` |
+| **integrity** | `proof` | `ds:Signature` |
+
+**Duplication permits disagreement.** The signature stops anyone editing either copy
+after issue; it does nothing about an issuer emitting them inconsistent in the first
+place. Two copies of a fact inside one signed document are one copy too many unless
+something reads both.
+
+### The signatures in particular
+
+The DCC's `ds:Signature` and the credential's `proof` are two integrity mechanisms over
+overlapping content, and they do not merely repeat each other — they differ at every
+layer that matters:
+
+| | credential `proof` | `ds:Signature` in a DCC |
+| --- | --- | --- |
+| canonicalization | RFC 8785 over the credential | XML C14N over the document |
+| key discovery | resolve the issuer identifier | an X.509 certificate chain |
+| revocation | status list | CRL or OCSP |
+| what it covers | the credential, including a digest of the DCC | the DCC only |
+
+A document carrying both can verify under one and fail under the other, and there is no
+natural rule for which wins. So this demonstration signs once: the credential proof
+covers the credential, the credential carries a digest of the DCC bytes, the
+`ds:Signature` slot stays empty, and there is exactly one trust path. That is a choice,
+not an obligation, and the chapter says so.
+
+### Three ways to live with the rest
+
+Worth naming all three, because the demonstration only implements one and the other two
+are not worse:
+
+1. **Duplicate and check** — what this does. Every duplicated fact becomes a place the
+   verifier can catch an inconsistency, which turns a liability into an asset. Cheap,
+   and it is why the pipeline gains a duplication check rather than only a numeric one.
+2. **Do not duplicate** — make the DCC the credential subject and let `issuer` and
+   `validFrom` be derived views of it. Cleanest, and probably what a real deployment
+   settles on. It changes every chapter here, which is why it is described rather than
+   built.
+3. **Duplicate and declare precedence** — state in the credential which copy governs.
+   It works, it needs governance, and nobody reads the rule at the moment they need it.
+
+## Code
+
+### `src/vcqi/domain/dcc.py` (new)
+
+- `DSI_UNITS` — the mapping, with the `\kilo\gram` subtlety commented where someone
+  will actually read it.
+- `to_dcc_xml(result, *, certificate, instrument, issuer, owner, conditions, measurand,
+  reference)` — builds the document with `xml.etree.ElementTree`, which is already a
+  dependency of `domain/uncertainty.py`.
+- `parse_dcc_result(xml)` — reads `si:value`, `si:unit`, `si:uncertainty` and
+  `si:coverageFactor` back out. Used by the verifier, and written with a plain XML parser
+  so the check does not depend on the tool that wrote the document.
+
+### `src/vcqi/vc/model.py`
+
+`uncertainty_representations()` gains a `dcc_xml` parameter and emits a fifth entry with
+`type: "CertificateRepresentation"` and `format: "PTB-DKD-DCC-XML"`. It goes inline like
+the UncLib XML, since a one-result DCC is a couple of kilobytes, and carries a
+`digestMultibase` over the raw bytes exactly like every other entry.
+
+The member is still called `uncertaintyRepresentations`, which is now slightly narrow for
+what it holds. Renaming it would change every signed credential and both generated
+schemas for a cosmetic gain, so the name stays and `type` carries the distinction —
+recorded in ARCHITECTURE.md rather than left as a puzzle.
+
+### `src/vcqi/vc/verify.py`
+
+`_step_representations` already digest-checks anything it does not recognise, so the DCC
+is covered from the moment it exists. Two changes make it *read*:
+
+- pick up `PTB-DKD-DCC-XML`, parse it, and keep the value and Expanded Uncertainty;
+- `_step_agreement` compares **three** sources rather than two — the printed line, the
+  dependency representation, and the DCC — and reports which one disagrees.
+
+The DCC states an *Expanded* uncertainty with its coverage factor, so the comparison
+divides by `si:coverageFactor` before comparing with the printed `u`. Getting that
+backwards would be exactly the kind of error the check exists to catch, so the test
+asserts it both ways.
+
+A third child, **`uncertainty.duplication`**, reads the facts the two carriers state
+twice — the certificate number, the calibrating laboratory, the customer and the
+performance dates — and confirms they agree. This is what turns the redundancy above
+from a liability into something useful: every duplicated field becomes a place an
+inconsistent issuer gets caught.
+
+Two naming compromises come out of this change, and they are better recorded than
+rediscovered. The member is still `uncertaintyRepresentations` and the step is still
+`uncertainty`, both of which are now narrower than what they hold. Renaming the member
+would change every signed credential and both generated schemas; renaming the step would
+break ids that the tests and the interface refer to. So the names stay, the `type` and
+the step ids carry the meaning, and ARCHITECTURE.md says so in one place rather than
+leaving two puzzles.
+
+### `src/vcqi/actors/tamper.py`
+
+Two new metrological cases, both signed correctly with matching digests:
+
+- **`dcc-disagrees`** — the DCC states a different measured value from the printed line.
+  Caught by `uncertainty.agreement`.
+- **`dcc-names-another-laboratory`** — the DCC's `dcc:calibrationLaboratory` names a
+  different body from the credential's `issuer`. Every signature and digest is intact,
+  and the document contradicts itself about who performed the calibration. Caught by
+  `uncertainty.duplication`, and it exists precisely because that failure is invisible
+  without a check that reads both copies.
+
+Fifteen cases total.
+
+## Chapters
+
+### Chapter 6 — a fourth tab
+
+`representationPanel` gains **PTB/DKD DCC** beside Classical, METAS UncLib and GTC. It
+shows the generated document, a table mapping our fields onto the DCC and D-SI elements
+they become, and makes the level distinction explicit: the first three carry a *result*,
+this one carries a *document*, and they compose rather than compete.
+
+A second panel, **What is now said twice**, renders the redundancy table against the
+actual documents: each duplicated fact with the credential's value beside the DCC's, and
+a badge where the verifier compared them. It ends on the signature comparison — two
+mechanisms, different canonicalization, different key discovery, different revocation —
+and states plainly that the demonstration signs once and covers the DCC by digest, that
+this is a choice rather than an obligation, and that using both needs a precedence rule
+which is governance rather than engineering.
+
+### Chapter 9 — rewrite the alignment paragraph
+
+It currently says carrying a PTB/DKD DCC as the credential subject is the obvious next
+step. Part of that is now demonstrated, so the text should say what is real and what is
+not: the document is a subset, it is not validated against the published XSD, the
+`ds:Signature` slot is unused, D-SI does not model dependency structure so UncLib or GTC
+still has to ride alongside, and the credential subject is still the readable shape rather
+than the DCC itself.
+
+It should also gain what the redundancy actually taught, because it is the more
+transferable lesson: wrapping an existing standardised document in a credential
+duplicates most of it, including its integrity mechanism, and a real deployment has to
+decide deliberately between duplicating and checking, not duplicating at all, or
+declaring precedence. This demonstration duplicates and checks because that is the
+cheapest thing to show; the version worth building is probably the second.
+
+## Files
+
+```
+src/vcqi/domain/dcc.py              new
+src/vcqi/vc/model.py                the fifth representation
+src/vcqi/vc/verify.py               read the DCC, three-way agreement
+src/vcqi/actors/scenarios.py        generate it for both calibration certificates
+src/vcqi/actors/tamper.py           dcc-disagrees
+src/vcqi/web/static/js/chapters.js  chapter 6 tab, chapter 9 paragraph
+tests/test_dcc.py                   new
+README.md, ARCHITECTURE.md          normalise naming, record the compromises
+```
+
+Reused unchanged: `uncertainty_representations` digest and inline handling,
+`_step_representations`, `credential_reference`, the scenario wiring that already passes
+`gtc_archive` through.
+
+## Verification
+
+- `uv run pytest` — 213 existing plus roughly 20 new. Specifically: `\ohm` and
+  `\kilo\gram` are produced and an unmapped unit raises; the generated document parses,
+  declares both namespaces and the right schema version, and has the full element path
+  down to `si:real`; `parse_dcc_result` round-trips the value, unit, `U` and `k`; the
+  agreement check passes for both real certificates and fails when the DCC is altered;
+  and `si:coverageFactor` is applied in the right direction.
+- The duplication check: every field the two carriers state twice agrees for the real
+  certificates, and altering any one of them in the DCC alone is caught while every
+  signature and digest stays valid.
+- All 15 failure cases caught by the step each names.
+- `uv run vc-demo`, then chapter 6, all four tabs and the duplication panel.
+- `node tools/ui-clicks.mjs` — the tool is on `develop` now, so run it directly.
+- `python -m vcqi.actors.scenarios --dump` twice, byte-identical.
+
+## Git
+
+Branch from `develop`:
+
+```
+git switch -c feature/ptb-dkd-dcc develop
+```
+
+One commit. Nothing pushed without asking.
+
+**Note on line endings.** The repository has drifted into mixed CRLF and LF, which
+inflates every diff. It is unrelated to this change and still outstanding; the offer to
+normalise it with a `.gitattributes` stands, and is best done as its own commit rather
+than folded into this one.
+
+## Change set 5 - build order
+
+- [x] **D1 - The document.** `domain/dcc.py`: D-SI units, to_dcc_xml, parse_dcc_result.
+- [x] **D2 - Carried.** The fifth representation in `vc/model.py`, generated in
+      `scenarios.py` for both calibration certificates.
+- [x] **D3 - Read.** Three-way agreement and the duplication check in `vc/verify.py`.
+- [x] **D4 - Broken.** `dcc-disagrees` and `dcc-names-another-laboratory`.
+- [x] **D5 - Shown.** Chapter 6 fourth tab and the duplication panel; chapter 9 rewrite.
+- [x] **D6 - Tests and docs.** `tests/test_dcc.py`, naming normalised to PTB/DKD DCC.
+
+## Change set 5 - progress log
+
+Complete. 253 tests pass, 1 skipped (GTC). Ten chapters render, every control responds,
+the world still builds byte-identically.
+
+- `domain/dcc.py` generates a PTB/DKD DCC 3.3.0 with quantities in D-SI 2.2.1, using the
+  real namespaces, element names and nesting. Every calibration certificate carries one.
+- Both transport paths fall out naturally: the institute's document is 3639 characters
+  and travels inline, the laboratory's is 4292 and is published separately.
+- `uncertainty.agreement` now compares three carriers instead of two, dividing the DCC's
+  Expanded Uncertainty by its coverage factor first.
+- `uncertainty.duplication` compares the six facts the credential and the DCC both state.
+
+### What the redundancy is, concretely
+
+Six facts said twice, plus the integrity mechanism. The check found them all agreeing on
+the real certificates, and the two new failure cases show what happens when they do not:
+`dcc-disagrees` and `dcc-names-another-laboratory` both keep every signature and digest
+valid and are caught only because something reads both copies.
+
+### D-SI units
+
+Written siunitx-style with backslashed English names. Ohm is `\ohm`; kilogram is
+`\kilo\gram` and not `\kilogram`, because the prefix is its own token. `dsi_unit()`
+raises on an unmapped unit rather than guessing, and there is a test for the kilogram
+specifically.
+
+### One test was wrong, not the code
+
+`test_the_duplication_check_is_skipped_without_a_dcc` searched the whole report tree and
+found the duplication step belonging to the calibration certificate that the test report
+follows its traceability into. Scoped to the top level.
+
+# Change set 6 - what it takes to run, and what would have to be agreed
+
+## Context
+
+Two chapters, built on one branch, answering the two halves of "could this actually be
+deployed". Chapter 10 answers what one organisation would have to **run**; chapter 11
+answers what organisations would have to **agree with each other**.
+
+Chapter 10 landed on this branch before the plan existed, in answer to a question about
+what IT infrastructure BIPM, METAS or a small calibration laboratory would need. It is
+recorded here so the branch has one account of itself.
+
+Chapter 11 was planned. A structural review argued the harmonisation material did not
+belong inside chapter 10 — chapter 10's lede is the hosting burden, and merging the two
+would bury the second argument under the first — so it became its own chapter.
+
+## What chapter 10 established
+
+The hosting burden is computed from what the demonstration actually published, not
+asserted. Two properties do the work: verification is a computation rather than a
+conversation, so an issuer runs no service on a verifier's behalf; and a credential
+travels with whoever holds it, so an issuer hosts only what describes the issuer itself.
+
+METAS keeps three documents online while having issued four credentials and six that
+travel unhosted. The first figure does not grow with the second. BIPM's burden is eight
+and is dominated by the registry, not by signing. A pure verifier operates nothing.
+
+A real verification of the conformity certificate reports 31 distinct documents across 7
+hosts and no accounts at any of them — alongside 76 uncached retrievals, quoted rather
+than dropped, because this resolver refetches DID documents at every hop.
+
+## What chapter 11 argues
+
+Three tiers, read in order rather than filtered, because the ordering is the claim.
+
+**Tier 1, minimum to interoperate:** one cryptosuite profile; one identifier method and
+an agreed meaning for resolution; how a chain crosses between the two arrangements; what
+a status value means institutionally rather than how it is encoded; trust anchor
+identifiers and their distribution; unit identifiers.
+
+**Tier 2, must be decided now though not yet needed:** whose timestamps are mutually
+accepted; which copy governs, the certificate document or the credential; persistence
+commitments on identifiers.
+
+**Tier 3, nice to have:** a digital representation of SI quantities settled between the
+existing candidates; a machine-readable certificate format with international standing;
+measurand identifiers; registered uncertainty-transport identifiers including dependency
+structure.
+
+Every item has to pass one discriminator: *two conforming implementations that differ
+here cannot interoperate*. Anything failing it is a deployment gap and belongs in chapter
+9, which already covers identifier governance, the signed KCDB, long-term validation and
+selective disclosure. Chapter 11 asks the different question of who would have to agree,
+and in which forum.
+
+### The correction that shaped it
+
+A first draft assumed the metrology vocabularies were missing and treated the PTB/DKD DCC
+and D-SI as the presumptive global formats. Both were wrong.
+
+The DCC and D-SI are German constructions, from the PTB and the DKD. Their maturity does
+not settle their global standing, and a national construction seeking worldwide adoption
+is a governance question rather than a technical one.
+
+BIPM already runs the SI Digital Framework, publishing permanent digital identifiers for
+SI units, prefixes and defining constants, backed by RDF knowledge bases. The ohm
+resolves at `https://si-digital-framework.org/SI/units/ohm` with its symbol, its quantity
+and the CGPM resolution that defined it. Resolvable CMC identifiers already exist through
+the KCDB-CMC service. Digital identifiers for measurands are in progress at ISO and IEC.
+
+So the finding is not that no vocabulary exists. It is that one exists, BIPM publishes it,
+and this demonstration did not use it.
+
+### The evidence in the code
+
+`domain/scope.py:229` decides whether a calibration may carry the CIPM MRA logo with
+`claim.measurand == capability.measurand` — exact string equality on free text. The CMC in
+`domain/kcdb.py` and the accreditation scope in `domain/accreditation.py` both say
+`dc.resistance`, and they match only because one author wrote both files. Chapter 5 rests
+on a vocabulary agreement the demonstration manufactured for itself.
+
+There is a connection worth drawing: BIPM's identifiers are RDF, so adopting them makes
+JSON-LD semantics load-bearing, and `ARCHITECTURE.md`'s note that a real deployment needs
+`ecdsa-rdfc-2019` or an equivalent stops being academic. The cryptosuite choice and the
+vocabulary choice are the same decision.
+
+## Files
+
+- `src/vcqi/actors/deployment.py` - deployment profiles and `hosting_burden`.
+- `src/vcqi/actors/harmonisation.py` - harmonisation items and the next-step ladder.
+- `src/vcqi/web/app.py` - `/api/infrastructure` and `/api/harmonisation`.
+- `src/vcqi/web/static/js/chapters.js` - chapters 10 and 11.
+- `src/vcqi/web/static/js/api.js`, `static/css/app.css` - one call, one `.checklist` rule.
+- `tests/test_deployment.py`, `tests/test_harmonisation.py`, `tests/test_web.py`.
+
+## Verification
+
+`uv run pytest`, then `node tools/ui-clicks.mjs` against a running server. The click
+harness is the one that matters: it exists because a chapter once rendered buttons that
+did nothing.
+
+Not verified visually. The Chrome extension was declined during the session, so the
+layout of the new panels has not been seen in a browser.
+
+## Git
+
+Branch `feature/infrastructure-chapter`, from `develop`. Nothing pushed without asking.
+
+**Line endings.** Still mixed across the repository, and `chore/normalise-line-endings` is
+still unmerged. Files touched here were rewritten to match whatever `develop` holds for
+each, so the diffs stay reviewable; new files are LF.
+
+## Change set 6 - build order
+
+- [x] **E1 - Roles.** `actors/deployment.py`: profiles and the computed hosting burden.
+- [x] **E2 - Endpoint.** `/api/infrastructure`, with a real verification's retrieval log.
+- [x] **E3 - Chapter 10.** The role picker and the six panels behind it.
+- [x] **E4 - Tests for 10.** `tests/test_deployment.py` and four in `tests/test_web.py`.
+- [x] **E5 - Items.** `actors/harmonisation.py`: the three tiers and the step ladder.
+- [x] **E6 - Endpoint.** `/api/harmonisation`.
+- [x] **E7 - Chapter 11.** Three stacked tier panels, the ladder, the disclaimer.
+- [x] **E8 - Stitching.** Chapter 10's bridging sentence; move chapter 9's stranded
+      closing footnote to the end of chapter 11, which is now last.
+- [x] **E9 - Tests and docs.** `tests/test_harmonisation.py`, the measurand-coincidence
+      regression test, `README.md`.
+
+## Change set 6 - progress log
+
+Chapter 10 complete before this plan existed: 261 tests pass, 1 skipped (GTC), every
+control responds across eleven chapters.
+
+- `actors/deployment.py` holds four editorial role profiles and `hosting_burden`, which
+  splits what an organisation publishes into what must stay online and what travels with
+  its holders. The profiles are an argument; the counts beside them are computed.
+- `/api/infrastructure` joins the two and adds a real verification of the conformity
+  certificate, reporting distinct documents, hosts and the uncached retrieval count.
+- Chapter 10 renders a four-role picker over that data. Twelve controls, all responding.
+- The module was first written under `domain/` and moved to `actors/`: `ARCHITECTURE.md`
+  reserves `domain/` for code with no credential knowledge, and document kinds like
+  `did-document` and `status-list` are credential concepts.
+- Trimmed before landing: `profile_for` was never called, and four response fields were
+  unused by both the chapter and the tests.
+
+Chapter 11 complete. 272 tests pass, 1 skipped. Twelve chapters render and every control
+responds; chapter 10 still reports twelve controls and chapter 11 two.
+
+- `actors/harmonisation.py` holds thirteen items across three tiers and a six-rung ladder.
+  Items are editorial; what is enforced is that the two halves agree — every step advances
+  an item that exists, and every first-tier item is reached by some step.
+- The one sentence that could rot quietly interpolates `CRYPTOSUITE` rather than repeating
+  it, and a test asserts the served text still contains it. `MINIMUM_LIST_LENGTH` was
+  deliberately left out of that treatment: it is a spec-mandated floor the constructor
+  rejects below, so presenting it as a choice would have asserted a decision nobody made.
+- `tests/test_harmonisation.py` turns the chapter's central claim into a regression test:
+  the CMC and the accreditation scope are published by different organisations and agree
+  on `dc.resistance` only because one author wrote both files, which is exactly what
+  `domain/scope.py` compares with `==`.
+- Two stitching fixes: chapter 10 now bridges into 11, and chapter 9's closing footnote —
+  stranded mid-book when chapter 10 was added — moved to the end of chapter 11, extended
+  to cover the real organisations chapter 11 names.
+- Not verified visually. The Chrome extension was declined, so the layout of the new
+  panels has not been seen in a browser. Structure was checked in jsdom instead: flat
+  panels, no nesting, no stray nulls, and tier headings at 15px above 13.5px panel titles.

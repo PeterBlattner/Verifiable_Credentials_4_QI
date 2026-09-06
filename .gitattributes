@@ -1,0 +1,11 @@
+# Normalise line endings.
+#
+# Everything in this repository is text, and everything that reads it — Python, Node,
+# browsers, git — is content with LF. Without this file, edits made on Windows silently
+# rewrote whole files as CRLF, and the resulting diffs carried hundreds of lines of noise
+# that buried the actual change. One pull request showed 4863 insertions where the real
+# figure was closer to 1500.
+#
+# text=auto lets git decide what is text; eol=lf pins LF in the repository *and* in the
+# working tree, so the drift cannot start again from either direction.
+* text=auto eol=lf

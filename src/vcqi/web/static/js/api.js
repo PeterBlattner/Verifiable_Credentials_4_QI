@@ -42,6 +42,8 @@ export const api = {
   verifySignature: (options) => post('/api/keys/verify', options),
   issueAsReader: (options) => post('/api/keys/issue', options),
   gtc: () => request('/api/gtc'),
+  infrastructure: () => request('/api/infrastructure'),
+  harmonisation: () => request('/api/harmonisation'),
   // Dependency data is XML or a binary blob, so it comes back as text rather than JSON.
   uncertaintyData: async (url) => {
     const response = await fetch(`/api/uncertainty-data?url=${encodeURIComponent(url)}`);
