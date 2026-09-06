@@ -22,7 +22,7 @@ Then open <http://127.0.0.1:8000>. No npm, no build step — the interface is pl
 modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 
 ```
-uv run pytest                                  # 272 tests
+uv run pytest                                  # the whole suite
 uv run python -m vcqi.actors.scenarios         # list every signed credential
 uv run python -m vcqi.actors.scenarios --dump out/   # write all 59 documents as JSON
 ```
@@ -69,13 +69,21 @@ managed machine, running an unsigned executable is often prohibited outright.
 locally: Render builds the image on its own builders and everything below is done in a
 browser.
 
+0. **Merge `develop` into `main` first.** `render.yaml` sets `branch: main`, and a
+   blueprint has nothing to build until `main` carries the `Dockerfile`. Because `main`
+   is the deployment branch, that pull request is also what publishes each new version;
+   `ci.yml` runs on it, so the tests have passed on exactly that content first.
 1. **Render → New → Blueprint**, and pick this repository. `render.yaml` defines the
-   service, so there is no dashboard configuration to remember or reproduce.
-2. **Settings → Health Check Path → `/healthz`.** The app builds the world during
-   lifespan startup, before the port opens, so a health check cannot see the service
-   until it can actually serve. A rolling deploy will not cut traffic over to a cold
-   process.
-3. **Settings → Custom Domains**, add the hostname, then create the DNS records below.
+   service, so there is no dashboard configuration to remember or reproduce. Render
+   reads it, shows what it will create, and asks for confirmation.
+2. **Watch the first build.** It should end with the two assertions from the Dockerfile
+   in the log — that the interface reached the wheel, and that `metas_unclib` is *not*
+   in the image — and then `/healthz` going green. First build is a few minutes; later
+   ones reuse cached layers.
+3. **Check the health endpoint** at `https://<service>.onrender.com/healthz`. It reports
+   `"engine": "linprop"`, which is the confirmation that the deployment is computing
+   with the engine it is licensed to ship, and the commit it is running.
+4. **Settings → Custom Domains**, add the hostname, then create the DNS records below.
    Certificates are issued and renewed automatically, and HTTP is redirected to HTTPS.
 
 | Type | Name | Value | Notes |
@@ -258,6 +266,10 @@ src/vcqi/
 tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py
              test_domain.py  test_pipeline.py  test_web.py
 ```
+
+`CONTENT.md` says where the words are and how to change them without touching code. The
+chapter prose lives in markdown files, edited in the GitHub web interface and merged by
+pull request; the tests run on the pull request and say plainly if an edit is wrong.
 
 `ARCHITECTURE.md` records the design decisions, the simplifications, and what a real
 deployment would need that this does not have.

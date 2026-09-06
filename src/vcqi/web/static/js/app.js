@@ -5,12 +5,14 @@
 
 import { api } from './api.js';
 import { CHAPTERS } from './chapters.js';
+import { chapterText } from './content.js';
 import { clear, el, jsonView, panel } from './ui.js';
 
 const stage = document.getElementById('stage');
 const nav = document.getElementById('rail-nav');
 
 let world = null;
+let content = null;
 let inspector = null;
 let inspectorHeading = null;
 
@@ -43,6 +45,13 @@ async function inspect(url) {
   inspector.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// A chapter's title, eyebrow and lede come from its content file once it has one, and
+// from the CHAPTERS descriptor until then. The migration runs a chapter at a time, so
+// both states are normal and neither is a fallback for a failure.
+function heading(t, chapter, field) {
+  return t.has(field) ? t.text(field) : chapter[field];
+}
+
 function buildRail(activeId) {
   clear(nav);
   CHAPTERS.forEach((chapter, index) => {
@@ -58,7 +67,7 @@ function buildRail(activeId) {
           },
         }, [
           el('span', { class: 'rail__num', text: String(index) }),
-          el('span', { text: chapter.title }),
+          el('span', { text: heading(chapterText(content, chapter.id), chapter, 'title') }),
         ])
       )
     );
@@ -67,13 +76,14 @@ function buildRail(activeId) {
 
 async function show(id) {
   const chapter = CHAPTERS.find((item) => item.id === id) || CHAPTERS[0];
+  const t = chapterText(content, chapter.id);
   buildRail(chapter.id);
 
   clear(stage).append(
     el('header', {}, [
-      el('p', { class: 'chapter__eyebrow', text: chapter.eyebrow }),
-      el('h1', { class: 'chapter__title', text: chapter.title }),
-      el('p', { class: 'chapter__lede', text: chapter.lede }),
+      el('p', { class: 'chapter__eyebrow', text: heading(t, chapter, 'eyebrow') }),
+      el('h1', { class: 'chapter__title', text: heading(t, chapter, 'title') }),
+      el('p', { class: 'chapter__lede', text: heading(t, chapter, 'lede') }),
     ]),
     el('p', { class: 'spinner', text: 'Loading…' })
   );
@@ -82,7 +92,12 @@ async function show(id) {
   inspectorHeading = el('h3', { text: 'Follow a reference' });
 
   try {
-    const body = await chapter.render({ world, api, inspect });
+    const body = await chapter.render({
+      world,
+      api,
+      inspect,
+      text: (chapterId) => chapterText(content, chapterId),
+    });
     stage.lastChild.remove();
     stage.append(body);
   } catch (error) {
@@ -105,7 +120,9 @@ async function show(id) {
 
 async function start() {
   try {
-    world = await api.world();
+    // In parallel: the content is a separate document from the world and neither waits
+    // on the other.
+    [world, content] = await Promise.all([api.world(), api.content()]);
   } catch (error) {
     clear(stage).append(
       el('div', { class: 'verdict verdict--fail' }, [

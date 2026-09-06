@@ -172,6 +172,68 @@ difference is ~2 × 10⁻¹⁶ relative, well past anything metrologically meani
 rounding the reported budget would make both engines agree but would mean rounding an
 intermediate value, which the GUM conventions this project follows do not permit.
 
+### The prose is content, and lives in markdown
+
+The chapter text was string literals inside `chapters.js`, about a hundred and twenty
+paragraphs threaded through 1799 lines of interactive code. Correcting a sentence meant
+editing JavaScript, which put the words out of reach of everyone except whoever maintains
+that file — an odd property for a demonstration whose purpose is to be read.
+
+So the prose lives in `web/content/chapters/*.md` and the interactive code stays where it
+is. Two facts about the existing code made that a small change rather than a rewrite:
+`prose()` and `callout()` in `ui.js` already rendered each paragraph through
+`el('p', {html})`, so rendered markdown is a drop-in; and `panel()` sets its title with
+`text:`, so every block is served in both an HTML and a plain-text form.
+
+**The format is one rule.** A line matching `## some-key` starts a block; everything
+until the next one is that block's markdown. No front matter, no second syntax —
+`title`, `eyebrow` and `lede` are blocks like any other. That was chosen over YAML front
+matter for a reason that settles it: **GitHub's own preview of the file is a usable
+preview of the prose**, so an editor working in the web UI sees their paragraphs
+rendered. The cost is that `##` is reserved, so a heading inside a block must be `###`,
+and no chapter's prose contains a heading.
+
+**Rendering happens on the server**, at first request, cached against file modification
+times. That keeps the page loading zero external resources, which is what lets its
+Content-Security-Policy reach `default-src 'none'`; it keeps the promise of no build step
+literally true, since nothing is generated into the tree and the markdown ships in the
+wheel by the same mechanism that ships `app.css`; and editing a file and pressing reload
+is enough, with no restart.
+
+**The renderer is in-repo**, `web/markdown.py`, about two hundred lines. This repository
+already does that deliberately for JCS and multibase, for the reasons in the section
+above, and the argument here is the same plus one. A general parser has to be *told* not
+to pass HTML through; this one has no such path, so every character of input is escaped
+and every tag in the output was emitted by that module. That makes handing the result to
+`innerHTML` defensible, and it is stricter than what it replaced, where `chapters.js`
+hand-wrote `<strong>` into literals that went through `innerHTML` unexamined. The
+narrower reason is that a demonstrator claiming to be readable end to end should not
+require reading a third-party parser to follow. The repository's own documents use
+reference-style links and nested lists, which this does not support, so publishing those
+will need it extended or a real CommonMark parser — that decision belongs with that
+change.
+
+**What stays in code**, and the rule for deciding: move it if a reader reads it as a
+sentence or a heading; leave it if it is a label, a unit, an option name or a value. So
+button text, slider labels, `stat()` captions and the `triangle()` SVG strings stay.
+Chapter *order* stays too, because the prose says "chapter 5" and "the next chapter" in
+several places and letting an editor reorder chapters would silently break those. The
+long editorial fields in `actors/deployment.py` and `actors/harmonisation.py` also stay:
+they are records of nine correlated fields per item, which a markdown file expresses
+badly, and `test_web.py` asserts that one of them names the cryptosuite the
+demonstration actually uses — a coupling to code that moving the string would weaken.
+
+**A bad edit fails in two places, neither of them silent.** At runtime a key nothing
+defines renders a red `[missing content: chapter/key]` marker in the position the prose
+belonged, so a typo costs one paragraph while the chapter's panels, structure and
+controls keep working; `app.js`'s existing catch stays for genuine render errors, which
+content misses no longer reach. In CI, `tests/test_content.py` checks that every
+referenced key exists, that no block is orphaned, that a block shown as a plain heading
+contains no markup, that table rows match their header, and that placeholders only appear
+in blocks something interpolates. One convention underpins the rest — content keys are
+literal strings at the call site, never computed — and its own test enforces that,
+because a computed key would make every other check unable to see it.
+
 ### The network is a dictionary
 
 `vc/resolver.py` stands in for retrieval. Every document is published at the address a

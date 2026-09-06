@@ -29,6 +29,7 @@ function post(path, body) {
 
 export const api = {
   world: () => request('/api/world'),
+  content: () => request('/api/content'),
   actor: (did) => request(`/api/actor/${did}`),
   credential: (name) => request(`/api/credential/${name}`),
   document: (url) => request(`/api/document?url=${encodeURIComponent(url)}`),
