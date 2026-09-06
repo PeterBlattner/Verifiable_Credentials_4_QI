@@ -1,3 +1,10 @@
+# syntax=docker/dockerfile:1.7
+# The `syntax` line above must stay first. It pins the Dockerfile frontend, and this file
+# needs a version that supports two things the built-in one only supports depending on
+# which Docker the builder happens to be running: heredocs in RUN, used below to assert
+# what reached the image, and --mount=type=cache. Pinning it makes the build behave the
+# same on a laptop, on a GitHub runner and on Render's builders.
+
 # The demonstrator as a container.
 #
 # There is nothing exotic here, and that is the point: it used to look like it would need
@@ -64,24 +71,34 @@ RUN if /app/.venv/bin/python -c "import metas_unclib" 2>/dev/null; then \
 # ---------------------------------------------------------------- runtime
 FROM python:3.11-slim-bookworm AS runtime
 
+# Note there are no comments *inside* these ENV blocks. Whether a comment line within a
+# backslash continuation is stripped or swallowed into the value has varied between
+# Dockerfile frontends, and an environment variable that silently ends up holding a
+# sentence is a memorably confusing way to fail. The comments sit above the blocks.
+
 ENV PATH=/app/.venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    # Bind to every interface: the host's proxy is what reaches this.
-    VCQI_HOST=0.0.0.0 \
-    PORT=8000 \
-    # Turn on the limits in web/limits.py and drop the API docs, whose Swagger UI would
-    # be blocked by this app's Content-Security-Policy anyway.
-    VCQI_PUBLIC=1 \
-    # A reader clicking through the keys and issuing chapters spends about 85 tokens;
-    # 150 with 5/s refill leaves them a wide margin while holding a script to roughly
-    # one expensive request a second.
-    VCQI_RATE_LIMIT_BURST=150 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Bind to every interface, because the host's proxy is what reaches this, and take the
+# port from the environment, because a managed host assigns it.
+ENV VCQI_HOST=0.0.0.0 \
+    PORT=8000
+
+# Turn on the limits in web/limits.py, and with them drop the API docs, whose Swagger UI
+# loads from a CDN that this app's own Content-Security-Policy forbids.
+ENV VCQI_PUBLIC=1
+
+# A reader clicking through the keys and issuing chapters spends about 85 tokens; 150
+# with 5/s refill leaves them a wide margin while holding a script to roughly one
+# expensive request a second.
+ENV VCQI_RATE_LIMIT_BURST=150 \
     VCQI_RATE_LIMIT_PER_SECOND=5.0 \
-    VCQI_MAX_BODY_BYTES=262144 \
-    # So uvicorn rewrites scope["client"] from X-Forwarded-For and the rate limiter
-    # charges the caller rather than the host's proxy.
-    FORWARDED_ALLOW_IPS=*
+    VCQI_MAX_BODY_BYTES=262144
+
+# So uvicorn rewrites scope["client"] from X-Forwarded-For and the rate limiter charges
+# the caller rather than the host's proxy.
+ENV FORWARDED_ALLOW_IPS=*
 
 WORKDIR /app
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
