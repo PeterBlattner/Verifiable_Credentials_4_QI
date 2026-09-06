@@ -27,6 +27,7 @@
 // table becomes a markdown one: the words are identical and the element order is not.
 
 const { JSDOM } = await import(process.env.VCQI_JSDOM || 'jsdom');
+const { servedModules } = await import(new URL('served-modules.mjs', import.meta.url));
 
 const BASE = process.env.VCQI_BASE || 'http://127.0.0.1:8000';
 const SETTLE = Number(process.env.VCQI_SETTLE || 1200);
@@ -59,7 +60,9 @@ console.error = (...args) => consoleErrors.push(args.map(String).join(' '));
 
 const settle = (ms = SETTLE) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const modules = new URL('../src/vcqi/web/static/js/', import.meta.url);
+// The bytes the server sends, not the ones on disk: see served-modules.mjs for
+// the failure that distinction let through.
+const modules = await servedModules(BASE);
 const { CHAPTERS } = await import(new URL('chapters.js', modules));
 await import(new URL('app.js', modules));
 await settle(1600);
