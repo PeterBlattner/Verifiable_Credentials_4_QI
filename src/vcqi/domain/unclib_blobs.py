@@ -129,25 +129,21 @@ def main() -> None:
         )
 
     from vcqi.actors import scenarios
-
-    collected: dict[str, bytes] = {}
-    seen: list[str] = []
-
-    # Capture at the one place a binary representation is produced, so the set recorded
-    # is exactly the set the credentials ask for, with nothing guessed about which
-    # results those are.
-    original = scenarios.to_unclib_binary if hasattr(scenarios, "to_unclib_binary") else None
-    del original
-
     from vcqi.domain import uncertainty
 
+    collected: dict[str, bytes] = {}
+    requests = 0
+
+    # Capture at the one place a binary representation is produced, so the set recorded
+    # is exactly the set the credentials ask for and nothing is guessed about which
+    # results those are.
     real_binary = uncertainty._unclib_binary_from_library
 
     def record(result: object) -> bytes:
+        nonlocal requests
         blob = real_binary(result)
-        xml = to_unclib_xml(result)  # type: ignore[arg-type]
-        collected[blob_key(xml)] = blob
-        seen.append(blob_key(xml))
+        collected[blob_key(to_unclib_xml(result))] = blob  # type: ignore[arg-type]
+        requests += 1
         return blob
 
     uncertainty._unclib_binary_from_library = record  # type: ignore[assignment]
@@ -157,7 +153,7 @@ def main() -> None:
         uncertainty._unclib_binary_from_library = real_binary  # type: ignore[assignment]
 
     _write(collected)
-    print(f"recorded {len(collected)} blobs from {len(seen)} requests -> {BLOBS_PATH}")
+    print(f"recorded {len(collected)} blobs from {requests} requests -> {BLOBS_PATH}")
 
 
 if __name__ == "__main__":
