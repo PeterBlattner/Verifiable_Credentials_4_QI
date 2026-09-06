@@ -1378,7 +1378,7 @@ question was asked as "could this be simplified by faking UncLib?"
 ## Build order
 
 - [x] `feature/linprop` — the engine, the blobs, the equivalence tests, CI
-- [ ] `feature/hosting` — config, hardening, Dockerfile, domain, doc updates
+- [x] `feature/hosting` — config, hardening, Dockerfile, domain, doc updates
 - [ ] `feature/content-layer` — loader, `/api/content`, `content.js`, tests, editor README
 - [ ] `feature/content-chapter-0` — pilot migration plus the snapshot tool
 - [ ] `feature/content-chapters-*` — the remaining eleven chapters, one commit each
@@ -1436,3 +1436,63 @@ without it (46 skipped, all of them the ones that need both engines to compare).
 - Not yet done on this branch: nothing. The chapter 6 prose still describes UncLib as
   the only implementation of the format; that sentence belongs to the content-layer work
   and is noted there rather than edited in JavaScript now.
+
+`feature/hosting` complete. 305 tests pass in the deployed configuration (46 skipped:
+the equivalence tests need UncLib, which by then had left the local venv — see below).
+
+- `config.py` reads seven variables and every default is the local one, so `uv run
+  vc-demo` behaves exactly as before. `VCQI_PUBLIC` gates the rest, because a reader on
+  their own machine should not have to fight limits only a public host needs.
+- `web/limits.py` holds a body-size cap and a token bucket. Plain ASGI, no dependency.
+- **The cost table was wrong on the first attempt, and the harness caught it.** Charging
+  every `/api/` POST looked prudent and was not: `sliderRow` fires `oninput` on every
+  step with no debouncing, so one drag of the scope slider could post hundreds of times.
+  The rule that replaced it is not "how much work does this route do" but "can the
+  caller raise it" — only `/api/keys/*` and `/api/verify` can. The slider routes
+  evaluate a four-input model however the sliders are set, so charging them would
+  throttle a reader and do nothing about an attacker.
+- That led to a second fix worth having on its own merits. `sliderRow` now serialises
+  its handler: the readout still updates on every event, but the request runs one at a
+  time against the slider's latest position, so intermediate positions are skipped.
+  Besides the wasted requests, the old behaviour had a latent race — responses could
+  land out of order and a slow early one could overwrite a newer verdict. The five call
+  sites return their promise now.
+- The Content-Security-Policy reaches `default-src 'none'`, which is unusual and worth
+  keeping: no CDN, no web font, no analytics, and the only inline asset is the favicon's
+  data URI. One obstacle, as anticipated: `el()` set inline styles with
+  `setAttribute('style', ...)`, which a strict `style-src` blocks. Assigning through
+  `node.style.cssText` instead is not covered by CSP and left all fourteen call sites
+  untouched, including the one computed bar width.
+- `docs_url=None` in public mode. Swagger UI loads from a CDN, so the API docs would
+  have been a page broken by this project's own policy.
+- ARCHITECTURE.md's "The server binds to localhost" was the load-bearing clause of the
+  `/api/keys/*` safety argument. It is now false, and the paragraph says what replaced
+  it: there is still no secret, because every key derives from a published seed and the
+  route signs with the caller's own key; what changed is that unbounded CPU on
+  attacker-chosen input is now reachable, and that is what the limits answer.
+- The Dockerfile is ordinary — `python:3.11-slim`, no system packages, ~150 MB — which
+  is the dividend from change set 7's first branch. It asserts two things at build time:
+  that the interface and the committed blobs reached the wheel (the local checkout is an
+  editable install, so packaging had never been exercised, and the failure mode was a
+  process that starts happily and serves 404), and that `metas_unclib` is *not* in the
+  image, because if that ever succeeds the build is redistributing a licensed library.
+- `render.yaml` is a Blueprint so first-time setup is New → Blueprint → pick the repo,
+  in a browser. That is the reason Render was chosen over Fly.io, whose app creation
+  wants a CLI this machine cannot install.
+- CI gained a second job that builds the image and drives it under `--cpus=0.5
+  --memory=512m`, the smallest Render instance, so "does it fit" is measured rather than
+  assumed. Every assertion in it was first checked against a local server, which is how
+  the one wrong one was found: `server_header=False` lives in `main()`, so a check run
+  against `python -m uvicorn` fails for a reason that has nothing to do with the code.
+- Verified against a server started through `main()` with the production limits:
+  `node tools/ui-clicks.mjs` reports every control on every chapter responding, and the
+  keys and issuing chapters — the two that spend tokens — pass without a 429. An earlier
+  run with a burst of 10 did hit one, which is what turned the burst from a guess into a
+  measurement.
+- Not verified here: the image itself. There is no Docker on this machine and no network
+  from the session, so the container job is the first thing to read after pushing.
+- Also not verified here, and worth being plain about: moving `metas-unclib` to an extra
+  removed numpy as a transitive dependency, and the local venv was re-synced to the base
+  configuration partway through. So the equivalence tests skipped for the rest of the
+  branch. They passed on this machine earlier in change set 7 (332 passed, 2 skipped);
+  restoring that needs `uv sync --extra unclib`.

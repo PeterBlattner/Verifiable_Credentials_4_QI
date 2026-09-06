@@ -17,10 +17,14 @@ from __future__ import annotations
 import math
 import copy
 import hashlib
+import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
+
+import anyio
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
@@ -31,13 +35,22 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.middleware.gzip import GZipMiddleware
 
 from vcqi.actors.deployment import DEPLOYMENT_PROFILES, host_of, hosting_burden
 from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS
 from vcqi.actors.registry import ACTORS, TRUST_ANCHORS, actor_by_did, did_document
 from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
-from vcqi.config import DEFAULT_HOST, DEFAULT_PORT
+from vcqi.config import (
+    ALLOW_INDEXING,
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    MAX_BODY_BYTES,
+    PUBLIC,
+    RATE_LIMIT_BURST,
+    RATE_LIMIT_PER_SECOND,
+)
 from vcqi.crypto.dataintegrity import ProofTrace, sign_document
 from vcqi.crypto.ecdsa_p256 import P256, public_point, sign_deterministic
 from vcqi.crypto.keys import DemoKey, derive_key, public_key_from_multikey
@@ -47,8 +60,8 @@ from vcqi.crypto.multibase import (
     multibase_encode_base58btc,
 )
 from vcqi.domain.accreditation import ACCREDITATION_SCOPES
+from vcqi.domain.engine import ENGINE, mu
 from vcqi.domain.gtc_archive import GTC_UNAVAILABLE_NOTE, gtc_available
-from vcqi.domain.engine import mu
 from vcqi.domain.kcdb import CMC_ENTRIES, cmc_by_id
 from vcqi.domain.scope import MeasurementClaim, evaluate_scope
 from vcqi.domain.uncertainty import (
@@ -61,8 +74,54 @@ from vcqi.domain.uncertainty import (
 from vcqi.vc.checks import credential_types, issuer_id
 from vcqi.vc.resolver import DID_KEY_PREFIX, did_key_document
 from vcqi.vc.verify import verify_credential
+from vcqi.web.limits import BodySizeLimitMiddleware, RateLimitMiddleware
 
 STATIC_ROOT = Path(__file__).parent / "static"
+
+# A mispackaged image is a silent failure otherwise: the mount below is conditional, so
+# the process would start happily and serve 404 at "/". Locally the tree is always
+# there; in a deployment, refusing to start is the better answer than looking fine.
+if PUBLIC and not (STATIC_ROOT / "index.html").is_file():
+    raise RuntimeError(
+        f"the interface is missing from {STATIC_ROOT}. The package was built without "
+        "its static files, and a public deployment should not start without them."
+    )
+
+
+def _warm() -> None:
+    """Build the world before the first visitor asks for it.
+
+    ``world()`` is cached but lazy, so without this the first request pays for signing
+    fifty-nine documents. It is well under a second, but it is the request most likely
+    to be someone's first impression in a meeting.
+    """
+    world()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Warm the process, then serve.
+
+    uvicorn runs lifespan startup before it binds the listening socket, so the port
+    does not open until this returns. A host's health check therefore cannot see the
+    service until it is genuinely ready, and a rolling deploy will not cut traffic over
+    to a cold process.
+
+    Args:
+        _: The application, which this does not need.
+
+    Yields:
+        Once, between startup and shutdown.
+    """
+    if PUBLIC:
+        # Endpoints here are sync `def`, so they run in anyio's worker thread pool. The
+        # default of forty is far more concurrency than a small instance can serve when
+        # the work is pure-Python elliptic curve arithmetic; a burst should queue rather
+        # than thrash.
+        anyio.to_thread.current_default_thread_limiter().total_tokens = 8
+    await anyio.to_thread.run_sync(_warm)
+    yield
+
 
 app = FastAPI(
     title="Verifiable Credentials for the quality infrastructure",
@@ -72,7 +131,114 @@ app = FastAPI(
         "Every organisation, certificate and key in it is fictional."
     ),
     version="0.1.0",
+    lifespan=lifespan,
+    # The interactive API docs load Swagger UI from a CDN, which the
+    # Content-Security-Policy below forbids, so they would be a broken page rather than
+    # a useful one. Nothing in the demonstration needs them.
+    docs_url=None if PUBLIC else "/docs",
+    redoc_url=None if PUBLIC else "/redoc",
 )
+
+
+#: Everything the page loads comes from this origin, which is unusual enough to be worth
+#: keeping. There is no CDN, no web font, no analytics and no third-party anything; the
+#: single inline asset is the favicon, an SVG data URI in index.html, which is why
+#: ``data:`` is allowed for images and for nothing else. ``default-src 'none'`` means a
+#: fetch to somewhere unexpected fails rather than working quietly.
+_CONTENT_SECURITY_POLICY: Final = "; ".join(
+    (
+        "default-src 'none'",
+        "script-src 'self'",
+        "style-src 'self'",
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "font-src 'self'",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'",
+    )
+)
+
+_SECURITY_HEADERS: Final[dict[str, str]] = {
+    "content-security-policy": _CONTENT_SECURITY_POLICY,
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "cross-origin-opener-policy": "same-origin",
+    "cross-origin-resource-policy": "same-origin",
+    "permissions-policy": (
+        "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+        "magnetometer=(), microphone=(), payment=(), usb=()"
+    ),
+}
+
+
+@app.middleware("http")
+async def security_headers(request: Any, call_next: Any) -> Any:
+    """Attach the headers a public deployment should carry.
+
+    No CORS header is sent, deliberately and by omission: with none, the browser's
+    same-origin policy *is* the policy, and Cross-Origin-Resource-Policy blocks the
+    no-cors embedding that would otherwise remain. Adding CORSMiddleware here would
+    only widen that, so it should stay absent.
+
+    Args:
+        request: The incoming request.
+        call_next: The rest of the stack.
+
+    Returns:
+        The response, with the headers added. ``setdefault`` so a route that has a
+        reason to say something different still wins.
+    """
+    response = await call_next(request)
+    for name, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    if not ALLOW_INDEXING:
+        response.headers.setdefault("x-robots-tag", "noindex, nofollow")
+    # Only over TLS, where uvicorn knows the scheme from X-Forwarded-Proto. Sending it
+    # over plain http would be asserting something about a connection that has none.
+    if request.url.scheme == "https":
+        response.headers.setdefault(
+            "strict-transport-security", "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz() -> dict[str, Any]:
+    """Report that this process is alive and warm.
+
+    Reached only after the lifespan warm-up, so a 200 here means the world is built and
+    the process can actually serve rather than merely having opened a port. The commit
+    is reported so that a deploy can be confirmed to be the one that was just pushed,
+    rather than assumed from a green dashboard.
+
+    Returns:
+        The status, the version, the engine computing uncertainty, and the deployed
+        commit where the host supplies one.
+    """
+    return {
+        "status": "ok",
+        "version": app.version,
+        "engine": ENGINE,
+        "commit": (
+            os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GIT_COMMIT") or ""
+        )[:7],
+    }
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots() -> Response:
+    """Ask crawlers to leave the demonstration alone, or not.
+
+    The default is to ask them off. This names METAS, BIPM and PTB/DKD while inventing
+    their documents, and it should be reached from a link someone was given rather than
+    from a search for the real organisations.
+
+    Returns:
+        The robots file.
+    """
+    body = "User-agent: *\nDisallow:\n" if ALLOW_INDEXING else "User-agent: *\nDisallow: /\n"
+    return Response(content=body, media_type="text/plain")
 
 
 @lru_cache(maxsize=1)
@@ -584,16 +750,47 @@ if STATIC_ROOT.exists():
     app.mount("/static", StaticFiles(directory=STATIC_ROOT), name="static")
 
 
-def main() -> None:
-    """Run the development server.
+# add_middleware puts the most recently added outermost, so this reads bottom-up in
+# request order: the body cap first, then the rate limiter, then compression. An
+# oversized or over-rate request is refused without the endpoint, the world or the
+# uncertainty engine being touched. The header middleware declared above stays outermost
+# of all, so a 413 or a 429 carries the same headers as everything else.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+app.add_middleware(
+    RateLimitMiddleware, burst=RATE_LIMIT_BURST, per_second=RATE_LIMIT_PER_SECOND
+)
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_BODY_BYTES)
 
-    This is the ``vc-demo`` entry point.
+
+def main() -> None:
+    """Run the server.
+
+    This is the ``vc-demo`` entry point, and it is what the container runs too: the
+    address, the port and the limits all come from the environment, so there is nothing
+    host-specific in the command.
     """
     import uvicorn
 
-    print(f"Demonstration server on http://{DEFAULT_HOST}:{DEFAULT_PORT}")
+    where = os.environ.get("RENDER_EXTERNAL_URL") or f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
+    print(f"Demonstration server on {where}")
     print("Every organisation, key and certificate in it is fictional.")
-    uvicorn.run(app, host=DEFAULT_HOST, port=DEFAULT_PORT, log_level="info")
+    uvicorn.run(
+        app,
+        host=DEFAULT_HOST,
+        port=DEFAULT_PORT,
+        log_level="info",
+        # One worker, and not only for memory. The rate limiter's buckets and the
+        # world's cache are both per process, so N workers would mean N times the
+        # rate limit and N copies of the world.
+        workers=1,
+        # Shed load rather than queue without bound.
+        limit_concurrency=64,
+        # Cap the request line and headers; the body is the middleware's business.
+        h11_max_incomplete_event_size=16 * 1024,
+        timeout_keep_alive=10,
+        # Nothing is gained by announcing the server and its version.
+        server_header=False,
+    )
 
 
 @app.get("/api/uncertainty-data")

@@ -73,3 +73,92 @@ jobs:
           uv run python -m vcqi.actors.scenarios --dump second/ > /dev/null
           diff -r first/ second/
           echo "$(ls first/ | wc -l) documents, identical across runs"
+
+  container:
+    # The image, exercised under the resources the smallest Render instance actually
+    # has. A pass here means it fits there; measuring it in CI is cheaper than finding
+    # out from a restart loop after a deploy.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: vcqi:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Size
+        run: docker images vcqi:ci --format '{{.Size}}'
+
+      - name: Serve it, and check the things a deployment depends on
+        run: |
+          set -euo pipefail
+          docker run -d --name vcqi -p 8000:8000 \
+            --cpus=0.5 --memory=512m \
+            -e VCQI_RATE_LIMIT_BURST=0 \
+            vcqi:ci
+
+          for _ in $(seq 1 40); do
+            curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break
+            sleep 2
+          done
+
+          echo '--- health, and which engine is computing ---'
+          curl -fsS localhost:8000/healthz
+          test "$(curl -fsS localhost:8000/healthz | python3 -c 'import json,sys; print(json.load(sys.stdin)["engine"])')" = linprop
+
+          echo '--- the interface is in the image ---'
+          curl -fsS localhost:8000/ | grep -q 'Verifiable credentials'
+          curl -fsS -o /dev/null localhost:8000/static/js/chapters.js
+          curl -fsS -o /dev/null localhost:8000/static/css/app.css
+
+          echo '--- headers ---'
+          curl -fsS -D- -o /dev/null localhost:8000/ | grep -qi "^content-security-policy:.*default-src 'none'"
+          curl -fsS -D- -o /dev/null localhost:8000/ | grep -qi '^x-robots-tag: noindex'
+          ! curl -fsS -D- -o /dev/null localhost:8000/ | grep -qi 'access-control-allow-origin'
+          ! curl -fsS -D- -o /dev/null localhost:8000/ | grep -qi '^server: uvicorn'
+          curl -fsS localhost:8000/robots.txt | grep -q 'Disallow: /'
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/docs)" = 404
+
+          echo '--- the endpoints that do real work ---'
+          J='content-type: application/json'
+          curl -fsS -X POST localhost:8000/api/uncertainty -H "$J" -d '{}' | grep -q expandedUncertainty
+          curl -fsS -X POST localhost:8000/api/combine     -H "$J" -d '{}' | grep -q correlation
+          curl -fsS -X POST localhost:8000/api/verify      -H "$J" -d '{"name":"metas-calibration"}' | grep -q verified
+          curl -fsS -X POST localhost:8000/api/keys/derive -H "$J" -d '{"passphrase":"ci"}' | grep -q didKey
+
+          echo '--- the body cap ---'
+          head -c 400000 /dev/zero | tr '\0' 'a' > /tmp/big
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8000/api/verify -H "$J" --data-binary @/tmp/big)" = 413
+
+          echo '--- what it used on half a core and 512 MB ---'
+          docker stats --no-stream --format '{{.MemUsage}}  {{.CPUPerc}}' vcqi
+
+      - name: Rate limiting engages when configured
+        run: |
+          set -euo pipefail
+          docker rm -f vcqi >/dev/null
+          docker run -d --name vcqi -p 8000:8000 --cpus=0.5 --memory=512m \
+            -e VCQI_RATE_LIMIT_BURST=10 -e VCQI_RATE_LIMIT_PER_SECOND=1.0 vcqi:ci
+          for _ in $(seq 1 40); do curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break; sleep 2; done
+          J='content-type: application/json'
+          codes=""
+          for _ in 1 2 3 4; do
+            codes="$codes $(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8000/api/keys/derive -H "$J" -d '{"passphrase":"x"}')"
+          done
+          echo "four key derivations at cost 5 with a burst of 10:$codes"
+          echo "$codes" | grep -q 429
+          # And a reader dragging a slider is still never charged.
+          for _ in $(seq 1 30); do
+            test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8000/api/uncertainty -H "$J" -d '{}')" = 200
+          done
+          echo "thirty slider posts, none refused"
+
+      - if: always()
+        run: docker logs vcqi 2>&1 | tail -30; docker rm -f vcqi || true
