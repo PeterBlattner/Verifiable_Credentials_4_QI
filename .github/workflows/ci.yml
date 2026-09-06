@@ -118,6 +118,16 @@ jobs:
           curl -fsS -o /dev/null localhost:8000/static/js/chapters.js
           curl -fsS -o /dev/null localhost:8000/static/css/app.css
 
+          echo '--- the scripts must be revalidated, not reused on a guess ---'
+          # StaticFiles sends an ETag but no Cache-Control, and without one a browser
+          # may reuse a module on heuristic freshness. An older app.js beside a newer
+          # chapters.js is a chapter that fails to render, and after a deploy that is
+          # exactly the pair a returning visitor would hold.
+          for js in app chapters content ui; do
+            curl -fsS -D- -o /dev/null "localhost:8000/static/js/$js.js" | grep -qi '^cache-control: no-cache'
+          done
+          curl -fsS -D- -o /dev/null localhost:8000/api/content | grep -qi '^cache-control: no-store'
+
           echo '--- headers ---'
           curl -fsS -D- -o /dev/null localhost:8000/ | grep -qi "^content-security-policy:.*default-src 'none'"
           curl -fsS -D- -o /dev/null localhost:8000/ | grep -qi '^x-robots-tag: noindex'
