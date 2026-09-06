@@ -22,7 +22,7 @@ Then open <http://127.0.0.1:8000>. No npm, no build step — the interface is pl
 modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 
 ```
-uv run pytest                                  # 253 tests
+uv run pytest                                  # 272 tests
 uv run python -m vcqi.actors.scenarios         # list every signed credential
 uv run python -m vcqi.actors.scenarios --dump out/   # write all 59 documents as JSON
 ```
@@ -160,6 +160,8 @@ parties in advance.
 7. **Why the dependencies matter** — two certificates, one shared standard, and what each way of reporting lets the customer do
 8. **Break it** — fifteen failure cases, each naming the one check that catches it
 9. **What this would mean in practice** — the argument, and the open questions
+10. **What it would take to run** — the hosting burden computed per role, from the trust anchor down to a fifteen-person laboratory, and what a verifier actually fetches
+11. **What would have to be agreed** — global harmonisation in three tiers, what cannot be decided later, and a ladder of next steps ordered by who is able to act
 
 ## The fifteen failure cases
 

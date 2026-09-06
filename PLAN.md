@@ -1169,3 +1169,167 @@ specifically.
 `test_the_duplication_check_is_skipped_without_a_dcc` searched the whole report tree and
 found the duplication step belonging to the calibration certificate that the test report
 follows its traceability into. Scoped to the top level.
+
+# Change set 6 - what it takes to run, and what would have to be agreed
+
+## Context
+
+Two chapters, built on one branch, answering the two halves of "could this actually be
+deployed". Chapter 10 answers what one organisation would have to **run**; chapter 11
+answers what organisations would have to **agree with each other**.
+
+Chapter 10 landed on this branch before the plan existed, in answer to a question about
+what IT infrastructure BIPM, METAS or a small calibration laboratory would need. It is
+recorded here so the branch has one account of itself.
+
+Chapter 11 was planned. A structural review argued the harmonisation material did not
+belong inside chapter 10 — chapter 10's lede is the hosting burden, and merging the two
+would bury the second argument under the first — so it became its own chapter.
+
+## What chapter 10 established
+
+The hosting burden is computed from what the demonstration actually published, not
+asserted. Two properties do the work: verification is a computation rather than a
+conversation, so an issuer runs no service on a verifier's behalf; and a credential
+travels with whoever holds it, so an issuer hosts only what describes the issuer itself.
+
+METAS keeps three documents online while having issued four credentials and six that
+travel unhosted. The first figure does not grow with the second. BIPM's burden is eight
+and is dominated by the registry, not by signing. A pure verifier operates nothing.
+
+A real verification of the conformity certificate reports 31 distinct documents across 7
+hosts and no accounts at any of them — alongside 76 uncached retrievals, quoted rather
+than dropped, because this resolver refetches DID documents at every hop.
+
+## What chapter 11 argues
+
+Three tiers, read in order rather than filtered, because the ordering is the claim.
+
+**Tier 1, minimum to interoperate:** one cryptosuite profile; one identifier method and
+an agreed meaning for resolution; how a chain crosses between the two arrangements; what
+a status value means institutionally rather than how it is encoded; trust anchor
+identifiers and their distribution; unit identifiers.
+
+**Tier 2, must be decided now though not yet needed:** whose timestamps are mutually
+accepted; which copy governs, the certificate document or the credential; persistence
+commitments on identifiers.
+
+**Tier 3, nice to have:** a digital representation of SI quantities settled between the
+existing candidates; a machine-readable certificate format with international standing;
+measurand identifiers; registered uncertainty-transport identifiers including dependency
+structure.
+
+Every item has to pass one discriminator: *two conforming implementations that differ
+here cannot interoperate*. Anything failing it is a deployment gap and belongs in chapter
+9, which already covers identifier governance, the signed KCDB, long-term validation and
+selective disclosure. Chapter 11 asks the different question of who would have to agree,
+and in which forum.
+
+### The correction that shaped it
+
+A first draft assumed the metrology vocabularies were missing and treated the PTB/DKD DCC
+and D-SI as the presumptive global formats. Both were wrong.
+
+The DCC and D-SI are German constructions, from the PTB and the DKD. Their maturity does
+not settle their global standing, and a national construction seeking worldwide adoption
+is a governance question rather than a technical one.
+
+BIPM already runs the SI Digital Framework, publishing permanent digital identifiers for
+SI units, prefixes and defining constants, backed by RDF knowledge bases. The ohm
+resolves at `https://si-digital-framework.org/SI/units/ohm` with its symbol, its quantity
+and the CGPM resolution that defined it. Resolvable CMC identifiers already exist through
+the KCDB-CMC service. Digital identifiers for measurands are in progress at ISO and IEC.
+
+So the finding is not that no vocabulary exists. It is that one exists, BIPM publishes it,
+and this demonstration did not use it.
+
+### The evidence in the code
+
+`domain/scope.py:229` decides whether a calibration may carry the CIPM MRA logo with
+`claim.measurand == capability.measurand` — exact string equality on free text. The CMC in
+`domain/kcdb.py` and the accreditation scope in `domain/accreditation.py` both say
+`dc.resistance`, and they match only because one author wrote both files. Chapter 5 rests
+on a vocabulary agreement the demonstration manufactured for itself.
+
+There is a connection worth drawing: BIPM's identifiers are RDF, so adopting them makes
+JSON-LD semantics load-bearing, and `ARCHITECTURE.md`'s note that a real deployment needs
+`ecdsa-rdfc-2019` or an equivalent stops being academic. The cryptosuite choice and the
+vocabulary choice are the same decision.
+
+## Files
+
+- `src/vcqi/actors/deployment.py` - deployment profiles and `hosting_burden`.
+- `src/vcqi/actors/harmonisation.py` - harmonisation items and the next-step ladder.
+- `src/vcqi/web/app.py` - `/api/infrastructure` and `/api/harmonisation`.
+- `src/vcqi/web/static/js/chapters.js` - chapters 10 and 11.
+- `src/vcqi/web/static/js/api.js`, `static/css/app.css` - one call, one `.checklist` rule.
+- `tests/test_deployment.py`, `tests/test_harmonisation.py`, `tests/test_web.py`.
+
+## Verification
+
+`uv run pytest`, then `node tools/ui-clicks.mjs` against a running server. The click
+harness is the one that matters: it exists because a chapter once rendered buttons that
+did nothing.
+
+Not verified visually. The Chrome extension was declined during the session, so the
+layout of the new panels has not been seen in a browser.
+
+## Git
+
+Branch `feature/infrastructure-chapter`, from `develop`. Nothing pushed without asking.
+
+**Line endings.** Still mixed across the repository, and `chore/normalise-line-endings` is
+still unmerged. Files touched here were rewritten to match whatever `develop` holds for
+each, so the diffs stay reviewable; new files are LF.
+
+## Change set 6 - build order
+
+- [x] **E1 - Roles.** `actors/deployment.py`: profiles and the computed hosting burden.
+- [x] **E2 - Endpoint.** `/api/infrastructure`, with a real verification's retrieval log.
+- [x] **E3 - Chapter 10.** The role picker and the six panels behind it.
+- [x] **E4 - Tests for 10.** `tests/test_deployment.py` and four in `tests/test_web.py`.
+- [x] **E5 - Items.** `actors/harmonisation.py`: the three tiers and the step ladder.
+- [x] **E6 - Endpoint.** `/api/harmonisation`.
+- [x] **E7 - Chapter 11.** Three stacked tier panels, the ladder, the disclaimer.
+- [x] **E8 - Stitching.** Chapter 10's bridging sentence; move chapter 9's stranded
+      closing footnote to the end of chapter 11, which is now last.
+- [x] **E9 - Tests and docs.** `tests/test_harmonisation.py`, the measurand-coincidence
+      regression test, `README.md`.
+
+## Change set 6 - progress log
+
+Chapter 10 complete before this plan existed: 261 tests pass, 1 skipped (GTC), every
+control responds across eleven chapters.
+
+- `actors/deployment.py` holds four editorial role profiles and `hosting_burden`, which
+  splits what an organisation publishes into what must stay online and what travels with
+  its holders. The profiles are an argument; the counts beside them are computed.
+- `/api/infrastructure` joins the two and adds a real verification of the conformity
+  certificate, reporting distinct documents, hosts and the uncached retrieval count.
+- Chapter 10 renders a four-role picker over that data. Twelve controls, all responding.
+- The module was first written under `domain/` and moved to `actors/`: `ARCHITECTURE.md`
+  reserves `domain/` for code with no credential knowledge, and document kinds like
+  `did-document` and `status-list` are credential concepts.
+- Trimmed before landing: `profile_for` was never called, and four response fields were
+  unused by both the chapter and the tests.
+
+Chapter 11 complete. 272 tests pass, 1 skipped. Twelve chapters render and every control
+responds; chapter 10 still reports twelve controls and chapter 11 two.
+
+- `actors/harmonisation.py` holds thirteen items across three tiers and a six-rung ladder.
+  Items are editorial; what is enforced is that the two halves agree — every step advances
+  an item that exists, and every first-tier item is reached by some step.
+- The one sentence that could rot quietly interpolates `CRYPTOSUITE` rather than repeating
+  it, and a test asserts the served text still contains it. `MINIMUM_LIST_LENGTH` was
+  deliberately left out of that treatment: it is a spec-mandated floor the constructor
+  rejects below, so presenting it as a choice would have asserted a decision nobody made.
+- `tests/test_harmonisation.py` turns the chapter's central claim into a regression test:
+  the CMC and the accreditation scope are published by different organisations and agree
+  on `dc.resistance` only because one author wrote both files, which is exactly what
+  `domain/scope.py` compares with `==`.
+- Two stitching fixes: chapter 10 now bridges into 11, and chapter 9's closing footnote —
+  stranded mid-book when chapter 10 was added — moved to the end of chapter 11, extended
+  to cover the real organisations chapter 11 names.
+- Not verified visually. The Chrome extension was declined, so the layout of the new
+  panels has not been seen in a browser. Structure was checked in jsdom instead: flat
+  panels, no nesting, no stray nulls, and tier headings at 15px above 13.5px panel titles.
