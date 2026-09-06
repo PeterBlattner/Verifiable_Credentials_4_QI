@@ -33,6 +33,9 @@ from typing import Any
 from vcqi.config import CONTEXT_CREDENTIALS_V2, CONTEXT_VCQI_V1
 from vcqi.crypto.jcs import canonicalize
 from vcqi.crypto.multibase import digest_multibase
+from vcqi.domain.unclib_blobs import (
+    UNAVAILABLE_NOTE as UNCLIB_BINARY_UNAVAILABLE_NOTE,
+)
 from vcqi.domain.uncertainty import (
     MeasurementResult,
     parse_input_quantities,
@@ -623,25 +626,38 @@ def uncertainty_representations(
     representations.append(entry)
 
     # The binary form is always published separately, both because that is what it is
-    # for and so that the referenced path is exercised in every run.
+    # for and so that the referenced path is exercised in every run. Only METAS UncLib
+    # writes this layout, so where it is unavailable the representation is left out
+    # rather than filled with something that is not what it claims to be.
     blob = to_unclib_binary(result)
-    binary_address = f"{credential_id}/uncertainty.unc"
-    representations.append(
-        {
-            "type": "DependencyRepresentation",
-            "format": "METAS-UncLib-binary",
-            "mediaType": "application/octet-stream",
-            "specification": "https://www.metas.ch/unclib",
-            "id": binary_address,
-            "byteCount": len(blob),
-            "digestMultibase": digest_multibase(blob),
-            "note": (
-                "The same dependency structure in the compact binary form, for results "
-                "with too many input quantities to write out as XML."
-            ),
-        }
-    )
-    artefacts[binary_address] = ("application/octet-stream", blob)
+    if blob is None:
+        representations.append(
+            {
+                "type": "DependencyRepresentation",
+                "format": "METAS-UncLib-binary",
+                "specification": "https://www.metas.ch/unclib",
+                "available": False,
+                "note": UNCLIB_BINARY_UNAVAILABLE_NOTE,
+            }
+        )
+    else:
+        binary_address = f"{credential_id}/uncertainty.unc"
+        representations.append(
+            {
+                "type": "DependencyRepresentation",
+                "format": "METAS-UncLib-binary",
+                "mediaType": "application/octet-stream",
+                "specification": "https://www.metas.ch/unclib",
+                "id": binary_address,
+                "byteCount": len(blob),
+                "digestMultibase": digest_multibase(blob),
+                "note": (
+                    "The same dependency structure in the compact binary form, for results "
+                    "with too many input quantities to write out as XML."
+                ),
+            }
+        )
+        artefacts[binary_address] = ("application/octet-stream", blob)
 
     if gtc_archive is not None:
         archive_bytes = gtc_archive.encode("utf-8")

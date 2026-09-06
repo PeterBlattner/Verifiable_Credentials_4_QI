@@ -10,10 +10,19 @@ dependencies = [
     "pydantic>=2.7",
     "jsonschema>=4.21",
     "cryptography>=42.0",
-    "metas-unclib>=1.5",
 ]
 
 [project.optional-dependencies]
+# METAS UncLib is the reference implementation of the uncertainty propagation, and it
+# is an extra rather than a dependency for a licensing reason, not a technical one: its
+# EULA grants a designated-computer licence and forbids redistribution "incorporated
+# into a software package", which is what a container image would be. So a deployed
+# copy computes with src/vcqi/domain/linprop.py instead. Install with
+#   uv sync --extra unclib
+# on a machine licensed for it; tests/test_linprop_equivalence.py then checks that the
+# two engines agree and that their dependency representations are byte-identical.
+unclib = ["metas-unclib>=3.0"]
+
 # GTC pulls in scipy, which nothing else here needs. Install with
 #   uv sync --extra gtc
 # to have certificates carry a GUM Tree Calculator archive as well.

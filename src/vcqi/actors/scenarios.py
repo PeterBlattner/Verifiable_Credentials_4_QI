@@ -34,11 +34,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import metas_unclib as mu
-
 from vcqi.crypto.dataintegrity import ProofTrace, sign_document
 from vcqi.domain import accreditation as accreditation_registry
 from vcqi.domain import kcdb as kcdb_registry
+from vcqi.domain.engine import mu
 from vcqi.domain.instruments import SHARED_REFERENCE_PAIR, instrument_by_id
 from vcqi.domain.dcc import to_dcc_xml
 from vcqi.domain.gtc_archive import build_gtc_archive

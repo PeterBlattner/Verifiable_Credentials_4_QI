@@ -26,10 +26,16 @@
 // A button that is already the selected option is skipped rather than clicked: choosing
 // the tab you are already on is meant to change nothing, and counting that as a failure
 // would train everyone to ignore the output.
+//
+// Three things make this fail, and the second and third were added after it reported
+// success on a demonstrably broken page: an inert control, a chapter that did not render
+// at all, and anything written to console.error. The middle one is the trap -- a chapter
+// that throws has no buttons, so "0 controls, all responded" was true and meaningless.
 
 // Resolved at run time so the module can come from beside this file or from wherever
 // the operator already has it.
 const { JSDOM } = await import(process.env.VCQI_JSDOM || 'jsdom');
+const { servedModules } = await import(new URL('served-modules.mjs', import.meta.url));
 
 const BASE = process.env.VCQI_BASE || 'http://127.0.0.1:8000';
 const SETTLE = Number(process.env.VCQI_SETTLE || 1100);
@@ -57,13 +63,16 @@ console.error = (...args) => consoleErrors.push(args.map(String).join(' '));
 
 const settle = (ms = SETTLE) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const modules = new URL('../src/vcqi/web/static/js/', import.meta.url);
+// The bytes the server sends, not the ones on disk: see served-modules.mjs for
+// the failure that distinction let through.
+const modules = await servedModules(BASE);
 const { CHAPTERS } = await import(new URL('chapters.js', modules));
 await import(new URL('app.js', modules));
 await settle(1500);
 
 const stage = document.getElementById('stage');
 let inert = 0;
+const broken = [];
 
 for (const chapter of CHAPTERS) {
   // Assigning the hash fires hashchange on its own. Dispatching one as well renders the
@@ -71,6 +80,18 @@ for (const chapter of CHAPTERS) {
   // like a product bug and is not one.
   dom.window.location.hash = chapter.id;
   await settle(1400);
+
+  // Did the chapter render at all? That has to be asked separately, and the reason is
+  // worth recording. A chapter that throws renders an error banner and no controls, so
+  // "0 controls, all responded" is vacuously true — and this harness reported exactly
+  // that while chapter 0 was showing "context.text is not a function" in a browser.
+  // Counting dead buttons cannot notice a chapter that has none.
+  if (stage.textContent.includes('This chapter failed to render')) {
+    const reason = ((stage.querySelector('.verdict__text span') || {}).textContent || '').trim();
+    broken.push(`${chapter.id}: ${reason}`);
+    console.log(`${chapter.id.padEnd(14)} FAILED TO RENDER — ${reason}`);
+    continue;
+  }
 
   const total = stage.querySelectorAll('button').length;
   const dead = [];
@@ -96,9 +117,19 @@ for (const chapter of CHAPTERS) {
 }
 
 if (consoleErrors.length) {
-  console.log('\nconsole.error output during interaction:');
+  console.log('');
+  console.log('console.error output during interaction:');
   for (const line of consoleErrors.slice(0, 8)) console.log('  ' + line);
 }
 
-console.log(`\n${inert === 0 ? 'EVERY CONTROL RESPONDS' : `${inert} INERT CONTROL(S)`}`);
-process.exit(inert === 0 ? 0 : 1);
+// Console errors and unrendered chapters count as failure. They were printed and then
+// ignored, which is how a broken chapter came out of here as a clean exit: app.js logs
+// the error and puts a banner on the page, and neither of those is an inert button.
+const failures = [];
+if (inert) failures.push(`${inert} inert control(s)`);
+if (broken.length) failures.push(`${broken.length} chapter(s) failed to render`);
+if (consoleErrors.length) failures.push(`${consoleErrors.length} console error(s)`);
+
+console.log('');
+console.log(failures.length ? `FAILED: ${failures.join(', ')}` : 'EVERY CONTROL RESPONDS');
+process.exit(failures.length ? 1 : 0);

@@ -6,12 +6,18 @@ metrological traceability means in practice, and it is why the credential chain 
 traceability chain have the same shape: each certificate consumes the uncertainty
 stated by its parent and adds the contributions of its own measurement.
 
-Propagation uses metas_unclib rather than a hand-written root-sum-square, for a reason
-that matters to the argument this demonstrator makes. metas_unclib tracks where each
-uncertainty came from, so when the same reference standard appears twice in a
-calculation its contributions correlate correctly instead of being double counted. A
-number alone cannot do that. A credential that carries the *budget*, not just the
-result, keeps that information available to whoever uses the measurement next.
+Propagation tracks where each uncertainty came from rather than computing a bare
+root-sum-square, for a reason that matters to the argument this demonstrator makes. When
+the same reference standard appears twice in a calculation its contributions correlate
+correctly instead of being double counted. A number alone cannot do that. A credential
+that carries the *budget*, not just the result, keeps that information available to
+whoever uses the measurement next.
+
+Which engine does the propagating is chosen in :mod:`vcqi.domain.engine`: METAS UncLib
+where it is installed, and :mod:`vcqi.domain.linprop` otherwise, which is every deployed
+copy because UncLib may not be redistributed. The two agree, and
+``tests/test_linprop_equivalence.py`` says so in detail. Nothing in this module needs to
+know which one it got.
 
 Terms follow the GUM strictly: ``u`` is the Standard Uncertainty, ``U`` is the Expanded
 Uncertainty, and every reported ``U`` uses the coverage factor k = 2 required for
@@ -27,9 +33,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-import metas_unclib as mu
-
 from vcqi.config import COVERAGE_FACTOR, DEMO_SEED
+from vcqi.domain.engine import mu, unclib_available
+from vcqi.domain.unclib_blobs import blob_for
 
 __all__ = [
     "Contribution",
@@ -157,9 +163,9 @@ class MeasurementResult:
         coverage_factor: The coverage factor k used to expand u.
         budget: The contributions that make up the combined Standard Uncertainty, one
             line per input of the measurement model.
-        uncertain_number: The underlying metas_unclib object, retained so the result can
-            be serialised with its full dependency structure. Never rendered into JSON
-            directly; see to_unclib_xml.
+        uncertain_number: The underlying uncertain number, from whichever engine is in
+            use, retained so the result can be serialised with its full dependency
+            structure. Never rendered into JSON directly; see to_unclib_xml.
     """
 
     value: float
@@ -557,25 +563,50 @@ def to_unclib_xml(result: MeasurementResult) -> str:
     return mu.ustorage.to_xml_string(result.uncertain_number)
 
 
-def to_unclib_binary(result: MeasurementResult) -> bytes:
+def _unclib_binary_from_library(result: MeasurementResult) -> bytes:
+    """Ask the library itself for the compact binary form.
+
+    Separated out so that the blob generator can wrap it, and so that the only call
+    into UncLib's undocumented serialisation is in one place.
+
+    Args:
+        result: The evaluated result, carrying its uncertain number.
+
+    Returns:
+        The serialised bytes.
+    """
+    return bytes(mu.ustorage.to_byte_array(result.uncertain_number))
+
+
+def to_unclib_binary(result: MeasurementResult) -> bytes | None:
     """Serialise a result with its dependency structure in the compact binary form.
 
     The binary form says exactly what the XML says. It exists because a result with
     thousands of input quantities, which is ordinary in areas such as radiofrequency
     scattering parameters, produces an XML document too large to be comfortable.
 
+    Only METAS UncLib writes this layout; it is not documented and the pure-Python
+    engine does not reproduce it. Where UncLib is absent, the bytes it wrote for this
+    same result are looked up among the committed blobs, keyed by the XML the result
+    serialises to. That keeps a deployed certificate carrying genuine UncLib output
+    without the deployment carrying UncLib.
+
     Args:
         result: The evaluated result. It must carry its uncertain number.
 
     Returns:
-        The serialised bytes.
+        The serialised bytes, or None when this engine cannot produce them and no blob
+        was recorded for this result. A caller should then omit the representation
+        rather than publish a substitute.
 
     Raises:
         ValueError: If the result was built without retaining its uncertain number.
     """
     if result.uncertain_number is None:
         raise ValueError("this result carries no uncertain number to serialise")
-    return bytes(mu.ustorage.to_byte_array(result.uncertain_number))
+    if unclib_available():
+        return _unclib_binary_from_library(result)
+    return blob_for(to_unclib_xml(result))
 
 
 def parse_input_quantities(unclib_xml: str) -> list[InputQuantity]:
