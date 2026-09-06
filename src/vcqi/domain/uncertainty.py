@@ -27,9 +27,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-import metas_unclib as mu
-
 from vcqi.config import COVERAGE_FACTOR, DEMO_SEED
+from vcqi.domain.engine import mu, unclib_available
+from vcqi.domain.unclib_blobs import blob_for
 
 __all__ = [
     "Contribution",
@@ -557,25 +557,50 @@ def to_unclib_xml(result: MeasurementResult) -> str:
     return mu.ustorage.to_xml_string(result.uncertain_number)
 
 
-def to_unclib_binary(result: MeasurementResult) -> bytes:
+def _unclib_binary_from_library(result: MeasurementResult) -> bytes:
+    """Ask the library itself for the compact binary form.
+
+    Separated out so that the blob generator can wrap it, and so that the only call
+    into UncLib's undocumented serialisation is in one place.
+
+    Args:
+        result: The evaluated result, carrying its uncertain number.
+
+    Returns:
+        The serialised bytes.
+    """
+    return bytes(mu.ustorage.to_byte_array(result.uncertain_number))
+
+
+def to_unclib_binary(result: MeasurementResult) -> bytes | None:
     """Serialise a result with its dependency structure in the compact binary form.
 
     The binary form says exactly what the XML says. It exists because a result with
     thousands of input quantities, which is ordinary in areas such as radiofrequency
     scattering parameters, produces an XML document too large to be comfortable.
 
+    Only METAS UncLib writes this layout; it is not documented and the pure-Python
+    engine does not reproduce it. Where UncLib is absent, the bytes it wrote for this
+    same result are looked up among the committed blobs, keyed by the XML the result
+    serialises to. That keeps a deployed certificate carrying genuine UncLib output
+    without the deployment carrying UncLib.
+
     Args:
         result: The evaluated result. It must carry its uncertain number.
 
     Returns:
-        The serialised bytes.
+        The serialised bytes, or None when this engine cannot produce them and no blob
+        was recorded for this result. A caller should then omit the representation
+        rather than publish a substitute.
 
     Raises:
         ValueError: If the result was built without retaining its uncertain number.
     """
     if result.uncertain_number is None:
         raise ValueError("this result carries no uncertain number to serialise")
-    return bytes(mu.ustorage.to_byte_array(result.uncertain_number))
+    if unclib_available():
+        return _unclib_binary_from_library(result)
+    return blob_for(to_unclib_xml(result))
 
 
 def parse_input_quantities(unclib_xml: str) -> list[InputQuantity]:

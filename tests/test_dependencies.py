@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import math
 
-import metas_unclib as mu
 import pytest
 
 from vcqi.actors.registry import TRUST_ANCHORS
 from vcqi.actors.scenarios import DEMO_NOW, build_world
+from vcqi.domain.engine import mu, unclib_available
 from vcqi.domain.gtc_archive import build_gtc_archive, gtc_available
 from vcqi.domain.uncertainty import (
     evaluate,
@@ -124,10 +124,30 @@ class TestSerialisation:
         combined = math.sqrt(sum(item.uncertainty_contribution**2 for item in influences))
         assert combined == pytest.approx(parent.standard_uncertainty)
 
+    @pytest.mark.skipif(
+        not unclib_available(),
+        reason="only METAS UncLib writes the compact binary form; see domain/unclib_blobs.py",
+    )
     def test_binary_is_smaller_than_xml(self) -> None:
         """The binary form exists because the XML form does not scale."""
         parent = _parent()
-        assert len(to_unclib_binary(parent)) < len(to_unclib_xml(parent).encode("utf-8"))
+        blob = to_unclib_binary(parent)
+        assert blob is not None
+        assert len(blob) < len(to_unclib_xml(parent).encode("utf-8"))
+
+    def test_binary_is_absent_rather_than_invented_without_the_library(self) -> None:
+        """Without UncLib a result outside the committed set has no binary form.
+
+        The deployed demonstrator carries blobs for the certificates it publishes, not
+        for every result that could ever be computed. What matters is that an
+        unavailable representation is reported as unavailable rather than filled with
+        something that would fail a digest check downstream.
+        """
+        blob = to_unclib_binary(_parent())
+        if unclib_available():
+            assert blob is not None
+        else:
+            assert blob is None
 
     def test_child_carries_the_influences_of_its_parent(self) -> None:
         """A result built in dependency mode transmits what it inherited."""
@@ -197,7 +217,17 @@ class TestRepresentations:
         )
         by_format = {item["format"]: item for item in representations}
         assert "content" in by_format["METAS-UncLib-XML"]
-        assert by_format["METAS-UncLib-binary"]["id"] in artefacts
+
+        binary = by_format["METAS-UncLib-binary"]
+        if unclib_available():
+            assert binary["id"] in artefacts
+        else:
+            # The entry stays, saying plainly that it is not there. A recipient can
+            # tell the difference between "no dependency data" and "one of the two
+            # representations was not available from this issuer".
+            assert binary["available"] is False
+            assert "id" not in binary
+            assert not artefacts
 
     def test_digests_are_over_the_raw_payload(self) -> None:
         """The digest covers the data itself, not the envelope it is published in."""
@@ -211,6 +241,11 @@ class TestRepresentations:
         assert verify_digest_multibase(inline["content"].encode("utf-8"), inline["digestMultibase"])
 
         referenced = by_format["METAS-UncLib-binary"]
+        if not unclib_available():
+            # Nothing was published, so there is no payload to digest. The XML half
+            # above is the engine-independent claim and it still holds.
+            assert referenced["available"] is False
+            return
         _, payload = artefacts[referenced["id"]]
         assert verify_digest_multibase(payload, referenced["digestMultibase"])
 

@@ -1415,7 +1415,6 @@ dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "jsonschema" },
-    { name = "metas-unclib" },
     { name = "pydantic" },
     { name = "uvicorn" },
 ]
@@ -1423,6 +1422,9 @@ dependencies = [
 [package.optional-dependencies]
 gtc = [
     { name = "gtc" },
+]
+unclib = [
+    { name = "metas-unclib" },
 ]
 
 [package.dev-dependencies]
@@ -1437,11 +1439,11 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "gtc", marker = "extra == 'gtc'", specifier = ">=1.5" },
     { name = "jsonschema", specifier = ">=4.21" },
-    { name = "metas-unclib", specifier = ">=1.5" },
+    { name = "metas-unclib", marker = "extra == 'unclib'", specifier = ">=3.0" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
-provides-extras = ["gtc"]
+provides-extras = ["unclib", "gtc"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -48,6 +48,7 @@ from vcqi.crypto.multibase import (
 )
 from vcqi.domain.accreditation import ACCREDITATION_SCOPES
 from vcqi.domain.gtc_archive import GTC_UNAVAILABLE_NOTE, gtc_available
+from vcqi.domain.engine import mu
 from vcqi.domain.kcdb import CMC_ENTRIES, cmc_by_id
 from vcqi.domain.scope import MeasurementClaim, evaluate_scope
 from vcqi.domain.uncertainty import (
@@ -661,8 +662,6 @@ def post_combine(request: CombineRequest) -> dict[str, Any]:
     Raises:
         HTTPException: If a certificate is unknown or the operation is not supported.
     """
-    import metas_unclib as unclib
-
     current = world()
     try:
         first = current.results[request.first]
@@ -684,8 +683,8 @@ def post_combine(request: CombineRequest) -> dict[str, Any]:
     apply, label, unit = operations[request.operation]
 
     tracked = apply(u_variable_a, u_variable_b)
-    tracked_value = float(unclib.get_value(tracked))
-    tracked_standard = float(unclib.get_stdunc(tracked))
+    tracked_value = float(mu.get_value(tracked))
+    tracked_standard = float(mu.get_stdunc(tracked))
 
     # What the same customer would get from the printed numbers alone. The sensitivities
     # are those of the operation at the measured values; only the correlation is missing.
@@ -702,7 +701,7 @@ def post_combine(request: CombineRequest) -> dict[str, Any]:
         )
         naive_standard = abs(tracked_value) * relative
 
-    correlation = float(unclib.get_correlation([u_variable_a, u_variable_b])[0][1])
+    correlation = float(mu.get_correlation([u_variable_a, u_variable_b])[0][1])
     factor = naive_standard / tracked_standard if tracked_standard else float("inf")
 
     # Which way the error runs depends on the operation, and it is worth being plain
