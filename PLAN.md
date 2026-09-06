@@ -1333,3 +1333,106 @@ responds; chapter 10 still reports twelve controls and chapter 11 two.
 - Not verified visually. The Chrome extension was declined, so the layout of the new
   panels has not been seen in a browser. Structure was checked in jsdom instead: flat
   panels, no nesting, no stray nulls, and tier headings at 15px above 13.5px panel titles.
+
+# Change set 7 - publish it on the web, and make its text editable
+
+## Context
+
+The demonstrator runs only as a local process. Showing it to a delegate, a colleague at
+another NMI or an accreditation body means asking them to install Python and `uv` first,
+and on many managed machines running an unsigned executable is prohibited outright. The
+demonstration argues that a verifier "operates nothing"; the demonstrator itself should
+ask no more of its reader than a URL.
+
+Four things follow, in this order:
+
+1. Get UncLib off the server.
+2. Host it behind a registered domain, driveable from a browser and a `git push` — the
+   METAS machine cannot install Docker, `gh` or a host CLI.
+3. Make it safe to expose. `ARCHITECTURE.md` rested the safety argument for
+   `/api/keys/*` on binding to localhost, which hosting makes false.
+4. Move the chapter prose out of `chapters.js` into markdown an editor can change, and
+   publish `README.md`, `ARCHITECTURE.md` and `LEGAL-METROLOGY.md` on the site.
+
+Decisions taken up front: markdown edited in the GitHub web UI on a feature branch and
+merged by PR, no live-site editing; the site unlisted, `noindex`, no password; and only
+those three documents published, not `PLAN.md` or `firstPrompt.md`.
+
+## Why item 1 turned out to be first
+
+The plan assumed the problem was running `metas_unclib` on Linux under Mono, and it
+probably would have worked — the shipped `Metas.IntelMKL.dll.config` carries Mono
+`<dllmap>` entries pointing at `mkl_custom/linux/intel64/*.so`, which is the vendor
+saying Mono is the supported Linux runtime.
+
+The licence is what does not work. The METAS UncLib EULA grants a designated-computer
+licence and §4c prohibits distribution to third parties "whether modified, incorporated
+into a software package, incorporated into any kind of device or machine, reproduced or
+left in its original form". A container image on a hosting provider is three of those at
+once. METAS is the licensor and permission is obtainable internally, but the deployment
+should not depend on that conversation, and it does not need to.
+
+Asking the question first, rather than after building the Mono image, was luck: the
+question was asked as "could this be simplified by faking UncLib?"
+
+## Build order
+
+- [x] `feature/linprop` — the engine, the blobs, the equivalence tests, CI
+- [ ] `feature/hosting` — config, hardening, Dockerfile, domain, doc updates
+- [ ] `feature/content-layer` — loader, `/api/content`, `content.js`, tests, editor README
+- [ ] `feature/content-chapter-0` — pilot migration plus the snapshot tool
+- [ ] `feature/content-chapters-*` — the remaining eleven chapters, one commit each
+- [ ] `feature/docs-viewer` — the three repository documents on the site
+
+## Progress log
+
+`feature/linprop` complete. 332 tests pass with UncLib installed (2 skipped), 288 pass
+without it (46 skipped, all of them the ones that need both engines to compare).
+
+- `domain/linprop.py` implements what the project uses and nothing more: real scalars,
+  the four operations, sensitivity vectors keyed on input identity. The subset is the
+  point — it is small enough that the equivalence claim is checkable rather than hoped
+  for. Every measurement model here is a sum of products, so first-order propagation is
+  exact, not approximate.
+- `domain/engine.py` chooses. `VCQI_ENGINE=linprop` forces the deployed engine on a
+  licensed machine, which is how the two are compared. Two import lines were the whole
+  wiring change.
+- The used API surface was six functions, and the plan's table said so. It was seven:
+  `/api/combine` calls `get_correlation`, which the survey missed because `app.py:664`
+  imported `metas_unclib` inside a function body rather than at module level. Found by
+  running the suite, not by reading.
+- **Byte-identical XML** was the requirement, since every credential digests it. Four
+  details decide it and all four were read off real output: CRLF with no trailing
+  newline; `encoding="utf-16"` on a string digested as UTF-8, which is UncLib's own
+  inconsistency and is preserved rather than corrected; .NET's fifteen-then-seventeen
+  significant digit formatting, which Python's `%g` matches once the exponent marker is
+  uppercased — validated over 516 values including 240 random bit patterns; and
+  `-(a/b)/b` for a quotient's second Jacobian, which differs in the last bit from
+  `-a/(b*b)`. The last two were found by the equivalence test failing, which is the
+  argument for having written it before trusting the engine.
+- The binary form is **not** reimplemented. Its layout is undocumented and reverse
+  engineering a licensed library's format would be the wrong move twice over. Four blobs
+  are generated on a licensed machine and committed, keyed by a digest of each result's
+  XML, so a content-derived key cannot attach a stale blob to a changed measurement: the
+  lookup misses and the certificate reports the representation unavailable. That also
+  means the committed keys double as reference XML digests, so CI proves byte-identity
+  without UncLib present.
+- **Four budget lines moved by one unit in the last place**, taking three digests and six
+  signatures with them; 55 of 59 documents are byte-identical. UncLib computes a budget
+  contribution by inverting the dependency matrix, so its rounding depends on the whole
+  system and no closed form reproduces it. Chasing bit-exactness would have meant
+  reimplementing `LinAlg.Inv` to reproduce an inconsistency, because where they differ
+  this engine is the self-consistent one: UncLib reports a sensitivity coefficient of
+  `10000.000699999999` in a budget while writing `10000.0007` as the Jacobian into the
+  XML of the same certificate. A test pins that. Rounding would make them agree and is
+  not available — these are intermediate values.
+- Three tests in `test_dependencies.py` were about the binary carrier and would have
+  simply skipped. Two were split instead, so the engine-independent half still runs and
+  the deployed configuration's documented degradation is pinned: an unavailable
+  representation says so rather than being absent or invented.
+- `.github/workflows/ci.yml` is the project's first CI. It asserts `metas_unclib` is
+  *absent* from the base install — if that ever passes, a deploy would be redistributing
+  the library — and that two dumps of the world are identical.
+- Not yet done on this branch: nothing. The chapter 6 prose still describes UncLib as
+  the only implementation of the format; that sentence belongs to the content-layer work
+  and is noted there rather than edited in JavaScript now.

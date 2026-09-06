@@ -27,12 +27,24 @@ uv run python -m vcqi.actors.scenarios         # list every signed credential
 uv run python -m vcqi.actors.scenarios --dump out/   # write all 59 documents as JSON
 ```
 
-GTC support is optional because it pulls in scipy. Without it everything works and the
-certificates carry the UncLib representation only:
+Two extras, both optional and neither needed to run the demonstration:
 
 ```
+uv sync --extra unclib  # propagate with METAS UncLib itself
 uv sync --extra gtc     # certificates gain a GTC archive as well
 ```
+
+`unclib` is for **licensed machines only**. METAS UncLib is the reference implementation
+of the uncertainty propagation here, and its licence covers one designated computer and
+forbids redistribution, so it cannot ship in a container image. Without it the
+demonstrator computes with its own linear-propagation engine, which covers the models
+used here exactly and writes byte-identical dependency representations;
+`tests/test_linprop_equivalence.py` checks both claims on a machine that has the
+library. Set `VCQI_ENGINE=linprop` to force that engine even where UncLib is installed,
+which is how a deployed build is reproduced locally. See `ARCHITECTURE.md`.
+
+`gtc` is optional because it pulls in scipy. Without it everything works and the
+certificates carry one fewer representation.
 
 The build is deterministic: signing uses RFC 6979, so two runs produce byte-identical
 credentials and `--dump` output can be diffed between runs.
@@ -102,6 +114,12 @@ So every certificate here offers its uncertainty three ways at once:
 The classical statement is always present and always first. It is what remains legally
 recognisable and the only thing an issuer without such a tool can offer. The others are
 additional, never a replacement.
+
+The UncLib XML has since acquired a second implementation, which is a small piece of
+evidence for the argument rather than an incidental fact: this repository writes and
+reads that format itself, byte for byte, without the library. A representation only
+transmits dependencies usefully if a recipient can consume it with their own tools, and
+that is now demonstrated instead of assumed.
 
 The last one sits at a different level, and that is the useful part. The first three
 describe a **result**; a PTB/DKD DCC describes a **document** — who calibrated what, for
