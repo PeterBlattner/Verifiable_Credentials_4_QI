@@ -6,12 +6,18 @@ metrological traceability means in practice, and it is why the credential chain 
 traceability chain have the same shape: each certificate consumes the uncertainty
 stated by its parent and adds the contributions of its own measurement.
 
-Propagation uses metas_unclib rather than a hand-written root-sum-square, for a reason
-that matters to the argument this demonstrator makes. metas_unclib tracks where each
-uncertainty came from, so when the same reference standard appears twice in a
-calculation its contributions correlate correctly instead of being double counted. A
-number alone cannot do that. A credential that carries the *budget*, not just the
-result, keeps that information available to whoever uses the measurement next.
+Propagation tracks where each uncertainty came from rather than computing a bare
+root-sum-square, for a reason that matters to the argument this demonstrator makes. When
+the same reference standard appears twice in a calculation its contributions correlate
+correctly instead of being double counted. A number alone cannot do that. A credential
+that carries the *budget*, not just the result, keeps that information available to
+whoever uses the measurement next.
+
+Which engine does the propagating is chosen in :mod:`vcqi.domain.engine`: METAS UncLib
+where it is installed, and :mod:`vcqi.domain.linprop` otherwise, which is every deployed
+copy because UncLib may not be redistributed. The two agree, and
+``tests/test_linprop_equivalence.py`` says so in detail. Nothing in this module needs to
+know which one it got.
 
 Terms follow the GUM strictly: ``u`` is the Standard Uncertainty, ``U`` is the Expanded
 Uncertainty, and every reported ``U`` uses the coverage factor k = 2 required for
@@ -157,9 +163,9 @@ class MeasurementResult:
         coverage_factor: The coverage factor k used to expand u.
         budget: The contributions that make up the combined Standard Uncertainty, one
             line per input of the measurement model.
-        uncertain_number: The underlying metas_unclib object, retained so the result can
-            be serialised with its full dependency structure. Never rendered into JSON
-            directly; see to_unclib_xml.
+        uncertain_number: The underlying uncertain number, from whichever engine is in
+            use, retained so the result can be serialised with its full dependency
+            structure. Never rendered into JSON directly; see to_unclib_xml.
     """
 
     value: float

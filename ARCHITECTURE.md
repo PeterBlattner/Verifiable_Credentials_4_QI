@@ -117,6 +117,61 @@ Renaming the member would change every signed credential and both generated sche
 renaming the step would break ids that the tests and the interface refer to. The names
 stayed and the `type` values carry the meaning.
 
+### Two uncertainty engines, for a licensing reason
+
+Uncertainty propagation runs on **METAS UncLib** where it is installed and on
+`domain/linprop.py` otherwise. Every deployed copy uses the latter, and the reason is
+not technical. The METAS UncLib EULA grants a designated-computer licence — "installation
+on one computer; any number of people can use it but not simultaneously" — and §4c
+prohibits distribution to third parties "whether modified, incorporated into a software
+package, incorporated into any kind of device or machine, reproduced or left in its
+original form". A container image on a hosting provider is reproduction, incorporation
+into a package, and simultaneous multi-user service from one installation. So the
+library is an optional extra (`uv sync --extra unclib`) and not a dependency.
+
+`linprop.py` is not a stand-in. It implements the subset this project exercises — real
+scalars, the four arithmetic operations, and LinProp's propagation law — by carrying
+sensitivities forward. Every measurement model here is a sum of products of scalars, so
+first-order propagation is exact rather than approximate, and the agreement with UncLib
+is exact too. What matters more than the arithmetic is that each independent input keeps
+an identifier, so two results resting on one influence are correlated because they name
+the same thing. That is the mechanism chapter 6 argues for, and it belongs to the
+representation rather than to any library.
+
+`tests/test_linprop_equivalence.py` checks the claim over all eight models. Two of its
+checks need no licence and are the ones a deployment rests on: the committed binary
+blobs are keyed by digests of the XML *UncLib* wrote, so reproducing those keys proves
+byte-identity without UncLib being present to ask.
+
+**The dependency representation is byte-identical**, which is a requirement and not a
+nicety, because every credential records a digest over it. Four details decide that,
+each read off real output rather than reasoned about: CRLF line endings with no trailing
+newline; the `encoding="utf-16"` declaration on a string that `vc/model.py` digests as
+UTF-8, which is UncLib's behaviour and is preserved rather than corrected; .NET's
+round-trip double formatting, which tries fifteen significant digits and falls back to
+seventeen; and `-(a/b)/b` for the second Jacobian of a quotient, which differs in the
+last bit from the algebraically identical `-a/(b*b)`.
+
+**The compact binary form is not reimplemented.** Its layout is undocumented and only
+UncLib writes it, so the blobs are generated on a licensed machine and committed in
+`domain/unclib_blobs.json`, keyed by a digest of each result's XML. A content-derived
+key cannot attach a stale blob to a changed measurement: the lookup misses, and the
+certificate reports the representation as unavailable rather than publishing something
+that would fail a digest check. Results computed with the software are data; the licence
+restricts distributing the software.
+
+**One difference is real and worth recording.** Four budget lines across the 59
+documents moved by one unit in the last place when the engine changed, which also moved
+the three digests and six signatures that cover them. UncLib computes a budget
+contribution by inverting the dependency matrix, so its rounding depends on the whole
+system; `linprop.py` multiplies the sensitivity by the input's Standard Uncertainty,
+which is the definition. Where they differ this engine is the self-consistent one:
+UncLib can report a sensitivity coefficient of `10000.000699999999` in a budget while
+writing `10000.0007` as the Jacobian into the XML of that same certificate. The
+difference is ~2 × 10⁻¹⁶ relative, well past anything metrologically meaningful, and
+rounding the reported budget would make both engines agree but would mean rounding an
+intermediate value, which the GUM conventions this project follows do not permit.
+
 ### The network is a dictionary
 
 `vc/resolver.py` stands in for retrieval. Every document is published at the address a
@@ -167,6 +222,12 @@ reason they are worth demonstrating.
   be designed in from the start.
 - **Key management and rotation.** Each actor has exactly one key, forever.
 - **Real DID methods.** `did:web` only, resolved locally.
+- **Uncertainty propagation beyond scalar arithmetic.** `domain/linprop.py`, which is
+  what a deployed copy computes with, covers real scalars and the four operations
+  because that is all any model here uses. DistProp, MCProp, complex quantities, arrays
+  and degrees of freedom are UncLib features with no substitute in this repository. If
+  the demonstration ever needs one, the equivalence test fails on a licensed machine
+  rather than quietly producing a plausible wrong number.
 - **Holder wallets and presentation protocols.** Credentials are handed around as JSON.
   OpenID4VP and a wallet are what a real flow would use.
 - **Any authority whatsoever.** No part of this reflects the position of any real
@@ -220,5 +281,9 @@ ships needs npm.
 signatures, and a status list compressed with a pinned modification time. Two builds
 produce byte-identical documents, which `tests/test_pipeline.py` asserts and
 `--dump` makes diffable.
+
+That holds within an engine. Across the two, 55 of the 59 documents are byte-identical
+and six differ in the four budget values described above; `VCQI_ENGINE=linprop` forces
+the deployed engine on a licensed machine, so the comparison can be made directly.
 
 [dcc]: https://www.ptb.de/dcc/
