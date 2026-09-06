@@ -1,0 +1,34 @@
+# Keep the build context small and the image honest.
+#
+# .venv matters most: it is a few hundred megabytes of Windows binaries that would be
+# useless in a Linux image and, while metas-unclib was still a dependency, would have
+# carried a licensed library into the build context. .gitignore already keeps it out of
+# git, so a hosting provider building from the repository never sees it; this is what
+# keeps a local `docker build` equally clean.
+
+.git
+.gitattributes
+.github
+
+.venv
+.pytest_cache
+__pycache__
+**/__pycache__
+*.py[cod]
+*.egg-info
+
+# Generated and working directories, both already gitignored.
+out
+temp
+
+tools/node_modules
+tools/package*.json
+
+# Not part of the running application. PLAN.md is a build journal and firstPrompt.md is
+# the prompt that started the project; ARCHITECTURE.md and LEGAL-METROLOGY.md are left
+# in because a later change set serves them from the site.
+PLAN.md
+firstPrompt.md
+Dockerfile
+.dockerignore
+render.yaml

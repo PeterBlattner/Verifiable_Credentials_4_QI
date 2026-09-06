@@ -241,10 +241,34 @@ private key really is just a number somebody possesses, and watching it travel m
 custody problem concrete in a way prose does not.
 
 It is also the last thing a real system would do, and why it is harmless here is worth
-stating rather than assuming. The server binds to localhost. Every key in the
-demonstration comes from a seed published in this repository. And `/api/keys/sign` signs
+stating rather than assuming.
+
+This used to read "the server binds to localhost", and that was the load-bearing clause.
+Publishing the demonstration made it false, so the argument had to be replaced rather
+than quietly dropped. What survives exposure is this: every key in the demonstration
+comes from a seed published in this repository, and `/api/keys/sign` signs
 caller-supplied bytes with a caller-supplied key, so it is an oracle for nothing but the
-caller's own key. None of that would survive exposure to a network.
+caller's own key. There is no secret here to leak, and nothing an attacker learns that
+they did not bring with them.
+
+What does not survive is the assumption that nobody would call these routes in a loop.
+`crypto/ecdsa_p256.py` is written to be read: `_scalar_multiply` is naive double-and-add
+and every point operation takes a modular inverse, so one signature costs a few hundred
+`pow(x, -1, p)` calls — milliseconds for a person, a denial of service for a script. The
+same goes for `/api/keys/derive` with `random: true`, and for `/api/verify`, which walks
+a credential the caller wrote.
+
+So the replacement argument is a compute one, and `web/limits.py` is where it lives: a
+body-size cap, and a token bucket charging only the routes whose cost a caller can
+raise. The slider routes are deliberately not charged — they evaluate a four-input model
+however the sliders are set, so their cost is fixed and charging them would throttle a
+reader rather than an attacker. `main()` runs one worker with a bounded thread pool and
+a concurrency limit, so a burst queues instead of thrashing. What is knowingly left
+uncovered is distributed flooding, which a per-process bucket cannot address; there is no
+data and no secret behind this, so the worst case is that the demonstration is slow.
+
+The non-constant-time arithmetic stays as it is. It is the teaching material, and a
+timing side channel on a key published in `config.py` is not a finding.
 
 `did:key` support in `vc/resolver.py` exists for the same chapter. A `did:key` carries
 its own public key, so resolving it fetches nothing — which makes the contrast with

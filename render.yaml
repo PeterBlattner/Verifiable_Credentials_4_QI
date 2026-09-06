@@ -1,0 +1,59 @@
+# Render Blueprint: the whole service definition, reviewable in a pull request.
+#
+# This exists because the machine this project is developed on cannot install software.
+# With it, first-time setup is New -> Blueprint -> pick this repository, in a browser,
+# with no CLI at any point -- which is the reason Render was chosen over Fly.io, whose
+# app creation wants flyctl.
+#
+# Custom domains are added in the dashboard rather than here, because Render's Blueprint
+# schema does not carry them. The DNS records to create are in README.md.
+
+services:
+  - type: web
+    name: vcqi-demo
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+
+    # Frankfurt: the audience is Swiss and European.
+    region: frankfurt
+
+    # Start here. The image is small and the app holds nothing, so the free instance is
+    # genuinely usable -- with one caveat that matters for this particular audience: a
+    # free service spins down after fifteen minutes idle and takes the better part of a
+    # minute to wake, which is exactly wrong for a link opened live in a meeting. If
+    # that bites, change this to `starter`, which does not spin down.
+    plan: free
+
+    # main is production; develop is integration. Only develop merges into main, by
+    # pull request, so a deploy is a deliberate act rather than a side effect.
+    branch: main
+
+    # Render will not send traffic to a new instance until this returns 200, and the
+    # app's lifespan builds the world before the port opens. So a rolling deploy cannot
+    # cut over to a process that is still warming up.
+    healthCheckPath: /healthz
+
+    # Deploys are triggered by CI after the tests pass, not by the push itself.
+    autoDeploy: false
+
+    envVars:
+      # These duplicate the Dockerfile's defaults on purpose: the Dockerfile makes the
+      # image correct on its own, and having them here means they can be read and
+      # changed from the dashboard without a rebuild.
+      - key: VCQI_HOST
+        value: 0.0.0.0
+      - key: VCQI_PUBLIC
+        value: "1"
+      - key: VCQI_RATE_LIMIT_BURST
+        value: "150"
+      - key: VCQI_RATE_LIMIT_PER_SECOND
+        value: "5.0"
+      - key: VCQI_MAX_BODY_BYTES
+        value: "262144"
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      # Crawlers are asked off while the link is being shown to colleagues rather than
+      # published. Set to "1" to allow indexing, which is a deliberate decision about
+      # a site that names METAS, BIPM and PTB/DKD while inventing their documents.
+      - key: VCQI_ALLOW_INDEXING
+        value: "0"

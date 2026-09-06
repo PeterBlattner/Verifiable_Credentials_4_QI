@@ -12,6 +12,12 @@ export function el(tag, attrs, children) {
     if (name === 'class') node.className = value;
     else if (name === 'text') node.textContent = value;
     else if (name === 'html') node.innerHTML = value;
+    // Assign through the CSSOM rather than setAttribute('style', ...). A strict
+    // Content-Security-Policy blocks a style *attribute*, which would silently drop
+    // the layout of about a dozen call sites and one genuinely computed width in
+    // chapters.js; CSSOM assignment is not covered by style-src. Same effect, and the
+    // call sites are unchanged.
+    else if (name === 'style') node.style.cssText = String(value);
     else if (name.startsWith('on')) node.addEventListener(name.slice(2), value);
     else node.setAttribute(name, value === true ? '' : String(value));
   }
@@ -249,6 +255,34 @@ export function stat(value, label) {
 
 export function sliderRow(config) {
   const output = el('span', { class: 'slider-row__value', text: config.format(config.value) });
+
+  // A range input fires oninput on every step, and these handlers each make a request.
+  // Dragging one slider across its range used to fire hundreds, all but the last of
+  // them already stale by the time they returned -- and with responses able to land out
+  // of order, a slow early one could overwrite a newer verdict.
+  //
+  // So the readout still updates on every event, because that is what makes the control
+  // feel attached to the mouse, while the handler runs at most one at a time: whatever
+  // the slider is showing when the previous call settles is the value the next one gets.
+  // Intermediate positions are simply skipped, which is what a dragging reader wants
+  // anyway. Handlers that return their promise get the ordering guarantee too.
+  let running = false;
+  let pending = null;
+
+  async function drain() {
+    if (running) return;
+    running = true;
+    try {
+      while (pending !== null) {
+        const next = pending;
+        pending = null;
+        await config.onInput(next);
+      }
+    } finally {
+      running = false;
+    }
+  }
+
   const input = el('input', {
     type: 'range',
     min: config.min,
@@ -258,7 +292,8 @@ export function sliderRow(config) {
     oninput: (event) => {
       const raw = Number(event.target.value);
       output.textContent = config.format(raw);
-      config.onInput(raw);
+      pending = raw;
+      drain();
     },
   });
   return el('div', { class: 'slider-row' }, [

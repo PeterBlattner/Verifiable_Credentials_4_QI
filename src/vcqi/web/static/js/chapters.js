@@ -713,7 +713,7 @@ async function chapterScope(context) {
     format: (raw) => `${num(Math.pow(10, raw), 6)} Ω`,
     onInput: (raw) => {
       state.value = Math.pow(10, raw);
-      update();
+      return update();
     },
   });
 
@@ -726,7 +726,7 @@ async function chapterScope(context) {
     format: (raw) => `${num(Math.pow(10, raw) * 1e6, 3)} µΩ/Ω`,
     onInput: (raw) => {
       state.relative = Math.pow(10, raw);
-      update();
+      return update();
     },
   });
 
@@ -1150,7 +1150,7 @@ async function chapterTraceability(context) {
         format: (raw) => `${num(Math.pow(10, raw), 3)} Ω`,
         onInput: (raw) => {
           state.parent_expanded_uncertainty = Math.pow(10, raw);
-          recompute();
+          return recompute();
         },
       }),
       sliderRow({
@@ -1162,7 +1162,7 @@ async function chapterTraceability(context) {
         format: (raw) => `${num(Math.pow(10, raw), 3)}`,
         onInput: (raw) => {
           state.ratio_uncertainty = Math.pow(10, raw);
-          recompute();
+          return recompute();
         },
       }),
       sliderRow({
@@ -1174,7 +1174,7 @@ async function chapterTraceability(context) {
         format: (raw) => `${num(Math.pow(10, raw), 3)} Ω`,
         onInput: (raw) => {
           state.drift_half_width = Math.pow(10, raw);
-          recompute();
+          return recompute();
         },
       }),
       live,
