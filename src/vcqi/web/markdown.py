@@ -35,9 +35,9 @@ What is not, deliberately: raw HTML, reference-style links, nested lists, images
 footnotes, and anything resembling a template. If a block needs logic it belongs in
 JavaScript, and that boundary is what stops a content layer becoming a CMS.
 
-Note for later: the repository's own documents (README, ARCHITECTURE, LEGAL-METROLOGY)
-use reference-style links and nested lists, so publishing those needs this extended or a
-real CommonMark parser. That decision belongs with that change, not this one.
+Note for later: the repository's own documents (README, ARCHITECTURE) use
+reference-style links and nested lists, so publishing those needs this extended or a real
+CommonMark parser. That decision belongs with that change, not this one.
 """
 
 from __future__ import annotations

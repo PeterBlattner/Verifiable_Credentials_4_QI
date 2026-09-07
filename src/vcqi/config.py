@@ -71,6 +71,7 @@ BIPM_ORIGIN: Final[str] = "https://bipm.example"
 GLOBAL_ACI_ORIGIN: Final[str] = "https://global-aci.example"
 SAS_ORIGIN: Final[str] = "https://sas.example"
 METAS_ORIGIN: Final[str] = "https://metas.example"
+OIML_ORIGIN: Final[str] = "https://oiml.example"
 
 #: Address the server binds to. Localhost is what a reader running the demonstration on
 #: their own machine wants; a container sets VCQI_HOST=0.0.0.0. The name is prefixed

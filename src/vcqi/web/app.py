@@ -348,6 +348,44 @@ def _trace_to_json(trace: ProofTrace) -> dict[str, Any]:
     }
 
 
+#: Which arrangement each credential belongs to.
+#:
+#: One table, because a branch is a property of the arrangement a document was issued
+#: under and nothing else in the document says which. A node's branches are then derived
+#: from the edges that touch it, which is why a laboratory recognised under two
+#: arrangements comes out belonging to both without anybody writing that down twice.
+BRANCH_OF_CREDENTIAL: Final[dict[str, str]] = {
+    "bipm-recognition": "metrology",
+    "metas-calibration": "metrology",
+    "callab-calibration": "metrology",
+    "metas-SR10K-0091": "metrology",
+    "metas-SR10K-0092": "metrology",
+    "global-aci-recognition": "accreditation",
+    "sas-recognition": "accreditation",
+    "testlab-report": "accreditation",
+    "cab-conformity": "accreditation",
+    "oiml-ia-recognition": "legal-metrology",
+    "oiml-tl-recognition": "legal-metrology",
+    "oiml-evaluation": "legal-metrology",
+    "oiml-certificate": "legal-metrology",
+}
+
+#: The three arrangements, in the order the graph reads them.
+BRANCHES: Final[tuple[dict[str, str], ...]] = (
+    {"key": "metrology", "label": "Metrology", "anchor": "did:web:bipm.example"},
+    {
+        "key": "accreditation",
+        "label": "Accreditation",
+        "anchor": "did:web:global-aci.example",
+    },
+    {
+        "key": "legal-metrology",
+        "label": "Legal metrology",
+        "anchor": "did:web:oiml.example",
+    },
+)
+
+
 def _graph() -> dict[str, Any]:
     """Derive the trust graph from the credentials that were actually issued.
 
@@ -360,7 +398,13 @@ def _graph() -> dict[str, Any]:
     current = world()
     edges: list[dict[str, Any]] = []
 
-    for name in ("bipm-recognition", "global-aci-recognition", "sas-recognition"):
+    for name in (
+        "bipm-recognition",
+        "global-aci-recognition",
+        "sas-recognition",
+        "oiml-ia-recognition",
+        "oiml-tl-recognition",
+    ):
         credential = current.credential(name)
         source = issuer_id(credential)
         subjects = credential.get("credentialSubject", [])
@@ -376,6 +420,7 @@ def _graph() -> dict[str, Any]:
                     "label": ", ".join(sorted({str(a.get("action")) for a in actions})),
                     "credential": name,
                     "credentialId": credential["id"],
+                    "branch": BRANCH_OF_CREDENTIAL[name],
                 }
             )
 
@@ -384,6 +429,7 @@ def _graph() -> dict[str, Any]:
         ("callab-calibration", "owner", "calibration certificate"),
         ("testlab-report", "client", "test report"),
         ("cab-conformity", "holder", "certificate of conformity"),
+        ("oiml-certificate", "applicant", "OIML certificate"),
     ]
     for name, member, label in issuance:
         credential = current.credential(name)
@@ -397,23 +443,63 @@ def _graph() -> dict[str, Any]:
                 "label": label,
                 "credential": name,
                 "credentialId": credential["id"],
+                "branch": BRANCH_OF_CREDENTIAL[name],
             }
         )
 
+    # The type evaluation is drawn travelling to the Issuing Authority rather than to the
+    # manufacturer that commissioned it. Both are true -- the report names the client --
+    # but reviewing it is the Issuing Authority's defined job under the OIML-CS, and it
+    # is the edge the branch turns on. Drawing both put the same credential on the
+    # diagram twice.
+    evaluation = current.credential("oiml-evaluation")
     edges.append(
         {
-            "source": "did:web:manufacturer.example",
-            "target": "did:web:surveillance.example",
-            "kind": "presentation",
-            "label": "presents at the border",
-            "credential": "cab-conformity",
-            "credentialId": current.credential("cab-conformity")["id"],
+            "source": "did:web:testlab.example",
+            "target": "did:web:legal-ia.example",
+            "kind": "issuance",
+            "label": "type evaluation reviewed",
+            "credential": "oiml-evaluation",
+            "credentialId": evaluation["id"],
+            "branch": "legal-metrology",
         }
     )
 
+    for holder, credential_name, label in (
+        ("did:web:manufacturer.example", "cab-conformity", "presents at the border"),
+        ("did:web:meterworks.example", "oiml-certificate", "presents the type certificate"),
+    ):
+        edges.append(
+            {
+                "source": holder,
+                "target": "did:web:surveillance.example",
+                "kind": "presentation",
+                "label": label,
+                "credential": credential_name,
+                "credentialId": current.credential(credential_name)["id"],
+                "branch": BRANCH_OF_CREDENTIAL[credential_name],
+            }
+        )
+
+    # A node belongs to whichever arrangements its edges do. Derived rather than
+    # declared, so that Helvetia Testing coming out in three branches is a consequence
+    # of what it was issued and recognised for rather than a second thing to maintain.
+    branches_of_node: dict[str, set[str]] = {}
+    for edge in edges:
+        for end in ("source", "target"):
+            if isinstance(edge.get(end), str):
+                branches_of_node.setdefault(edge[end], set()).add(edge["branch"])
+
+    nodes = []
+    for actor in ACTORS:
+        node = actor.to_json()
+        node["branches"] = sorted(branches_of_node.get(actor.did, set()))
+        nodes.append(node)
+
     return {
-        "nodes": [actor.to_json() for actor in ACTORS],
+        "nodes": nodes,
         "edges": edges,
+        "branches": [dict(branch) for branch in BRANCHES],
         "trustAnchors": sorted(TRUST_ANCHORS),
     }
 
@@ -602,7 +688,13 @@ def post_verify(request: VerifyRequest) -> dict[str, Any]:
     presented = (
         [
             current.credential(name)
-            for name in ("bipm-recognition", "global-aci-recognition", "sas-recognition")
+            for name in (
+                "bipm-recognition",
+                "global-aci-recognition",
+                "sas-recognition",
+                "oiml-ia-recognition",
+                "oiml-tl-recognition",
+            )
         ]
         if request.staple
         else []

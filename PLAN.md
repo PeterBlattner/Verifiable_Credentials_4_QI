@@ -1639,3 +1639,108 @@ section against the pre-change baseline: no word of the twelve existing chapters
   worth making somewhere -- most naturally in chapter 10, next to the other things a
   deployment would have to survive -- and is not made anywhere at the moment.
 
+# Change set 9 - legal metrology, scoped to OIML-CS
+
+## Context
+
+The demonstration covered two of the three pillars of the quality infrastructure.
+Metrology ran from BIPM through the CIPM MRA; accreditation ran from Global ACI through
+an accreditation body. The third pillar, legal metrology, was absent, and
+`LEGAL-METROLOGY.md` recorded how it would be added and was then left unbuilt.
+
+That document took a broad view: national type approval, national verification,
+designation of private verification bodies, market surveillance. This change set does not
+follow it. The scope is OIML-CS only, and within OIML-CS only three things -- an Issuing
+Authority, a Test Laboratory, and the certificate that a type meets an OIML
+Recommendation. Utilizers and Associates are out.
+
+The reason to pick this pillar and this slice of it is not completeness. It is that
+OIML-CS is the first thing in the project that makes a document rest on two arrangements
+at once, which chapter 11 has described as "the entire reason for doing any of this"
+since it was written and which nothing had actually built.
+
+## Decisions taken
+
+- Helvetia Testing plays the Test Laboratory rather than a new actor being invented. It
+  was already an accredited testing laboratory at the bottom of a live calibration chain,
+  and it is the join.
+- R 46, active electrical energy meters, because a type evaluation of a meter needs
+  calibrated electrical standards and this world already has them. R 60 is in the table
+  unevaluated: it is the OIML's own pilot for machine-readable Recommendations, and it is
+  what the Issuing Authority is *not* recognised for.
+- A new dedicated Issuing Authority, and a new meter manufacturer, so the kettle story is
+  untouched.
+- Branch tags and a filter on the graph, dimming rather than hiding.
+- Threaded through the existing chapters. No thirteenth chapter.
+- `LEGAL-METROLOGY.md` deleted rather than narrowed. Most of it was about the national
+  layer. It is at `ba1c144` with the reference implementation at `bf4b24d` / `bea1372`.
+
+## Build order
+
+- [x] `feature/oiml-cs` -- actors and R 46; the four credentials; the graph; chapters and
+      documentation
+
+## Progress log
+
+395 tests pass, 46 skipped. Two `--dump` runs are byte-identical at 76 documents.
+`ui-clicks.mjs` reports every control responding. The snapshot diff is confined to the
+chapters that should have moved.
+
+- The two-anchor claim is real and asserted, not described. Verifying one OIML
+  certificate fetches from eight hosts and reaches `oiml.example` upward through
+  recognition and `bipm.example` downward through evidence -- the type evaluation, then
+  the multimeter's accredited calibration, then the national standard behind it. The only
+  thing the two paths share is the laboratory in the middle.
+- Three latent defects in the pipeline surfaced, each of which would have failed silently
+  rather than loudly. `REQUIRED_ACTIONS` held one action string per credential type, and
+  Global ACI *accredits* while OIML *recognises*, so one of them was always going to be
+  wrong -- in the direction that rejects a genuine document. `_payload()` matched three
+  subject members by name and a type absent from that list reads as an empty payload,
+  which makes every downstream step *skip*: a new credential type that forgot to appear
+  there would have verified with most of its checks quietly not running. And
+  `_traceability_references()` never followed a single `testReport`, so the evidence path
+  would have stopped at its first hop while reporting a pass.
+- The Recommendation is the scope, and that is the argument for the whole change set. A
+  CMC and an accreditation scope are declarations an organisation writes about itself, so
+  `scope.py` had to invent a machine-checkable form for them. `Recommendation.to_json()`
+  emits the member names a verifier already looks for, so the existing capability check
+  reads it without being taught a third shape -- and the thing it points at is numbered,
+  edition-controlled and published by somebody else. What is still invented is the
+  schema, which is the new chapter 11 item.
+- The quantity a type evaluation reports is the instrument's *error*, not the quantity it
+  measures. That took a second pass to get right: the first version had the capability in
+  kWh and the claim in per cent, and the scope check could not compare them.
+- The legal layer needed its own timeline, exactly as the archived branch had recorded.
+  Recognitions run from 2021 where the rest of the world runs from 2026, so the 2024
+  certificate is issued under a recognition that already existed. A test asserts the two
+  stay apart.
+- No new published binary uncertainty form, and no new top-level verification step. The
+  first would have required regenerating `unclib_blobs.json` on a licensed machine for a
+  representation nobody would have used; the second would have falsified the "eleven
+  checks" sentence in chapter 4 and the exact step-id list two tests pin.
+- Four silent-failure classes now have tests, three of them found by writing the tests
+  rather than by the change: a node with no position in `graph.js` (skipped, with its
+  edges dropped, without a word), an edge routed through an unrelated box, a credential
+  missing from `CREDENTIAL_LABELS` (unreachable in two chapters, nothing logged), and
+  markup in an editorial field the interface renders as plain text. Every one was
+  confirmed to fail by mutating what it guards.
+- `tools/ui-clicks.mjs` earned its keep again. It reported the three new filter chips as
+  inert and it was right: dimming changes no text, so the control was indistinguishable
+  from a broken one to a reader as much as to the harness. The chips now say what was
+  selected and which organisations appear in more than one arrangement, which is the
+  sentence a reader wants there anyway.
+- Two incidental findings. The shared check-standard pair had been in the world since
+  change set 4 and no test had ever run the pipeline over either credential. And the
+  written-out failure-case count had been wrong twice -- the break-it lede said eleven,
+  the README said fifteen -- so both are now compared against `len(TAMPER_CASES)` by a
+  test.
+- One case is caught twice, and it is left that way on purpose: certifying against the
+  wrong Recommendation fails both `output-validation` and `scope`, because the recognition
+  names the Recommendation *and* a schema built from it. That doubling is what a
+  machine-readable Recommendation would buy, and saying so is more useful than tidying it
+  into a single failure.
+- Not modelled, and recorded as decisions rather than gaps: legal force and the national
+  authority that confers it, the Utilizer and Associate roles, what distinguishes Scheme A
+  from Scheme B, and what SMART stands for. The last two because no primary source to hand
+  settled them, which given what the caution statement now says matters more here than
+  anywhere else in the project.

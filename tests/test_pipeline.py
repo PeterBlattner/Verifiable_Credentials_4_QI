@@ -14,6 +14,28 @@ from vcqi.vc.recognition import discover_recognition
 from vcqi.vc.resolver import Resolver
 from vcqi.vc.verify import verify_credential
 
+#: Every credential the base world issues, which
+#: :meth:`TestWorld.test_every_credential_verifies` checks end to end. Status lists are
+#: excluded: they are not issued *about* anything and have no chain to walk.
+#:
+#: Written out rather than derived, so that adding a credential is a deliberate act --
+#: and checked against the world by the test below, so it cannot fall behind.
+VERIFIED_CREDENTIALS = (
+    "bipm-recognition",
+    "global-aci-recognition",
+    "sas-recognition",
+    "metas-calibration",
+    "callab-calibration",
+    "metas-SR10K-0091",
+    "metas-SR10K-0092",
+    "testlab-report",
+    "cab-conformity",
+    "oiml-ia-recognition",
+    "oiml-tl-recognition",
+    "oiml-evaluation",
+    "oiml-certificate",
+)
+
 
 @pytest.fixture(scope="module")
 def world():
@@ -51,17 +73,110 @@ class TestWorld:
 
     def test_every_credential_verifies(self, world) -> None:
         """Nothing in the base world is broken."""
-        for name in (
-            "bipm-recognition",
-            "global-aci-recognition",
-            "sas-recognition",
-            "metas-calibration",
-            "callab-calibration",
-            "testlab-report",
-            "cab-conformity",
-        ):
+        for name in VERIFIED_CREDENTIALS:
             report = _verify(world, name)
             assert report.outcome == "verified", (name, [s.detail for s in report.failures])
+
+    def test_every_credential_in_the_world_is_verified(self, world) -> None:
+        """VERIFIED_CREDENTIALS is written out, so it can fall behind the world.
+
+        A credential nobody verifies is a credential that can rot unnoticed. This
+        caught two: the shared check-standard pair had been in the world since the
+        dependencies chapter and no test had ever run the pipeline over either of them.
+        """
+        actual = {name for name in world.credentials if not name.startswith("status-")}
+        listed = set(VERIFIED_CREDENTIALS)
+        assert not actual - listed, f"in the world, verified by nothing: {sorted(actual - listed)}"
+        assert not listed - actual, f"listed but not in the world: {sorted(listed - actual)}"
+
+
+class TestTheLegalMetrologyBranch:
+    """OIML-CS, and the one thing it does that nothing else here does."""
+
+    def test_the_certificate_reaches_two_anchors(self, world) -> None:
+        """The claim the whole branch exists to make.
+
+        An OIML certificate's recognition path runs upward to OIML. Its *evidence* path
+        runs downward into the type evaluation, from there into the calibration of the
+        equipment the evaluation used, and from there up a completely different chain to
+        the BIPM and the accreditation anchor. Two roots of trust, one document, and the
+        only thing the two paths share is the laboratory in the middle.
+        """
+        report = _verify(world, "oiml-certificate")
+        assert report.outcome == "verified"
+
+        recognition = next(step for step in report.steps if step.id == "recognition")
+        assert "did:web:oiml.example" in recognition.detail
+
+        hosts = {
+            fetch["url"].split("/")[2]
+            for fetch in report.fetches
+            if str(fetch.get("url", "")).startswith("http")
+        }
+        assert "oiml.example" in hosts
+        assert "bipm.example" in hosts, "the evidence path never reached the metrology anchor"
+        assert "sas.example" in hosts, "the evidence path never reached the accreditation body"
+
+    def test_the_evaluation_carries_traceability_into_the_test(self, world) -> None:
+        """A type evaluation that cannot say what it measured with is not traceable."""
+        report = _verify(world, "oiml-evaluation")
+        step = next(step for step in report.steps if step.id == "traceability")
+        assert step.status == "pass"
+        assert "1 referenced document" in step.detail
+
+    def test_the_certificate_says_it_authorises_nothing(self, world) -> None:
+        """`legalEffect` is carried explicitly so a verifier can act on it.
+
+        The OIML-CS produces evidence. Converting evidence into permission is a national
+        act, and this demonstration does not model the authority that would perform it --
+        so the certificate has to say so itself rather than leave a reader to know it.
+        """
+        certificate = world.credential("oiml-certificate")
+        payload = certificate["credentialSubject"]["oimlCertificate"]
+        assert payload["legalEffect"] == "none"
+        assert "confers no legal permission" in payload["legalEffectNote"]
+
+    def test_the_schema_requires_the_disclaimer(self, world) -> None:
+        """A certificate that quietly drops it fails validation rather than reading as
+        an approval."""
+        schema = world.store.get("https://oiml.example/schemas/certificate-R-46.json")
+        assert schema is not None
+        certificate = schema["properties"]["credentialSubject"]["properties"][
+            "oimlCertificate"
+        ]
+        assert "legalEffect" in certificate["required"]
+        assert certificate["properties"]["legalEffect"] == {"const": "none"}
+
+    def test_the_laboratory_is_recognised_twice_for_different_things(self, world) -> None:
+        """One laboratory, one identifier, two arrangements, neither aware of the other."""
+        accreditation = world.credential("sas-recognition")
+        oiml = world.credential("oiml-tl-recognition")
+
+        def actions(credential: dict) -> set[str]:
+            subjects = credential["credentialSubject"]
+            entries = subjects if isinstance(subjects, list) else [subjects]
+            found: set[str] = set()
+            for entry in entries:
+                if entry.get("id") != "did:web:testlab.example":
+                    continue
+                for action in entry.get("recognizedTo", []):
+                    found.add(action["action"])
+            return found
+
+        assert actions(accreditation) == {"issue"}
+        assert actions(oiml) == {"evaluate"}
+
+    def test_the_recognition_predates_the_certificate(self, world) -> None:
+        """The legal layer has its own timeline, and it has to.
+
+        OIML has run its certification system for decades. Dating its recognitions from
+        2026 alongside Global ACI made the action check reject a certificate issued in
+        2024 -- correctly, since the recognition did not yet exist. This is the
+        assertion that keeps the two timelines apart.
+        """
+        recognition = world.credential("oiml-ia-recognition")
+        certificate = world.credential("oiml-certificate")
+        assert recognition["validFrom"] < certificate["validFrom"]
 
 
 class TestRecognition:
