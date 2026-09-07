@@ -91,6 +91,13 @@ you are not left hunting:
   reason — they are records with many fields, which a markdown file expresses badly.
 - **The repository's own documents**, `README.md` and `ARCHITECTURE.md`, which are edited
   where they are.
+- **The caution banner at the top of every page.** That one is in
+  `../static/index.html`. It has to appear even when the server is unreachable and none of
+  this has loaded, so it cannot come from here. The full statement behind it is
+  `chapters/00-cautions.md`, which you *can* edit — but the same words are also in the
+  repository's `README.md`, so a correction to one needs the same correction to the other
+  or the site and the repository end up saying different things about how much to trust
+  the work.
 
 If you find yourself wanting to change something in that list, say so — the boundary is
 a judgement rather than a law, and it can move.

@@ -1,4 +1,4 @@
-<!-- Chapter 0, rendered by chapterOrientation() in ../../static/js/chapters.js.
+<!-- Chapter 1, rendered by chapterOrientation() in ../../static/js/chapters.js.
 
      Each "## name" line below starts one block that the page asks for by name. Edit the
      words freely; renaming a key breaks the page, and the test suite will say which one.

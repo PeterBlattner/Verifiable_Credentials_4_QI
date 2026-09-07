@@ -1544,3 +1544,88 @@ keep working, which is the property that makes the rest of the migration increme
   the eight places a sentence interpolates a computed value, which need `t.fill`. The
   order should follow whichever chapter someone actually wants to edit rather than the
   numbering.
+
+# Change set 8 - sharpen the cautions
+
+## Context
+
+The demonstration is convincing enough to be mistaken for something it is not. It renders
+real-looking credentials, names real institutions and reads like an implementation of a
+specification, and it is none of those things: a weekend sketch, AI-assisted, unvalidated,
+built to understand Verifiable Credentials rather than to propose anything.
+
+The cautions in place said one narrower thing -- that the identifiers and keys are
+fictional -- in two places easy to miss: a faint `rail__note` below twelve chapter links,
+and a blockquote near the top of `README.md`. Neither said the work is unreviewed, that no
+institution has endorsed it, that Recognized Entities is a Working Draft not fit for
+production, or that nothing here should inform a decision about accreditation or
+traceability. The nearest thing to a full statement was the closing paragraph of chapter
+11 -- the last thing in the last chapter, which is the wrong position for it.
+
+## Decisions taken
+
+- A short banner at the top of every page, always visible, not dismissible.
+- The full statement as the first entry in the rail, which makes it the landing page.
+- `README.md` carries the same statement in full, replacing the blockquote.
+- The banner is literal markup in `index.html`; the statement behind it is a content file.
+- The cautions carry a marker in the rail rather than the number 0.
+
+The last one changed during implementation. Seating the cautions at 0 was the original
+choice, and a review found that it shifts every chapter number and falsifies about two
+dozen by-number references -- several of them editorial fields in `actors/harmonisation.py`
+served to the reader -- against a rule `ARCHITECTURE.md` already records for exactly that
+reason. `CHAPTERS` grew an `unnumbered` flag instead, `buildRail` numbers from the numbered
+entries, and every existing reference stayed true.
+
+## Build order
+
+- [x] `feature/caution-statement` -- banner, `00-cautions.md`, layout, docs, guard tests
+
+## Progress log
+
+367 tests pass, 46 skipped. `chapter-snapshot.mjs --text` diffs to exactly one added
+section against the pre-change baseline: no word of the twelve existing chapters moved.
+`ui-clicks.mjs` reports every control responding, with the cautions chapter at 0 controls.
+
+- The banner is static markup because the stage shows only "Could not reach the
+  demonstration server" when the world fetch fails, and that is precisely when a reader
+  most needs telling what these pages are. A caution that ships with the JavaScript is
+  missing whenever the page is confusing.
+- Keeping it visible without measuring its height turned the page into a fixed-height
+  column with two scrolling panes. The sticky-bar alternative needs the banner's height as
+  a number and the banner wraps to two or three lines depending on the width, so that
+  number is wrong nearly everywhere. Below 860px the rail already stacks, so there the
+  document keeps its own scroll and the banner is merely sticky.
+- Four consequences of that were found by review rather than by running it, and each would
+  have looked fine in one browser: `.shell` had no declared grid row, so an `auto` row
+  sized from a long chapter's max-content would have grown past the shell and left neither
+  pane scrolling; `max-width` left on `.stage` would have floated the scrollbar 1180px from
+  the left edge, so it moved to `.stage > *`; `100vh` became `100dvh` because the revert
+  threshold is 860px and a tablet in landscape is above it; and a scroll container with no
+  focusable content cannot be scrolled from the keyboard at all, which on a prose-only
+  landing page meant the caution statement was unreachable without a mouse -- `#stage`
+  gained `tabindex="0"`.
+- `stage.scrollTop = 0` rather than `stage.scrollTo(...)`: jsdom implements the property
+  and not the method, and the throw would have escaped the `try`/`catch` in `show()` into
+  an unhandled rejection that takes both harnesses down. Verified against the installed
+  jsdom before writing it rather than after.
+- Nothing had ever asserted any caution wording -- `fictional`, `rail__note` and `footnote`
+  appeared in no test. Six checks now cover the banner being in the page and served, the
+  cautions being `CHAPTERS[0]`, the `unnumbered` flag being honoured, every panel of the
+  statement being served, and `README.md` making the same five cautions. Each was
+  confirmed to fail by mutating the thing it guards; structure and phrases are asserted,
+  never whole sentences, so the words stay editable by whoever spots a mistake.
+- `ui-clicks.mjs` now fails on a `.content-missing` marker. A prose-only chapter makes
+  "0 controls, all responded" a legitimate result rather than the vacuous one that harness
+  was written to catch, and `content.js` reports a missing key through `console.warn`,
+  which it was not intercepting. Proved by renaming a key: `MISSING CONTENT`, exit 1.
+- The `Dockerfile` packaging assertion covered the four static files and nothing about the
+  markdown. Without the prose the migrated descriptors carry no title, so the landing page
+  would have deployed as a blank heading over a column of red markers. It now asserts
+  `"cautions" in content.chapter_ids()`.
+- Two corrections to the supplied text: the banner sentence ended mid-clause, and "Global
+  AIC" became "Global ACI", which is the name the reader sees everywhere else.
+- Unverified and deliberately left so: "Recognized Entities v1.0 is a W3C Working Draft,
+  described by the Working Group as experimental and not fit for production deployment."
+  The version string and status wording should be checked against the published document.
+

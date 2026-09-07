@@ -5,11 +5,47 @@ An interactive demonstration of what W3C [Verifiable Credentials][vc] and
 conformity assessment — calibration certificates, CMCs and the CIPM MRA, accreditation
 scopes and the Global ACI MRA, test reports and certificates of conformity.
 
-> **Everything here is fictional.** Every organisation, identifier, certificate,
-> capability and signing key is invented. The identifiers use the `.example` domain
-> reserved by RFC 2606 and the keys are derived from a seed published in this repository.
-> Nothing produced by this project is an authentic output of any real institute,
-> accreditation body or certification body, and none of it should ever be presented as one.
+> **Curiosity project — not validated, not official.** An AI-assisted weekend experiment
+> exploring what W3C Verifiable Credentials might mean for the Quality Infrastructure. No
+> institution named here has reviewed or endorsed any of it.
+
+## About these pages, and what they are not
+
+This started as curiosity. A friend pointed me to the W3C Recognized Entities
+specification, whose use case §2.4 (Product Conformity) looked potentially relevant to the
+Quality Infrastructure. Over a few hours one weekend I used AI-assisted coding to sketch a
+simple metrology and accreditation scenario, mainly to understand Verifiable Credentials
+better myself. I was struck by how much came together in so little time — which is exactly
+why the following warnings matter.
+
+**Nothing here has been validated.** The concepts, data models, credential examples and
+workflows have not been reviewed, tested or checked against the specification by anyone.
+They are illustrative sketches, not reference implementations. Every organisation,
+identifier, certificate, capability and signing key is invented: the identifiers use the
+`.example` domain reserved by RFC 2606 and the keys are derived from a seed published in
+this repository, so they protect nothing. Nothing produced by this project is an authentic
+output of any real institute, accreditation body or certification body, and none of it
+should ever be presented as one.
+
+**No institution is speaking here.** BIPM, Global ACI, METAS and PTB appear only as
+recognisable placeholders in a fictional scenario. Nothing here represents their views,
+plans, positions or endorsement, and none of them were involved in or informed about this
+work.
+
+**The underlying specification is still moving.** Recognized Entities v1.0 is a W3C
+Working Draft, described by the Working Group as experimental and not fit for production
+deployment. Anything here may already be out of date.
+
+**No warranty.** The content is provided as-is, for educational purposes only, with no
+assurance of correctness or fitness for any purpose. Do not rely on it for any decision
+about accreditation, conformity assessment or metrological traceability.
+
+**No permanence.** These pages may change or disappear without notice.
+
+The same statement is the first chapter of the demonstration itself, in
+[`00-cautions.md`](src/vcqi/web/content/chapters/00-cautions.md). Correct one and correct
+the other. The hope is simply that this sparks curiosity — and, ideally, correction. If
+something here is wrong, I would genuinely like to hear it.
 
 ## Run it
 

@@ -54,7 +54,12 @@ function heading(t, chapter, field) {
 
 function buildRail(activeId) {
   clear(nav);
-  CHAPTERS.forEach((chapter, index) => {
+  // The rail number is the chapter's position among the *numbered* chapters, not its
+  // index in the array. An unnumbered entry -- the cautions, which come first -- carries
+  // a marker, so adding one does not renumber the eleven chapters the prose refers to
+  // by number.
+  const numbered = CHAPTERS.filter((chapter) => !chapter.unnumbered);
+  CHAPTERS.forEach((chapter) => {
     nav.append(
       el(
         'li',
@@ -66,7 +71,9 @@ function buildRail(activeId) {
             window.location.hash = chapter.id;
           },
         }, [
-          el('span', { class: 'rail__num', text: String(index) }),
+          chapter.unnumbered
+            ? el('span', { class: 'rail__num rail__num--mark', text: '⚠' })
+            : el('span', { class: 'rail__num', text: String(numbered.indexOf(chapter)) }),
           el('span', { text: heading(chapterText(content, chapter.id), chapter, 'title') }),
         ])
       )
@@ -117,6 +124,12 @@ async function show(id) {
     console.error(error);
   }
 
+  // The stage is the scroll container on a wide viewport and the document is on a
+  // narrow one, so reset both; whichever is not scrolling ignores it. `scrollTop = 0`
+  // rather than `stage.scrollTo(...)` because jsdom implements the property and not the
+  // method, and a throw here escapes the try/catch above into an unhandled rejection
+  // that takes both interaction harnesses down with it.
+  stage.scrollTop = 0;
   window.scrollTo({ top: 0 });
 }
 

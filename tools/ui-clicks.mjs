@@ -61,6 +61,8 @@ global.fetch = (input, init) =>
 const consoleErrors = [];
 console.error = (...args) => consoleErrors.push(args.map(String).join(' '));
 
+const contentMissing = [];
+
 const settle = (ms = SETTLE) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The bytes the server sends, not the ones on disk: see served-modules.mjs for
@@ -91,6 +93,19 @@ for (const chapter of CHAPTERS) {
     broken.push(`${chapter.id}: ${reason}`);
     console.log(`${chapter.id.padEnd(14)} FAILED TO RENDER — ${reason}`);
     continue;
+  }
+
+  // A prose-only chapter has no controls at all, so "0 controls, all responded" is now
+  // a legitimate result rather than the vacuous one this harness was written to catch.
+  // What can still go wrong on such a chapter is a content key that no markdown file
+  // defines, which content.js renders as a marker and reports through console.warn --
+  // not console.error, so nothing below would notice it.
+  const missing = [...stage.querySelectorAll('.content-missing')].map((node) =>
+    (node.textContent || '').trim()
+  );
+  if (missing.length) {
+    contentMissing.push(`${chapter.id}: ${missing.join(' ')}`);
+    console.log(`${chapter.id.padEnd(14)} MISSING CONTENT — ${missing.join(' ')}`);
   }
 
   const total = stage.querySelectorAll('button').length;
@@ -127,6 +142,7 @@ if (consoleErrors.length) {
 // the error and puts a banner on the page, and neither of those is an inert button.
 const failures = [];
 if (inert) failures.push(`${inert} inert control(s)`);
+if (contentMissing.length) failures.push(`${contentMissing.length} chapter(s) missing content`);
 if (broken.length) failures.push(`${broken.length} chapter(s) failed to render`);
 if (consoleErrors.length) failures.push(`${consoleErrors.length} console error(s)`);
 
