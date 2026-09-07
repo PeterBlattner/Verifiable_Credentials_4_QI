@@ -42,6 +42,8 @@ from vcqi.actors.scenarios import (
     CALLAB_CERTIFICATE,
     METAS_CALIBRATED_ON,
     METAS_ISSUED,
+    OIML_CERTIFICATE_ISSUED,
+    OIML_EVALUATION_ISSUED,
     _dcc_for,
     _callab_result,
     DEMO_NOW,
@@ -54,6 +56,7 @@ from vcqi.actors.scenarios import (
 from vcqi.crypto.dataintegrity import sign_document
 from vcqi.crypto.keys import build_did_document, derive_key
 from vcqi.domain.instruments import instrument_by_id
+from vcqi.domain.oiml import recommendation_by_id
 from vcqi.domain.uncertainty import evaluate, from_expanded_uncertainty, normal, rectangular
 from vcqi.vc.model import (
     budget_to_json,
@@ -821,3 +824,157 @@ DCC_CASES: tuple[TamperCase, ...] = (
 
 TAMPER_CASES = TAMPER_CASES + DCC_CASES
 _BY_KEY.update({case.key: case for case in DCC_CASES})
+# ---------------------------------------------------------------- legal metrology
+#
+# None of these are new mechanisms. Each one is a document that signs correctly, reaches
+# a genuine trust anchor, and is still wrong -- which is the only kind of failure worth
+# adding, because the cryptographic half was never the hard part.
+
+
+def _certified_against_the_wrong_recommendation() -> TamperResult:
+    """Certify a type against a Recommendation the Issuing Authority is not approved for.
+
+    The OIML analogue of applying the CIPM MRA logo outside a published CMC. Verifica is
+    recognised for R 46 and only R 46; this certificate cites R 60, which is a real
+    Recommendation covering something else entirely.
+    """
+    world = build_world()
+    other = recommendation_by_id("R 60")
+    assert other is not None
+
+    credential = copy.deepcopy(world.credential("oiml-certificate"))
+    payload = credential["credentialSubject"]["oimlCertificate"]
+    payload["recommendation"] = other.to_json()
+    payload["standard"] = other.identifier
+    signed = _resign(credential, "did:web:legal-ia.example", OIML_CERTIFICATE_ISSUED)
+    _republish(world, "oiml-certificate", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
+def _evaluation_rested_on_expired_calibration() -> TamperResult:
+    """Evaluate a type with a multimeter whose calibration had already lapsed.
+
+    Everything about the report is in order except the one thing that makes a type
+    evaluation a measurement rather than an opinion. The laboratory is genuinely
+    recognised, the signature is genuine, and the equipment it measured with was out of
+    calibration on the day.
+
+    The lapse is arranged by moving the evaluation later rather than by editing the
+    calibration certificate, so nothing is forged anywhere: the calibration really did
+    expire, and the evaluation really was performed after it.
+    """
+    world = build_world()
+    credential = copy.deepcopy(world.credential("oiml-evaluation"))
+    late = datetime.fromisoformat("2027-06-01T09:00:00+00:00")
+    credential["validFrom"] = "2027-06-01T09:00:00Z"
+    credential["credentialSubject"]["typeEvaluation"]["performedOn"] = "2027-05-28"
+    signed = _resign(credential, "did:web:testlab.example", late)
+    _republish(world, "oiml-evaluation", signed)
+    return TamperResult(world, signed, late)
+
+
+def _evaluation_by_an_unrecognised_laboratory() -> TamperResult:
+    """Rest the certificate on a report from a laboratory OIML never recognised.
+
+    The certificate is sound on its own terms -- signed by a recognised Issuing
+    Authority, inside its Recommendation, digest of the report intact. What is wrong is
+    one level down: the report the Issuing Authority reviewed was written by somebody
+    the scheme does not recognise, and only a verifier that follows the reference finds
+    out.
+    """
+    world = build_world()
+    rogue_key = derive_key(ROGUE_DID)
+    world.store.publish(ROGUE_DID, build_did_document(rogue_key), "did-document")
+
+    report = copy.deepcopy(world.credential("oiml-evaluation"))
+    report["id"] = "https://rogue.example/oiml/evaluations/RG-TE-2024-0001"
+    report["issuer"] = {
+        "id": ROGUE_DID,
+        "type": "RecognizedIssuer",
+        "name": "Definitely A Test Laboratory (demonstration)",
+    }
+    report.pop("credentialStatus", None)
+    signed_report, _ = sign_document(report, rogue_key, created=OIML_EVALUATION_ISSUED)
+    world.store.publish(signed_report["id"], signed_report, "credential")
+
+    certificate = copy.deepcopy(world.credential("oiml-certificate"))
+    payload = certificate["credentialSubject"]["oimlCertificate"]
+    payload["testReport"] = {
+        **credential_reference(signed_report, relation="TypeEvaluationReportCredential"),
+        "issuer": ROGUE_DID,
+    }
+    signed = _resign(certificate, "did:web:legal-ia.example", OIML_CERTIFICATE_ISSUED)
+    _republish(world, "oiml-certificate", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
+OIML_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="wrong-recommendation",
+        title="Certify a type against a Recommendation nobody approved",
+        group="standing",
+        description=(
+            "Verifica is recognised to issue OIML certificates against R 46, active "
+            "electrical energy meters. This certificate cites R 60, load cells. The "
+            "signature is genuine, the Issuing Authority is genuinely recognised, and "
+            "the recognition does not reach this far."
+        ),
+        expected_step="scope",
+        catches=(
+            "A Recommendation is what bounds an Issuing Authority, exactly as a "
+            "published CMC bounds an institute. Recognition is never recognition to do "
+            "anything at all, and a verifier that stopped at reaching OIML would accept "
+            "a certificate the scheme never authorised. Two checks reject this one, and "
+            "that is worth noticing rather than tidying away: the recognition names the "
+            "Recommendation, and it also names a schema built from it, so the document "
+            "fails validation against the very thing that bounds it. That doubling is "
+            "what a machine-readable Recommendation would buy -- and the schema here is "
+            "still a reading of the Recommendation rather than the Recommendation "
+            "itself, which is the open item in the last chapter."
+        ),
+        apply=_certified_against_the_wrong_recommendation,
+    ),
+    TamperCase(
+        key="evaluation-out-of-calibration",
+        title="Evaluate a type with equipment that was out of calibration",
+        group="metrological",
+        description=(
+            "The type evaluation was performed in May 2027 with a multimeter whose "
+            "accredited calibration expired in March 2027. Nothing is forged: the "
+            "laboratory is recognised, the report is signed, and the calibration it "
+            "rests on really had run out on the day the measurements were made."
+        ),
+        expected_step="traceability",
+        catches=(
+            "This is what makes a type evaluation a measurement rather than an opinion. "
+            "The report names the equipment it used and references that equipment's "
+            "calibration by content digest, so a verifier can ask whether the "
+            "traceability was live at the time -- a question no signature answers and "
+            "nobody asks of a paper report."
+        ),
+        apply=_evaluation_rested_on_expired_calibration,
+    ),
+    TamperCase(
+        key="unrecognised-test-laboratory",
+        title="Rest the certificate on a report from an unrecognised laboratory",
+        group="standing",
+        description=(
+            "The OIML certificate is correct in every respect: recognised issuer, right "
+            "Recommendation, valid signature, intact digest of the report it reviewed. "
+            "The report itself was written by a laboratory the OIML-CS does not "
+            "recognise."
+        ),
+        expected_step="traceability",
+        catches=(
+            "Reviewing the test results is the Issuing Authority's defined job under the "
+            "scheme, which means the certificate is only as good as the report beneath "
+            "it. Referencing that report as a document rather than as a number is what "
+            "lets a recipient check the level down -- and the level down is where this "
+            "one is wrong."
+        ),
+        apply=_evaluation_by_an_unrecognised_laboratory,
+    ),
+)
+
+TAMPER_CASES = TAMPER_CASES + OIML_CASES
+_BY_KEY.update({case.key: case for case in OIML_CASES})

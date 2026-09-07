@@ -25,8 +25,8 @@ tools/node_modules
 tools/package*.json
 
 # Not part of the running application. PLAN.md is a build journal and firstPrompt.md is
-# the prompt that started the project; ARCHITECTURE.md and LEGAL-METROLOGY.md are left
-# in because a later change set serves them from the site.
+# the prompt that started the project; ARCHITECTURE.md is left in because a later change
+# set serves it from the site.
 PLAN.md
 firstPrompt.md
 Dockerfile

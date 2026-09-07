@@ -64,11 +64,19 @@ from vcqi.vc.resolver import DocumentStore, Resolver
 __all__ = ["Step", "VerificationReport", "verify_credential", "REQUIRED_ACTIONS"]
 
 #: What an issuer has to be recognised to do in order to issue each kind of document.
-REQUIRED_ACTIONS = {
-    "CalibrationCertificateCredential": "issue",
-    "TestReportCredential": "issue",
-    "ProductConformityCredential": "issue",
-    "RecognizedEntityCredential": "accredit",
+#:
+#: A frozenset per type rather than one string, because a document can be authorised by
+#: more than one action and two arrangements name the same act differently. Global ACI
+#: *accredits* an accreditation body; OIML *recognises* a certification body and a
+#: laboratory. Both emit a ``RecognizedEntityCredential``, so a single required string
+#: made one of them wrong -- and wrong in the direction that fails a genuine document.
+REQUIRED_ACTIONS: dict[str, frozenset[str]] = {
+    "CalibrationCertificateCredential": frozenset({"issue"}),
+    "TestReportCredential": frozenset({"issue"}),
+    "ProductConformityCredential": frozenset({"issue"}),
+    "TypeEvaluationReportCredential": frozenset({"evaluate"}),
+    "OimlCertificateCredential": frozenset({"certify"}),
+    "RecognizedEntityCredential": frozenset({"accredit", "recognise"}),
 }
 
 #: How far a verifier follows traceability before stopping. The chains in this
@@ -222,9 +230,12 @@ def _most_specific_type(credential: dict[str, Any]) -> str:
 def _payload(credential: dict[str, Any]) -> dict[str, Any]:
     """Return the domain-specific part of a credential subject.
 
-    The three domain credential types each wrap their content in a differently named
-    member. This returns whichever one is present so the rest of the pipeline can be
-    written once.
+    Each domain credential type wraps its content in a differently named member. This
+    returns whichever one is present so the rest of the pipeline can be written once.
+
+    A type absent from this list reads as an empty payload, which makes every step
+    downstream skip rather than fail -- so a new credential type that forgets to appear
+    here verifies with most of its checks quietly not running.
 
     Args:
         credential: The credential to inspect.
@@ -235,7 +246,7 @@ def _payload(credential: dict[str, Any]) -> dict[str, Any]:
     subject = credential.get("credentialSubject")
     if not isinstance(subject, dict):
         return {}
-    for member in ("calibration", "testing", "conformity"):
+    for member in ("calibration", "testing", "conformity", "typeEvaluation", "oimlCertificate"):
         value = subject.get(member)
         if isinstance(value, dict):
             return value
@@ -268,8 +279,14 @@ def _capability_from_document(document: dict[str, Any]) -> DeclaredCapability | 
     Returns:
         The capability, or None when the document states no numeric capability.
     """
-    floor_source = document.get("expandedUncertainty") or document.get(
-        "bestMeasurementCapability"
+    # Three names for the same thing, because three registers chose three words: the
+    # KCDB says expandedUncertainty, an accreditation scope says
+    # bestMeasurementCapability, and an OIML Recommendation states the uncertainty it
+    # recognises for an evaluation. Chapter 11 has an item about exactly this.
+    floor_source = (
+        document.get("expandedUncertainty")
+        or document.get("bestMeasurementCapability")
+        or document.get("evaluationUncertainty")
     )
     required = ("measurand", "unit", "rangeMinimum", "rangeMaximum")
     if not isinstance(floor_source, dict) or any(name not in document for name in required):
@@ -406,9 +423,10 @@ def _step_action(
         )
 
     _, actions = chain.entity_for(issuer)
-    candidates = [action for action in actions if action.get("action") == required]
+    candidates = [action for action in actions if action.get("action") in required]
     if not candidates:
         offered = sorted({str(action.get("action")) for action in actions})
+        wanted = " or ".join(sorted(required))
         return (
             Step(
                 id="action",
@@ -417,9 +435,9 @@ def _step_action(
                 detail=(
                     f"{issuer} is recognised to {', '.join(offered) or 'do nothing'}, "
                     f"but issuing a {credential_type} requires being recognised to "
-                    f"{required}"
+                    f"{wanted}"
                 ),
-                evidence={"required": required, "offered": offered},
+                evidence={"required": sorted(required), "offered": offered},
             ),
             None,
         )
@@ -494,7 +512,7 @@ def _step_action(
             title="Recognition covers this kind of document",
             status=PASS,
             detail=(
-                f"{issuer} was recognised to {required} under "
+                f"{issuer} was recognised to {matched.get('action')} under "
                 f"{matched.get('capabilityReference', {}).get('identifier', 'this recognition')} "
                 f"when the document was issued"
             ),
@@ -889,6 +907,9 @@ def _traceability_references(credential: dict[str, Any]) -> list[dict[str, Any]]
     single = payload.get("traceableTo")
     if isinstance(single, dict):
         references.append(single)
+    report = payload.get("testReport")
+    if isinstance(report, dict):
+        references.append(report)
     for member in ("equipmentTraceability", "testReports"):
         value = payload.get(member)
         if isinstance(value, list):

@@ -262,6 +262,61 @@ to the reader. Renumbering to seat one page at 0 would falsify all of them, and 
 would notice, so `CHAPTERS` carries an `unnumbered` flag and `buildRail` numbers from the
 numbered entries instead of the array index.
 
+### OIML is an anchor, and it authorises nothing
+
+Reaching OIML establishes that a type was evaluated against an international
+Recommendation. That is real and it is reusable across borders, which is what the
+certification system exists for. What it does not establish is legal force, because a
+Recommendation is not law and only a national or regional authority confers permission.
+
+It would be tempting to leave OIML out of the trust anchors on those grounds, and that
+conflates two questions. The anchor answers "was this evaluated, and by somebody the
+scheme recognises". The legal question is separate, and it belongs on the document rather
+than in the trust list: the certificate carries `legalEffect: "none"` and a note saying
+what that means, and the schema the recognition points at makes the member *required*, so
+a certificate that drops it fails validation instead of reading as an approval.
+
+The national layer that would convert evidence into permission is not modelled, and
+neither are the OIML-CS Utilizer and Associate roles. That is a scope decision, not an
+oversight, and it leaves one honest gap: with no legal anchor in the world there is
+nothing for a "cited the wrong kind of document" check to point at as the correct
+alternative. So there is no such check. Chapter 11 carries the item instead, in the first
+tier, because a verifier that reads an attestation as an authorisation is worse than one
+that reads nothing.
+
+### A type is not an artefact
+
+`domain/instruments.py` models one physical object with a serial number, because a
+calibration certificate is a statement about that object on that day. An OIML certificate
+covers a design: the same document travels with every instrument built to it, and it stays
+valid for about a decade rather than a year.
+
+`domain/oiml.py` carries `InstrumentType` separately rather than giving `Instrument` an
+optional serial number. Collapsing the two would have hidden the distinction in a nullable
+field, and the distinction is most of what makes the legal-metrology branch different.
+What identifies a design — as against a family, or a module, or a variant that changed
+something nobody wrote down — is not solved here, and is a first-tier item in chapter 11.
+
+### The type evaluation report carries no dependency representation
+
+Every calibration certificate here offers its measurement four ways, including a binary
+UncLib form whose digest is checked against a committed blob. The type evaluation report
+offers none of that: its results are plain values with an Expanded Uncertainty.
+
+Two reasons, and the second is the honest one. A type evaluation asks whether a design
+meets a limit, so there is nothing downstream that would propagate the value further and
+nothing for a dependency structure to be useful to. And publishing a new binary form means
+regenerating `domain/unclib_blobs.json`, which requires a licensed machine — a real cost
+for a representation no reader of that chapter would have used.
+
+### `REQUIRED_ACTIONS` is a set per type, not a string
+
+Global ACI *accredits* an accreditation body. OIML *recognises* a certification body and a
+laboratory. Both emit a `RecognizedEntityCredential`, so one required action string per
+credential type was wrong for one of them — and wrong in the direction that rejects a
+genuine document. Two arrangements naming the same act differently is not an edge case;
+it is what a third arrangement was always going to expose.
+
 ### The scripts have to agree with each other
 
 The interface is separate ES modules loaded straight from disk, which is what keeps it

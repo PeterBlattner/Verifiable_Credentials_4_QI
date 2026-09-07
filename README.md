@@ -60,7 +60,7 @@ modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 ```
 uv run pytest                                  # the whole suite
 uv run python -m vcqi.actors.scenarios         # list every signed credential
-uv run python -m vcqi.actors.scenarios --dump out/   # write all 59 documents as JSON
+uv run python -m vcqi.actors.scenarios --dump out/   # write all 76 documents as JSON
 ```
 
 Two extras, both optional and neither needed to run the demonstration:
@@ -170,10 +170,12 @@ The quality infrastructure already works this way on paper.
 | Leaf credential | Calibration certificate, test report, certificate of conformity |
 | `recognizedIn`, followed upward | The recognition path a recipient checks by hand today |
 
-Note that one anchor is new: on 1 January 2026 the IAF and ILAC consolidated into
-**Global Accreditation Cooperation Incorporated (Global ACI)**, whose arrangement is the
-Global ACI *Multilateral* Recognition Arrangement. The CIPM MRA remains a *Mutual*
-Recognition Arrangement; the demo keeps the distinction exact.
+The accreditation anchor is a placeholder: **Global ACI** stands in for whichever body
+holds that role, and nothing in the demonstration rests on the name. Its arrangement is
+written as a *Multilateral* Recognition Arrangement and the CIPM MRA as a *Mutual* one,
+because the demonstration keeps that distinction rather than treating the two as
+interchangeable. A verifier follows identifiers upward and never needs to know which
+organisation occupies a position.
 
 Chapter 1 answers the question the rest of the demonstration assumes: what a public and
 a private key actually are. It derives a keypair in front of you, computes the public key
@@ -258,33 +260,75 @@ Helvetia ──test report──▶ Confoederatio ──certificate of conformit
 ```
 
 That authority runs eleven checks, and reaches a verified path from the kettle down to
-a national measurement standard, having fetched 73 documents and known none of the
+a national measurement standard, having fetched 76 documents and known none of the
 parties in advance.
+
+## Three arrangements, and where they join
+
+The demonstration models three roots of trust, one per arrangement:
+
+| Anchor | Arrangement | What reaching it establishes |
+| --- | --- | --- |
+| BIPM | CIPM MRA | The institute's calibrations are covered by a published CMC |
+| Global ACI | Global ACI MRA | The body is accredited for the activity it is performing |
+| OIML | OIML-CS | The type was evaluated against an international Recommendation |
+
+The interesting case is a document that needs two of them. An OIML certificate says a
+type of electricity meter meets OIML R 46. It rests on a type evaluation performed by a
+laboratory the OIML-CS recognises — and that evaluation is a *measurement*, made with a
+multimeter whose accredited calibration is traceable to a national standard. So verifying
+one certificate walks upward to OIML through recognition and downward to the BIPM through
+evidence, and the two paths have nothing in common except the laboratory in the middle.
+
+That laboratory, Helvetia Testing, is recognised twice for different things: accredited by
+SAS under ISO/IEC 17025, and recognised by OIML to perform type evaluation. One
+organisation, one identifier, two arrangements above it, neither aware the other exists.
+Chapter 11 has called composing arrangements "the entire reason for doing any of this"
+since it was written; this is the first document in the demonstration that actually does
+it, and chapter 2's filter is there to make the join visible.
+
+Two things the OIML-CS branch adds that the other pillars did not need:
+
+- **The Recommendation is the scope.** A CMC and an accreditation scope are declarations
+  an organisation writes about itself, so this project had to invent a machine-checkable
+  form for them. An OIML Recommendation is a numbered, edition-controlled document
+  published by somebody else, which is a much stronger thing for a recognition to point
+  at. What is still invented is the schema: R 46 is not machine-readable, so the schema
+  here is this project's reading of it. The OIML has a sub-group working towards
+  machine-readable Recommendations, and that gap is the last item in chapter 11.
+- **A certificate that attests without authorising.** An OIML certificate is evidence, not
+  permission — a Recommendation is not law. It carries `legalEffect: "none"` and a sentence
+  saying so, and the schema makes that a validation requirement, so a certificate that
+  quietly drops the disclaimer fails rather than reading as an approval. The authority that
+  would turn evidence into permission is not modelled at all.
+
+Two things it deliberately does **not** say, because no primary source to hand settles
+them: what distinguishes OIML-CS Scheme A from Scheme B, and what SMART stands for.
 
 ## Chapters
 
 0. **What a verifiable credential is** — for someone who has not met one before
 1. **Keys: what a signature actually proves** — make a keypair, sign something, break it four ways, then try to forge a certificate with it
-2. **The quality infrastructure as a trust graph** — click any organisation or edge
-3. **Issuing a calibration certificate** — canonical form, hashes, signature, step by step
+2. **The quality infrastructure as a trust graph** — thirteen organisations, three arrangements, filterable; click any organisation or edge
+3. **Issuing a certificate** — canonical form, hashes, signature, step by step
 4. **Verification and recognition discovery** — the full pipeline, with the clock and the trust anchors under your control
 5. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
 6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, the same measurement shown four ways including as a PTB/DKD DCC, and what gets said twice as a result
 7. **Why the dependencies matter** — two certificates, one shared standard, and what each way of reporting lets the customer do
-8. **Break it** — fifteen failure cases, each naming the one check that catches it
+8. **Break it** — 18 failure cases, each naming the check that catches it
 9. **What this would mean in practice** — the argument, and the open questions
 10. **What it would take to run** — the hosting burden computed per role, from the trust anchor down to a fifteen-person laboratory, and what a verifier actually fetches
 11. **What would have to be agreed** — global harmonisation in three tiers, what cannot be decided later, and a ladder of next steps ordered by who is able to act
 
-## The fifteen failure cases
+## The 18 failure cases
 
 Grouped by what it takes to notice them.
 
 | Group | Cases | Caught by |
 | --- | --- | --- |
 | **Forgery** | edited value, invented issuer, loosened schema, reissued parent | proof, recognition, output-validation, traceability |
-| **Standing** | expired, suspended accreditation, issuing outside the accredited activity | validity, recognition, action |
-| **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance, dependency data disagreeing with the printed line, traceability claimed but not inherited, the PTB/DKD DCC contradicting the printed value, the PTB/DKD DCC crediting a different laboratory | scope, mra-logo, traceability.inherited, uncertainty.agreement, traceability.shared-inputs, uncertainty.duplication |
+| **Standing** | expired, suspended accreditation, issuing outside the accredited activity, certifying a type against a Recommendation nobody approved, resting a certificate on an unrecognised laboratory | validity, recognition, action, scope, traceability |
+| **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance, dependency data disagreeing with the printed line, traceability claimed but not inherited, the PTB/DKD DCC contradicting the printed value, the PTB/DKD DCC crediting a different laboratory, a type evaluation made with equipment out of calibration | scope, mra-logo, traceability, traceability.inherited, uncertainty.agreement, traceability.shared-inputs, uncertainty.duplication |
 
 The third group is the interesting one: in every case the signature is valid, the issuer
 is genuinely recognised, and the document is inside its validity period. A system that
@@ -310,11 +354,20 @@ pull request; the tests run on the pull request and say plainly if an edit is wr
 `ARCHITECTURE.md` records the design decisions, the simplifications, and what a real
 deployment would need that this does not have.
 
-`LEGAL-METROLOGY.md` describes the third pillar of the quality infrastructure — type
-approval, verification and market surveillance — and how the demonstration would be
-extended to cover it. It is deliberately not covered here: legal metrology makes the
-argument broader rather than clearer, and the two pillars modelled are enough to show
-what verifiable credentials offer.
+The third pillar, legal metrology, is covered **only as OIML-CS**: an Issuing Authority
+recognised to certify a type against an OIML Recommendation, a Test Laboratory recognised
+to perform the type evaluation, and the certificate that rests on it. Utilizers and
+Associates are out of scope, and so is everything downstream of the certificate — national
+type approval, national verification, market surveillance. Those are where legal *force*
+comes from, and an OIML Recommendation is not law: the certificate here says in
+`legalEffect` that it authorises nothing anywhere, and the authority that would convert it
+into permission is not modelled.
+
+There was a design document for the broader version, `LEGAL-METROLOGY.md`, written after
+building it once and then reverting it. It has been deleted rather than left to contradict
+the code: most of it was about the national layer, which is not being built. It is still in
+git history if the argument is wanted — `git show ba1c144:LEGAL-METROLOGY.md`, with the
+reference implementation at `bf4b24d` and `bea1372`.
 
 [dcc]: https://www.ptb.de/dcc/
 [unclib]: https://www.metas.admin.ch/en/metas-unclib

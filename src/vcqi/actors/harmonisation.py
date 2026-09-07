@@ -5,6 +5,12 @@ what would they all have to agree with each other, for a certificate written in 
 country to mean the same thing in another. The two are different problems, and the second
 is the one the quality infrastructure exists to solve.
 
+There are three arrangements in this demonstration now, not two, and the third made the
+list longer in a way worth naming: the OIML-CS raised two questions neither of the others
+had to ask. What a document authorises as distinct from what it attests, and what
+identifies a design rather than one instrument. Both are in the first tier, because
+getting either wrong is not a missing feature but a wrong answer.
+
 Every item here passes one test, and items that fail it were left out: **two conforming
 implementations that differ here cannot interoperate.** That test is what separates a
 harmonisation need from a deployment gap. Deployment gaps — key custody, long-term
@@ -219,15 +225,19 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         status="open",
         requirement=(
             "A certificate of conformity can rest on an accreditation under the Global "
-            "ACI arrangement and on a calibration traceable under the CIPM MRA. Somebody "
-            "has to say how a verifier composes the two, and what it means when the two "
-            "arrangements disagree about the same organisation."
+            "ACI arrangement and on a calibration traceable under the CIPM MRA. An OIML "
+            "certificate rests on a type evaluation performed by a laboratory the OIML-CS "
+            "recognises, using equipment calibrated under the other two. Somebody has to "
+            "say how a verifier composes three arrangements, and what it means when two "
+            "of them disagree about the same organisation."
         ),
         demonstrated=(
-            "This demonstration trusts both anchors and lets a chain run through either "
-            "without ceremony. It composes because one author decided both arrangements "
-            "would use the same properties in the same way, which is the assumption a "
-            "real deployment does not get to make."
+            "The OIML certificate here is the case in miniature: following it upward "
+            "reaches OIML, and following its evidence downward reaches the BIPM through a "
+            "chain that has nothing in common with the first except the laboratory in the "
+            "middle. It composes because one author decided all three arrangements would "
+            "use the same properties in the same way, which is the assumption a real "
+            "deployment does not get to make."
         ),
         exists="",
         consequence=(
@@ -235,8 +245,9 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "cross-border case is the entire reason for doing any of this."
         ),
         forum=(
-            "The CIPM MRA and the Global ACI arrangement together. They have no standing "
-            "joint technical body, which makes this the hardest item here by some margin."
+            "The CIPM MRA, the Global ACI arrangement and the OIML together. No two of "
+            "them have a standing joint technical body, let alone all three, which makes "
+            "this the hardest item here by some margin."
         ),
     ),
     HarmonisationItem(
@@ -265,7 +276,9 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
         forum=(
             "Each arrangement for its own members — but the meanings have to line up "
-            "where a chain crosses between them."
+            "where a chain crosses between them, and there are three of them now. A "
+            "suspended OIML recognition and a suspended accreditation are the same bit "
+            "and not obviously the same act."
         ),
     ),
     HarmonisationItem(
@@ -280,9 +293,10 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "every other item here."
         ),
         demonstrated=(
-            "Two anchors are hard-coded as trusted, and chapter 4 lets a reader remove "
-            "one to watch what stops verifying. That is the decision a real deployment "
-            "has to make explicitly, publish, and defend."
+            "Three anchors are hard-coded as trusted — one per arrangement — and chapter "
+            "4 lets a reader remove them to watch what stops verifying. That is the "
+            "decision a real deployment has to make explicitly, publish, and defend, and "
+            "each arrangement added makes the list longer without making it more agreed."
         ),
         exists="",
         consequence=(
@@ -294,6 +308,72 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "The arrangements. Chapter 9 calls the custody of these keys a governance "
             "problem in a technical costume; the harmonisation question is the narrower "
             "one of who publishes the list and how it is fetched."
+        ),
+    ),
+    HarmonisationItem(
+        key="legal-effect",
+        tier="floor",
+        title="What a document authorises, as distinct from what it attests",
+        status="open",
+        requirement=(
+            "A verifier has to be able to tell evidence from permission. An OIML "
+            "certificate says a type was evaluated against a Recommendation and met it. "
+            "It does not say the instrument may be sold or used anywhere, because a "
+            "Recommendation is not law and only a national or regional authority confers "
+            "that. Somebody has to fix how a credential states which of the two it is, "
+            "so a verifier can act on the difference instead of a reader having to know "
+            "it."
+        ),
+        demonstrated=(
+            "The OIML certificate carries legalEffect: none and a sentence saying what "
+            "that means, and the schema behind the recognition makes it a validation "
+            "requirement, so a certificate that quietly drops the disclaimer fails "
+            "rather than reading as an approval. That is one project inventing one "
+            "property name. The authority that would convert this evidence into "
+            "permission is not modelled here at all."
+        ),
+        exists="",
+        consequence=(
+            "A verifier that reads an attestation as an authorisation is worse than one "
+            "that reads nothing, because it clears goods nobody approved and reports "
+            "that it checked. This is the one item on the page where getting it wrong "
+            "does active harm rather than merely failing to help."
+        ),
+        forum=(
+            "The OIML for its own certificates, and the W3C or its successor for the "
+            "general property, since the distinction is not peculiar to metrology: any "
+            "credential that attests without authorising has the same problem."
+        ),
+    ),
+    HarmonisationItem(
+        key="type-identity",
+        tier="floor",
+        title="What identifies a type, rather than an instrument",
+        status="open",
+        requirement=(
+            "Everything else in this demonstration is about one physical object with a "
+            "serial number. A type certificate covers a design, and the OIML-CS extends "
+            "that to families of instruments, to modules, and to families of modules. "
+            "Two parties have to be able to agree that the instrument in front of one of "
+            "them is the type the other certified, which needs an identifier for a design "
+            "and a rule for when a variant is still the same design."
+        ),
+        demonstrated=(
+            "A type here is a urn with a manufacturer designation, an accuracy class and "
+            "a list of module names, and nothing checks any of it. A meter presented at a "
+            "border could differ from the evaluated type in any respect not written down, "
+            "and the certificate would still verify."
+        ),
+        exists="",
+        consequence=(
+            "Without it a type certificate is a document about nothing in particular. It "
+            "verifies, it reaches an anchor, and it cannot be tied to the object being "
+            "inspected — which is the only reason anyone wanted it."
+        ),
+        forum=(
+            "The OIML, whose scheme already has the vocabulary of families and modules "
+            "and would have to say how each is identified. Manufacturers would have to "
+            "agree to use it, which is the harder half."
         ),
     ),
     HarmonisationItem(
@@ -437,6 +517,48 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         forum=(
             "The BIPM, with the PTB. A reconciliation between two existing things, not a "
             "decision taken on a blank page."
+        ),
+    ),
+    HarmonisationItem(
+        key="smart-recommendations",
+        tier="optional",
+        title="Machine-actionable requirements, in the Recommendation itself",
+        status="emerging",
+        requirement=(
+            "A recognition bounds what an entity may issue by pointing at a schema. For "
+            "an accreditation scope this project had to invent the schema, because the "
+            "scope is prose. An OIML Recommendation is a numbered, edition-controlled "
+            "published document, so the schema could be derived from it rather than "
+            "written about it — if the Recommendation carried its requirements in a form "
+            "a machine can read."
+        ),
+        demonstrated=(
+            "The recognition of the Issuing Authority points at a JSON Schema built by "
+            "hand from a reading of R 46. It pins the Recommendation identifier and "
+            "requires the certificate to reference its type evaluation report and to "
+            "state that it authorises nothing. Those are this project's judgements about "
+            "what R 46 requires, not R 46 speaking for itself, and a reader should treat "
+            "the numbers in it accordingly."
+        ),
+        exists=(
+            "The OIML has a sub-group on machine-readable documents under its "
+            "Digitalization Task Group, founded in November 2022, whose remit is "
+            "guidance and exchange towards machine-readable OIML documents. Its stated "
+            "prerequisites are a revision of OIML B 6 and clear requirements for the "
+            "numbering and organisation of sections, together with harmonised use of "
+            "vocabulary in headers and titles. R 60 is the pilot Recommendation, and the "
+            "group exchanges with IEC Strategic Group 12. No completion dates are stated."
+        ),
+        consequence=(
+            "Two Issuing Authorities encoding the same Recommendation differently would "
+            "bound themselves differently while both citing the same document, and a "
+            "verifier comparing their certificates would have no way to notice."
+        ),
+        forum=(
+            "The OIML, in a sub-group that already exists. Like the unit identifiers "
+            "above, this is closer to adoption than to agreement — which is why it sits "
+            "in this tier rather than the first: the certificate works today with an "
+            "invented schema, it just cannot be checked against the real requirement."
         ),
     ),
     HarmonisationItem(
@@ -637,6 +759,25 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "step, and it is an institutional one rather than a technical one."
         ),
         unblocks=("chain-crossing", "anchors"),
+    ),
+    NextStep(
+        order=7,
+        scope="The OIML, alongside the other two arrangements",
+        title="Say what a certificate authorises, and what identifies a type",
+        detail=(
+            "The legal-metrology branch adds two questions the other two never had to "
+            "ask, and both are upstream of it being useful rather than merely working. "
+            "One is the distinction between attesting and authorising, which this "
+            "demonstration answers by inventing a property name and hoping. The other is "
+            "what identifies a design, as against one instrument with a serial number — "
+            "the OIML-CS already has the vocabulary of families and modules, and would "
+            "have to say how each is identified before a certificate could be tied to the "
+            "object an inspector is holding.\n\nThis rung is last because it depends on "
+            "the ones above it and not the other way round. It is also the only one whose "
+            "forum plainly exists: the OIML has a standing structure for exactly this "
+            "conversation, which is more than can be said for the joint work in step 6."
+        ),
+        unblocks=("legal-effect", "type-identity", "smart-recommendations"),
     ),
 )
 

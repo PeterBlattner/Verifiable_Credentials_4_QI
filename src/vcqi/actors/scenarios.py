@@ -39,6 +39,7 @@ from vcqi.domain import accreditation as accreditation_registry
 from vcqi.domain import kcdb as kcdb_registry
 from vcqi.domain.engine import mu
 from vcqi.domain.instruments import SHARED_REFERENCE_PAIR, instrument_by_id
+from vcqi.domain.oiml import RECOMMENDATIONS, instrument_type_by_id, recommendation_by_id
 from vcqi.domain.dcc import to_dcc_xml
 from vcqi.domain.gtc_archive import build_gtc_archive
 from vcqi.domain.uncertainty import (
@@ -59,11 +60,13 @@ from vcqi.vc.model import (
     calibration_certificate_credential,
     credential_reference,
     issuer_reference,
+    oiml_certificate_credential,
     product_conformity_credential,
     recognized_action,
     recognized_entity_credential,
     status_entry,
     test_report_credential,
+    type_evaluation_report_credential,
     uncertainty_representations,
 )
 from vcqi.vc.resolver import DocumentStore
@@ -89,6 +92,11 @@ METAS_CHECK_B = "https://metas.example/certificates/METAS-2026-0419"
 TESTLAB_REPORT = "https://testlab.example/reports/HTS-2026-3391"
 CAB_CERTIFICATE = "https://cab.example/certificates/CPC-2026-0055"
 
+OIML_IA_RECOGNITION = "https://oiml.example/recognition/issuing-authorities-2021"
+OIML_TL_RECOGNITION = "https://oiml.example/recognition/test-laboratories-2021"
+OIML_EVALUATION = "https://testlab.example/oiml/evaluations/HTS-TE-2024-0114"
+OIML_CERTIFICATE = "https://legal-ia.example/oiml/R46-2024-CH1-0037"
+
 BIPM_STATUS = "https://bipm.example/status/recognition"
 GLOBAL_ACI_STATUS = "https://global-aci.example/status/recognition"
 SAS_STATUS = "https://sas.example/status/accreditation"
@@ -96,9 +104,19 @@ METAS_STATUS = "https://metas.example/status/certificates"
 CALLAB_STATUS = "https://callab.example/status/certificates"
 TESTLAB_STATUS = "https://testlab.example/status/reports"
 CAB_STATUS = "https://cab.example/status/certificates"
+# Two lists, and two purposes. A recognition is withdrawn by suspending it; a
+# certificate is withdrawn by revoking it. Collapsing them would make "this document is
+# listed" mean two different things depending on which document it was.
+#
+# The laboratory's type evaluation reports go on the revocation list it already has for
+# its test reports. One issuer, one list: `_register` keys a status list by the issuer's
+# domain, so a second list for the same actor would silently replace the first.
+OIML_RECOGNITION_STATUS = "https://oiml.example/status/recognition"
+OIML_CERTIFICATE_STATUS = "https://legal-ia.example/status/certificates"
 
 CMC_SCHEMA_BASE = "https://bipm.example/schemas"
 ACCREDITATION_SCHEMA_BASE = "https://sas.example/schemas"
+OIML_SCHEMA_BASE = "https://oiml.example/schemas"
 
 #: Position of each credential in the status list of its issuer.
 STATUS_INDEX = {
@@ -109,6 +127,10 @@ STATUS_INDEX = {
     CALLAB_CERTIFICATE: 3,
     TESTLAB_REPORT: 5,
     CAB_CERTIFICATE: 2,
+    OIML_IA_RECOGNITION: 1,
+    OIML_TL_RECOGNITION: 2,
+    OIML_EVALUATION: 6,
+    OIML_CERTIFICATE: 4,
 }
 
 
@@ -155,6 +177,22 @@ TESTLAB_EXPIRES = _utc(2031, 5, 8, 14, 0)
 CAB_ISSUED_ON = "2026-06-01"
 CAB_ISSUED = _utc(2026, 6, 1, 8, 0)
 CAB_EXPIRES = _utc(2031, 5, 31, 8, 0)
+
+# The legal-metrology layer has its own timeline, and it has to. OIML has run its
+# certification system for decades and the recognitions here predate the 2026 dates the
+# rest of the world uses -- so an OIML certificate issued in 2024 is issued under a
+# recognition that already existed, which is the whole point. Dating them from 2026
+# alongside Global ACI made the action check reject that certificate, correctly.
+OIML_RECOGNITION_FROM = _utc(2021, 4, 1)
+OIML_RECOGNITION_UNTIL = _utc(2031, 4, 1)
+OIML_EVALUATED_ON = "2024-08-14"
+OIML_EVALUATION_ISSUED = _utc(2024, 9, 2, 11, 0)
+OIML_EVALUATION_EXPIRES = _utc(2034, 9, 2, 11, 0)
+OIML_CERTIFICATE_ISSUED_ON = "2024-09-30"
+OIML_CERTIFICATE_ISSUED = _utc(2024, 9, 30, 9, 0)
+# A type certificate is valid for about a decade, where a calibration certificate is
+# valid for a year. That difference is what makes long-term validation bite here.
+OIML_CERTIFICATE_EXPIRES = _utc(2034, 9, 30, 9, 0)
 
 #: The instant the demonstration treats as "now" when nothing else is specified.
 DEMO_NOW = _utc(2026, 9, 4, 12, 0)
@@ -487,6 +525,118 @@ def _build_schemas(world: World) -> dict[str, dict[str, Any]]:
         world.schemas[schema_id] = schema
         world.store.publish(schema_id, schema, "schema")
 
+    # The OIML schemas. These are what `outputValidation` on the two recognitions points
+    # at, and they are the one place in this demonstration where that mechanism has a
+    # real document behind it rather than an invented one -- an OIML Recommendation is
+    # numbered, edition-controlled and published by somebody else. What is still invented
+    # is the schema: the Recommendation is not machine-readable yet, so these encode a
+    # reading of it rather than the thing itself. That gap is the chapter 11 item.
+    recommendation = recommendation_by_id("R 46")
+    assert recommendation is not None
+
+    evaluation_schema_id = f"{OIML_SCHEMA_BASE}/type-evaluation-{recommendation.number.replace(' ', '-')}.json"
+    evaluation_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": evaluation_schema_id,
+        "title": f"Type evaluation report against {recommendation.identifier}",
+        "description": (
+            "Requires the report to cite the Recommendation it evaluated against and to "
+            "reference the calibration of the equipment it measured with. A type "
+            "evaluation that cannot say what it measured with is not traceable, however "
+            "well it is signed."
+        ),
+        "type": "object",
+        "required": ["type", "credentialSubject"],
+        "properties": {
+            "type": {
+                "type": "array",
+                "contains": {"const": "TypeEvaluationReportCredential"},
+            },
+            "credentialSubject": {
+                "type": "object",
+                "required": ["typeEvaluation"],
+                "properties": {
+                    "typeEvaluation": {
+                        "type": "object",
+                        "required": [
+                            "recommendation",
+                            "results",
+                            "equipmentTraceability",
+                        ],
+                        "properties": {
+                            "recommendation": {
+                                "type": "object",
+                                "required": ["identifier"],
+                                "properties": {
+                                    "identifier": {"const": recommendation.identifier}
+                                },
+                            },
+                            "results": {"type": "array", "minItems": 1},
+                            "equipmentTraceability": {"type": "array", "minItems": 1},
+                        },
+                    }
+                },
+            },
+        },
+    }
+    schemas["oiml-evaluation"] = evaluation_schema
+    world.schemas[evaluation_schema_id] = evaluation_schema
+    world.store.publish(evaluation_schema_id, evaluation_schema, "schema")
+
+    certificate_schema_id = f"{OIML_SCHEMA_BASE}/certificate-{recommendation.number.replace(' ', '-')}.json"
+    certificate_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": certificate_schema_id,
+        "title": f"OIML certificate against {recommendation.identifier}",
+        "description": (
+            "Requires the certificate to cite the Recommendation, to reference the type "
+            "evaluation report it rests on, and to state that it carries no legal "
+            "effect. The last of those is a schema requirement rather than a convention "
+            "so that a certificate which quietly drops the disclaimer fails validation "
+            "instead of reading as an approval."
+        ),
+        "type": "object",
+        "required": ["type", "credentialSubject"],
+        "properties": {
+            "type": {
+                "type": "array",
+                "contains": {"const": "OimlCertificateCredential"},
+            },
+            "credentialSubject": {
+                "type": "object",
+                "required": ["oimlCertificate"],
+                "properties": {
+                    "oimlCertificate": {
+                        "type": "object",
+                        "required": [
+                            "certificateNumber",
+                            "recommendation",
+                            "testReport",
+                            "legalEffect",
+                        ],
+                        "properties": {
+                            "recommendation": {
+                                "type": "object",
+                                "required": ["identifier"],
+                                "properties": {
+                                    "identifier": {"const": recommendation.identifier}
+                                },
+                            },
+                            "testReport": {
+                                "type": "object",
+                                "required": ["id", "digestMultibase"],
+                            },
+                            "legalEffect": {"const": "none"},
+                        },
+                    }
+                },
+            },
+        },
+    }
+    schemas["oiml-certificate"] = certificate_schema
+    world.schemas[certificate_schema_id] = certificate_schema
+    world.store.publish(certificate_schema_id, certificate_schema, "schema")
+
     return schemas
 
 
@@ -496,6 +646,10 @@ def _publish_registries(world: World) -> None:
     Args:
         world: The world being built.
     """
+    for recommendation in RECOMMENDATIONS:
+        world.store.publish(
+            recommendation.url, recommendation.to_json(), "registry-entry"
+        )
     for entry in kcdb_registry.CMC_ENTRIES:
         world.store.publish(entry.url, entry.to_json(), "registry-entry")
     for scope in accreditation_registry.ACCREDITATION_SCOPES:
@@ -534,8 +688,10 @@ def _status_lists(world: World) -> None:
         (SAS_STATUS, "did:web:sas.example", "suspension", "Accreditations granted by the accreditation body"),
         (METAS_STATUS, "did:web:metas.example", "revocation", "Calibration certificates of the institute"),
         (CALLAB_STATUS, "did:web:callab.example", "revocation", "Calibration certificates of the laboratory"),
-        (TESTLAB_STATUS, "did:web:testlab.example", "revocation", "Test reports of the laboratory"),
+        (TESTLAB_STATUS, "did:web:testlab.example", "revocation", "Test reports and type evaluation reports of the laboratory"),
         (CAB_STATUS, "did:web:cab.example", "revocation", "Certificates of conformity"),
+        (OIML_RECOGNITION_STATUS, "did:web:oiml.example", "suspension", "Recognition of Issuing Authorities and Test Laboratories"),
+        (OIML_CERTIFICATE_STATUS, "did:web:legal-ia.example", "revocation", "OIML certificates of type evaluation"),
     ]
     for url, did, purpose, description in definitions:
         actor = actor_by_did(did)
@@ -1079,6 +1235,282 @@ def _test_report_and_conformity(world: World) -> None:
     world._register("cab-conformity", signed, trace)
 
 
+def _oiml_certification(world: World, schemas: dict[str, dict[str, Any]]) -> None:
+    """Build the OIML-CS branch: two recognitions, an evaluation, and a certificate.
+
+    This is the part of the demonstration that reaches two roots of trust from one
+    document, and the shape is worth reading carefully because it is not the shape of
+    the other two branches.
+
+    The Issuing Authority is recognised by OIML to certify against R 46, and only R 46.
+    The laboratory is recognised by OIML to evaluate against it -- and is *separately*
+    accredited by SAS under ISO/IEC 17025, which it already was. One laboratory, one
+    identifier, two arrangements above it, and nothing in either arrangement aware of
+    the other.
+
+    The evaluation report then references the calibration certificate of the multimeter
+    it measured with, by content digest. So a verifier following the certificate goes up
+    to OIML through recognition and down to the BIPM through evidence, and the two paths
+    have nothing in common but the laboratory in the middle.
+
+    Args:
+        world: The world being built.
+        schemas: The generated schemas, keyed by identifier.
+    """
+    oiml = actor_by_did("did:web:oiml.example")
+    issuing_authority = actor_by_did("did:web:legal-ia.example")
+    testlab = actor_by_did("did:web:testlab.example")
+    meterworks = actor_by_did("did:web:meterworks.example")
+    assert None not in (oiml, issuing_authority, testlab, meterworks)
+
+    recommendation = recommendation_by_id("R 46")
+    meter_type = instrument_type_by_id("urn:type:meterworks:mw-e3:rev-b")
+    multimeter = instrument_by_id("urn:instrument:testlab:multimeter:DMM-1177")
+    assert recommendation is not None and meter_type is not None
+    assert multimeter is not None
+
+    valid_from = _stamp(OIML_RECOGNITION_FROM)
+    valid_until = _stamp(OIML_RECOGNITION_UNTIL)
+    capability = {
+        "id": recommendation.url,
+        "type": "OimlRecommendation",
+        "identifier": recommendation.identifier,
+    }
+
+    # --- OIML recognises an Issuing Authority ---------------------------------------
+    credential = recognized_entity_credential(
+        credential_id=OIML_IA_RECOGNITION,
+        issuer=issuer_reference("did:web:oiml.example", oiml.legal_name),
+        valid_from=valid_from,
+        valid_until=valid_until,
+        subjects=[
+            {
+                "id": issuing_authority.did,
+                "type": "RecognizedEntity",
+                "name": issuing_authority.name,
+                "legalName": issuing_authority.legal_name,
+                "url": issuing_authority.url,
+                "description": issuing_authority.description,
+                "recognizedTo": [
+                    recognized_action(
+                        "certify",
+                        "did:web:oiml.example",
+                        output_validation=schema_reference(schemas["oiml-certificate"]),
+                        capability_reference=capability,
+                        description=(
+                            f"Issue OIML certificates of type evaluation against "
+                            f"{recommendation.identifier}, {recommendation.title}. The "
+                            f"Recommendation is the bound: a certificate against any "
+                            f"other one is outside this recognition."
+                        ),
+                        valid_from=valid_from,
+                        valid_until=valid_until,
+                    )
+                ],
+            }
+        ],
+        name="OIML-CS Issuing Authorities, 2021 edition",
+        description=(
+            "Certification bodies in OIML Member States approved to issue OIML "
+            "certificates, and the Recommendations each is approved for. Recognition "
+            "here establishes that a type was evaluated against an international "
+            "Recommendation. It establishes no legal permission anywhere: an OIML "
+            "Recommendation is not law."
+        ),
+        credential_status=status_entry(
+            OIML_RECOGNITION_STATUS,
+            STATUS_INDEX[OIML_IA_RECOGNITION],
+            purpose="suspension",
+        ),
+    )
+    signed, trace = sign_document(
+        credential, actor_key("did:web:oiml.example"), created=OIML_RECOGNITION_FROM
+    )
+    world._register("oiml-ia-recognition", signed, trace)
+
+    # --- OIML recognises a Test Laboratory ------------------------------------------
+    #
+    # The same laboratory SAS accredited. Its description says so, and the two
+    # recognitions are deliberately not cross-referenced: neither arrangement knows the
+    # other exists, which is exactly the situation chapter 11 says nobody has agreed how
+    # to compose.
+    credential = recognized_entity_credential(
+        credential_id=OIML_TL_RECOGNITION,
+        issuer=issuer_reference("did:web:oiml.example", oiml.legal_name),
+        valid_from=valid_from,
+        valid_until=valid_until,
+        subjects=[
+            {
+                "id": testlab.did,
+                "type": "RecognizedEntity",
+                "name": testlab.name,
+                "legalName": testlab.legal_name,
+                "url": testlab.url,
+                "description": testlab.description,
+                "sameAs": SAS_RECOGNITION,
+                "recognizedTo": [
+                    recognized_action(
+                        "evaluate",
+                        "did:web:oiml.example",
+                        output_validation=schema_reference(schemas["oiml-evaluation"]),
+                        capability_reference=capability,
+                        description=(
+                            f"Perform type evaluation and testing against "
+                            f"{recommendation.identifier}, using equipment whose "
+                            f"calibration is traceable and can be demonstrated."
+                        ),
+                        valid_from=valid_from,
+                        valid_until=valid_until,
+                    )
+                ],
+            }
+        ],
+        name="OIML-CS Test Laboratories, 2021 edition",
+        description=(
+            "Laboratories recognised within the OIML certification system to perform "
+            "type evaluation, and the Recommendations each is recognised for. A "
+            "laboratory here is typically also accredited under ISO/IEC 17025 by a "
+            "national accreditation body; that is a separate recognition under a "
+            "separate arrangement, and this one does not depend on it."
+        ),
+        credential_status=status_entry(
+            OIML_RECOGNITION_STATUS,
+            STATUS_INDEX[OIML_TL_RECOGNITION],
+            purpose="suspension",
+        ),
+    )
+    signed, trace = sign_document(
+        credential, actor_key("did:web:oiml.example"), created=OIML_RECOGNITION_FROM
+    )
+    world._register("oiml-tl-recognition", signed, trace)
+
+    # --- The laboratory evaluates the type ------------------------------------------
+    #
+    # The results are plain values with an Expanded Uncertainty rather than
+    # MeasurementResult objects. A type evaluation asks whether a design meets a limit,
+    # not what value to propagate onward, so there is nothing downstream that needs the
+    # dependency structure -- and carrying one would mean publishing a binary UncLib
+    # form, which cannot be regenerated without a licence.
+    calibration = world.credential("callab-calibration")
+    credential = type_evaluation_report_credential(
+        credential_id=OIML_EVALUATION,
+        issuer=issuer_reference(
+            "did:web:testlab.example", testlab.legal_name, recognized_in=OIML_TL_RECOGNITION
+        ),
+        valid_from=_stamp(OIML_EVALUATION_ISSUED),
+        valid_until=_stamp(OIML_EVALUATION_EXPIRES),
+        report_number="HTS-TE-2024-0114",
+        performed_on=OIML_EVALUATED_ON,
+        instrument_type=meter_type.to_json(),
+        client={"id": meterworks.did, "name": meterworks.legal_name},
+        recommendation=recommendation.to_json(),
+        tests=[
+            {
+                "type": "TypeEvaluationResult",
+                "clause": f"{recommendation.identifier} clause 5.2",
+                "characteristic": "Percentage error at 5 A, unity power factor",
+                "value": 0.31,
+                "unit": "%",
+                "expandedUncertainty": 0.08,
+                "coverageFactor": 2,
+                "requirement": "within plus or minus 1.0 % for class B",
+                "verdict": "pass",
+            },
+            {
+                "type": "TypeEvaluationResult",
+                "clause": f"{recommendation.identifier} clause 5.2",
+                "characteristic": "Percentage error at 0.5 A, power factor 0.5 inductive",
+                "value": -0.74,
+                "unit": "%",
+                "expandedUncertainty": 0.12,
+                "coverageFactor": 2,
+                "requirement": "within plus or minus 1.5 % for class B",
+                "verdict": "pass",
+            },
+            {
+                "type": "TypeEvaluationResult",
+                "clause": f"{recommendation.identifier} clause 6.3",
+                "characteristic": "Error variation under influence of ambient temperature",
+                "value": 0.19,
+                "unit": "%",
+                "expandedUncertainty": 0.06,
+                "coverageFactor": 2,
+                "requirement": "within plus or minus 0.5 % for class B",
+                "verdict": "pass",
+            },
+        ],
+        capability_reference=capability,
+        equipment_traceability=[
+            {
+                **credential_reference(
+                    calibration, relation="CalibrationCertificateCredential"
+                ),
+                "equipment": multimeter.id,
+                "note": (
+                    "The reference measurements were made with this multimeter, whose "
+                    "accredited calibration certificate is referenced here by content "
+                    "digest. That certificate is traceable to a national standard, so "
+                    "the evaluation is traceable and not merely signed."
+                ),
+            }
+        ],
+        credential_status=status_entry(TESTLAB_STATUS, STATUS_INDEX[OIML_EVALUATION]),
+    )
+    evaluation, trace = sign_document(
+        credential, actor_key("did:web:testlab.example"), created=OIML_EVALUATION_ISSUED
+    )
+    world._register("oiml-evaluation", evaluation, trace)
+
+    # --- The Issuing Authority issues the certificate -------------------------------
+    credential = oiml_certificate_credential(
+        credential_id=OIML_CERTIFICATE,
+        issuer=issuer_reference(
+            "did:web:legal-ia.example",
+            issuing_authority.legal_name,
+            recognized_in=OIML_IA_RECOGNITION,
+        ),
+        valid_from=_stamp(OIML_CERTIFICATE_ISSUED),
+        valid_until=_stamp(OIML_CERTIFICATE_EXPIRES),
+        certificate_number="R46/2024-CH1-0037",
+        issued_on=OIML_CERTIFICATE_ISSUED_ON,
+        instrument_type=meter_type.to_json(),
+        applicant={"id": meterworks.did, "name": meterworks.legal_name},
+        recommendation=recommendation.to_json(),
+        characteristics={
+            "type": "OimlCharacteristics",
+            "accuracyClass": meter_type.accuracy_class,
+            "measurand": recommendation.measurand,
+            "unit": recommendation.unit,
+            "ratedVoltage": "230/400 V",
+            "ratedFrequency": "50 Hz",
+            "currentRange": "0.25 A to 100 A",
+            "temperatureRange": "-25 to +55 degrees Celsius",
+        },
+        test_report={
+            **credential_reference(
+                evaluation, relation="TypeEvaluationReportCredential"
+            ),
+            "issuer": testlab.did,
+            "note": (
+                "The type evaluation this certificate rests on. Reviewing it is the "
+                "Issuing Authority's defined job under the OIML-CS, so it is referenced "
+                "as a document a verifier can fetch rather than as a number it can only "
+                "read."
+            ),
+        },
+        capability_reference=capability,
+        credential_status=status_entry(
+            OIML_CERTIFICATE_STATUS, STATUS_INDEX[OIML_CERTIFICATE]
+        ),
+    )
+    signed, trace = sign_document(
+        credential,
+        actor_key("did:web:legal-ia.example"),
+        created=OIML_CERTIFICATE_ISSUED,
+    )
+    world._register("oiml-certificate", signed, trace)
+
+
 def _whois_presentations(world: World) -> None:
     """Publish, for each recognised actor, a presentation describing itself.
 
@@ -1097,6 +1529,7 @@ def _whois_presentations(world: World) -> None:
         "did:web:callab.example": "sas-recognition",
         "did:web:testlab.example": "sas-recognition",
         "did:web:cab.example": "sas-recognition",
+        "did:web:legal-ia.example": "oiml-ia-recognition",
     }
     for did, credential_name in membership.items():
         url = whois_url(did)
@@ -1132,6 +1565,7 @@ def build_world() -> World:
     _calibration_certificates(world)
     _shared_reference_pair(world, world.results['metas-calibration'])
     _test_report_and_conformity(world)
+    _oiml_certification(world, schemas)
     _whois_presentations(world)
     return world
 
