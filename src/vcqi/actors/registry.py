@@ -116,9 +116,9 @@ ACTORS: tuple[Actor, ...] = (
         role="Accreditation trust anchor",
         country="",
         description=(
-            "Formed on 1 January 2026 when the IAF and ILAC consolidated into one body. "
             "Records which accreditation bodies are signatories to its multilateral "
-            "recognition arrangement, and for which standards."
+            "recognition arrangement, and for which standards. A stand-in for whichever "
+            "body holds the accreditation anchor role; nothing here rests on the name."
         ),
         issues="Recognition of accreditation bodies",
     ),

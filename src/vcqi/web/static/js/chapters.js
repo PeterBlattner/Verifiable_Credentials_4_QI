@@ -435,7 +435,7 @@ async function chapterGraph(context) {
   fragment.append(
     prose([
       'Ten organisations, and one supply chain running through them. A national metrology institute calibrates a laboratory&rsquo;s transfer standard; the laboratory calibrates a testing laboratory&rsquo;s multimeter; the testing laboratory measures a kettle; a certification body certifies the kettle; the manufacturer presents that certificate at a border.',
-      'One of the two anchors is new. On 1 January 2026 the IAF and ILAC consolidated into a single body, <strong>Global Accreditation Cooperation Incorporated</strong>, whose arrangement is the Global ACI Multilateral Recognition Arrangement. Worth pausing on, because it is exactly the event a real deployment has to survive: a trust anchor changing its name, and with it the identifier every credential beneath it points at. Everything a verifier had configured would need to follow.',
+      'The two organisations at the top are the roots of trust: one for metrology, one for accreditation. Both are inventions, like everything else here. <strong>Global ACI</strong> stands in for whichever body holds the accreditation role, and nothing in the demonstration rests on that name &mdash; a verifier reaches an anchor by following identifiers upward from the document in front of it, not by knowing who occupies the position.',
       'Click any organisation to see the identifier it signs with and what it has issued. Click any edge to read the credential behind it.',
     ])
   );
