@@ -20,17 +20,29 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const BOX = { width: 170, height: 48 };
 
+// Five rows, three columns of anchor. Reading down a column follows one arrangement;
+// reading across a row is a level of the hierarchy. The legal-metrology column is on the
+// right because its two long edges -- OIML recognising a laboratory that SAS also
+// accredits, and that laboratory's report travelling to the Issuing Authority -- have to
+// cross the diagram, and they read better crossing into the middle than out of it.
+//
+// A node with no entry here is skipped and every edge touching it dropped, both without
+// a word. `test_every_node_has_a_position_in_the_diagram` exists so that cannot happen
+// quietly.
 const POSITIONS = {
-  'did:web:bipm.example': { x: 60, y: 24 },
-  'did:web:global-aci.example': { x: 560, y: 24 },
-  'did:web:metas.example': { x: 30, y: 140 },
-  'did:web:ptb.example': { x: 215, y: 140 },
-  'did:web:sas.example': { x: 560, y: 140 },
-  'did:web:callab.example': { x: 120, y: 262 },
-  'did:web:testlab.example': { x: 390, y: 262 },
-  'did:web:cab.example': { x: 660, y: 262 },
-  'did:web:manufacturer.example': { x: 520, y: 384 },
-  'did:web:surveillance.example': { x: 800, y: 384 },
+  'did:web:bipm.example': { x: 40, y: 24 },
+  'did:web:global-aci.example': { x: 400, y: 24 },
+  'did:web:oiml.example': { x: 820, y: 24 },
+  'did:web:metas.example': { x: 20, y: 146 },
+  'did:web:ptb.example': { x: 200, y: 146 },
+  'did:web:sas.example': { x: 400, y: 146 },
+  'did:web:callab.example': { x: 110, y: 268 },
+  'did:web:testlab.example': { x: 370, y: 268 },
+  'did:web:cab.example': { x: 630, y: 268 },
+  'did:web:manufacturer.example': { x: 500, y: 390 },
+  'did:web:legal-ia.example': { x: 820, y: 390 },
+  'did:web:meterworks.example': { x: 820, y: 512 },
+  'did:web:surveillance.example': { x: 1010, y: 512 },
 };
 
 function svg(tag, attrs, children) {
@@ -160,7 +172,7 @@ export function renderGraph(graph, options) {
 
   const canvas = svg(
     'svg',
-    { class: 'graph', viewBox: '0 0 1000 460', role: 'img', 'aria-label': 'Trust graph of the demonstration' },
+    { class: 'graph', viewBox: '0 0 1200 580', role: 'img', 'aria-label': 'Trust graph of the demonstration' },
     [defs, edgeLayer, nodeLayer]
   );
 

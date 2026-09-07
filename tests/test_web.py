@@ -29,10 +29,30 @@ def test_page_is_served(client: TestClient) -> None:
 def test_world_describes_the_demonstration(client: TestClient) -> None:
     """The world endpoint carries everything the interface needs to start."""
     data = client.get("/api/world").json()
-    assert len(data["graph"]["nodes"]) == 10
-    assert data["graph"]["trustAnchors"] == ["did:web:bipm.example", "did:web:global-aci.example"]
+    assert len(data["graph"]["nodes"]) == 13
+    assert data["graph"]["trustAnchors"] == [
+        "did:web:bipm.example",
+        "did:web:global-aci.example",
+        "did:web:oiml.example",
+    ]
     assert len(data["tamperCases"]) == len(TAMPER_CASES)
     assert any(entry["identifier"] == "CH-EM-0042" for entry in data["cmcEntries"])
+
+
+def test_every_node_has_a_position_in_the_diagram(client: TestClient) -> None:
+    """A node graph.js has no coordinates for is skipped, and its edges dropped.
+
+    Both silently -- `graph.js` does `if (!position) continue;` for a node and filters
+    edges whose endpoints it cannot place. So adding an actor and forgetting the layout
+    does not raise anywhere; it just draws a picture that is missing something. This is
+    the check that makes that impossible.
+    """
+    positions = (STATIC_ROOT / "js" / "graph.js").read_text(encoding="utf-8")
+    declared = set(re.findall(r"'(did:web:[a-z0-9.-]+)':", positions))
+    data = client.get("/api/world").json()
+    served = {node["id"] for node in data["graph"]["nodes"]}
+    assert not served - declared, f"no position in graph.js for: {sorted(served - declared)}"
+    assert not declared - served, f"graph.js positions an actor nobody serves: {sorted(declared - served)}"
 
 
 def test_graph_edges_are_derived_from_the_credentials(client: TestClient) -> None:

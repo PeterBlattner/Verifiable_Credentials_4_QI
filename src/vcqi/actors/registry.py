@@ -123,6 +123,21 @@ ACTORS: tuple[Actor, ...] = (
         issues="Recognition of accreditation bodies",
     ),
     Actor(
+        did="did:web:oiml.example",
+        name="OIML",
+        legal_name="International Organization of Legal Metrology (demonstration)",
+        role="Legal metrology trust anchor",
+        country="",
+        description=(
+            "Runs the OIML certification system: records which certification bodies are "
+            "approved to issue OIML certificates, and which laboratories are recognised "
+            "to perform the type evaluation they rest on. Reaching it establishes that a "
+            "type was evaluated against an international Recommendation. It establishes "
+            "no legal permission anywhere, because a Recommendation is not law."
+        ),
+        issues="Recognition of Issuing Authorities and Test Laboratories",
+    ),
+    Actor(
         did="did:web:metas.example",
         name="METAS",
         legal_name="Federal Institute of Metrology (demonstration)",
@@ -174,13 +189,16 @@ ACTORS: tuple[Actor, ...] = (
         did="did:web:testlab.example",
         name="Helvetia Testing",
         legal_name="Helvetia Testing Services GmbH (demonstration)",
-        role="Accredited testing laboratory",
+        role="Accredited testing laboratory, and OIML Test Laboratory",
         country="CH",
         description=(
             "Tests products against product standards using equipment whose "
-            "calibration it must be able to demonstrate."
+            "calibration it must be able to demonstrate. Recognised twice, and for "
+            "different things: accredited by SAS under ISO/IEC 17025, and recognised "
+            "within the OIML certification system to perform type evaluation. One "
+            "laboratory, one identifier, two arrangements above it."
         ),
-        issues="Accredited test reports",
+        issues="Accredited test reports, and OIML type evaluation reports",
     ),
     Actor(
         did="did:web:cab.example",
@@ -195,6 +213,20 @@ ACTORS: tuple[Actor, ...] = (
         issues="Certificates of conformity",
     ),
     Actor(
+        did="did:web:legal-ia.example",
+        name="Verifica",
+        legal_name="Verifica Legal Metrology Certification AG (demonstration)",
+        role="OIML Issuing Authority",
+        country="CH",
+        description=(
+            "A certification body in an OIML Member State, approved to issue OIML "
+            "certificates. It does not test: it reviews the type evaluation a "
+            "recognised laboratory performed and issues the certificate on the "
+            "strength of it."
+        ),
+        issues="OIML certificates of type evaluation",
+    ),
+    Actor(
         did="did:web:manufacturer.example",
         name="Acme Appliances",
         legal_name="Acme Appliances AG (demonstration)",
@@ -206,14 +238,26 @@ ACTORS: tuple[Actor, ...] = (
         ),
     ),
     Actor(
+        did="did:web:meterworks.example",
+        name="Meterworks",
+        legal_name="Meterworks Instrumentation AG (demonstration)",
+        role="Manufacturer",
+        country="CH",
+        description=(
+            "Applies for the OIML certificate covering its electricity meter type, and "
+            "holds it. A type certificate covers a design rather than one instrument, so "
+            "the same document travels with every meter of that type."
+        ),
+    ),
+    Actor(
         did="did:web:surveillance.example",
         name="Market surveillance",
         legal_name="Importing Market Surveillance Authority (demonstration)",
         role="Verifier",
         country="XX",
         description=(
-            "Has no relationship with anyone upstream, trusts only the two "
-            "international anchors, and has to decide whether to clear the goods."
+            "Has no relationship with anyone upstream, trusts only the international "
+            "anchors, and has to decide whether to clear the goods."
         ),
     ),
 )
@@ -221,7 +265,7 @@ ACTORS: tuple[Actor, ...] = (
 #: The identifiers the verifier is configured to trust directly. Everything else has to
 #: be reached from one of these by following recognition, which is the entire point.
 TRUST_ANCHORS: frozenset[str] = frozenset(
-    {"did:web:bipm.example", "did:web:global-aci.example"}
+    {"did:web:bipm.example", "did:web:global-aci.example", "did:web:oiml.example"}
 )
 
 _BY_DID = {actor.did: actor for actor in ACTORS}
