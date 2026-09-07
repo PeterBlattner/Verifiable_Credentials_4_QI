@@ -39,6 +39,35 @@ const CREDENTIAL_LABELS = {
 
 const MAIN_CREDENTIALS = Object.keys(CREDENTIAL_LABELS);
 
+// ---------------------------------------------------------------- the cautions
+
+// The cautions, and the reason they are the first thing rather than a footnote. This
+// chapter reads nothing from `context.world`, so it renders even when the world payload
+// is thin or the demonstration behind it is broken -- a caution that only appears once
+// everything else works is a caution that fails when it is most needed. The banner in
+// index.html covers the case where not even this has loaded.
+async function chapterCautions(context) {
+  // Prose: web/content/chapters/00-cautions.md
+  const t = context.text('cautions');
+  const fragment = document.createDocumentFragment();
+
+  fragment.append(t.prose('where-this-came-from'));
+
+  // Written out rather than looped over the five keys: tests/test_content.py checks that
+  // every content key is a literal string a regex can find, because the coverage checks
+  // in both directions depend on that. A template literal here would pass silently in
+  // the browser and take the static checks with it.
+  fragment.append(panel(t.text('nothing-validated.title'), null, t.prose('nothing-validated.body')));
+  fragment.append(panel(t.text('no-institution.title'), null, t.prose('no-institution.body')));
+  fragment.append(panel(t.text('spec-moving.title'), null, t.prose('spec-moving.body')));
+  fragment.append(panel(t.text('no-warranty.title'), null, t.prose('no-warranty.body')));
+  fragment.append(panel(t.text('no-permanence.title'), null, t.prose('no-permanence.body')));
+
+  fragment.append(t.callout('correction'));
+
+  return fragment;
+}
+
 // ---------------------------------------------------------------- chapter 0
 
 function triangle() {
@@ -70,7 +99,7 @@ function triangle() {
 }
 
 async function chapterOrientation(context) {
-  // Prose: web/content/chapters/00-orientation.md
+  // Prose: web/content/chapters/01-orientation.md
   const t = context.text('orientation');
   const fragment = document.createDocumentFragment();
 
@@ -1683,7 +1712,21 @@ async function chapterHarmonisation(context) {
 
 export const CHAPTERS = [
   {
-    // Heading text comes from web/content/chapters/00-orientation.md
+    // First deliberately: app.js falls back to CHAPTERS[0] for an empty or unknown
+    // hash, so this is also the landing page. Heading text comes from
+    // web/content/chapters/00-cautions.md
+    //
+    // `unnumbered` keeps it out of the chapter numbering rather than taking 0 from
+    // orientation. ARCHITECTURE.md fixes the numbers because the prose says "chapter 5"
+    // and "the next chapter" in twenty-odd places, several of them in editorial fields
+    // served to the reader from actors/harmonisation.py; shifting them all to seat this
+    // page at 0 would break every one of those silently.
+    id: 'cautions',
+    unnumbered: true,
+    render: chapterCautions,
+  },
+  {
+    // Heading text comes from web/content/chapters/01-orientation.md
     id: 'orientation',
     render: chapterOrientation,
   },

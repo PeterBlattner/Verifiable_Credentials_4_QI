@@ -234,6 +234,34 @@ in blocks something interpolates. One convention underpins the rest — content 
 literal strings at the call site, never computed — and its own test enforces that,
 because a computed key would make every other check unable to see it.
 
+### The cautions are markup, first, and unnumbered
+
+The short banner is literal markup in `index.html` rather than something `app.js` renders.
+The stage shows only "Could not reach the demonstration server" when the world fetch
+fails, and that is precisely the state in which a reader most needs to be told what these
+pages are — a caution that arrives with the JavaScript is missing whenever the page is
+confusing. The full statement behind it is a content file like any other chapter, so it
+can be corrected without a checkout; the two-sentence banner is not, and `CONTENT.md`
+says so, because an editor who cannot find a file assumes it does not exist.
+
+Keeping the banner permanently visible is what turned the page into a fixed-height column
+with two scrolling panes. The alternative — a sticky bar plus a matching top offset on the
+rail — needs the banner's height as a number, and the banner wraps to two or three lines
+depending on the viewport, so that number is wrong at most widths. Below 860px the rail
+already stacks above the stage, so there the document gets its scroll back and the banner
+is merely sticky. The consequences are written down where they bite: `.shell` declares its
+one grid row explicitly, `.stage` puts the 1180px measure on its children rather than on
+the scroller, `app.js` resets both `stage.scrollTop` and the window, and there is an
+`@media print` block because a caution statement is the likeliest thing here for someone
+to circulate as a PDF.
+
+The cautions sit first in the rail but carry a marker rather than the number 0. Chapter
+order is fixed for the reason given above, and roughly two dozen places refer to chapters
+by number — several of them editorial fields in `actors/harmonisation.py` that are served
+to the reader. Renumbering to seat one page at 0 would falsify all of them, and no test
+would notice, so `CHAPTERS` carries an `unnumbered` flag and `buildRail` numbers from the
+numbered entries instead of the array index.
+
 ### The scripts have to agree with each other
 
 The interface is separate ES modules loaded straight from disk, which is what keeps it

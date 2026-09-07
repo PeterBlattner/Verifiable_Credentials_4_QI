@@ -14,7 +14,12 @@ not.
 
 | # | Chapter | File |
 | --- | --- | --- |
-| 0 | What a verifiable credential is | [`00-orientation.md`](src/vcqi/web/content/chapters/00-orientation.md) |
+| — | About these pages, and what they are not | [`00-cautions.md`](src/vcqi/web/content/chapters/00-cautions.md) |
+| 0 | What a verifiable credential is | [`01-orientation.md`](src/vcqi/web/content/chapters/01-orientation.md) |
+
+The cautions come first in the rail but carry no chapter number, because the prose refers
+to chapters by number in a good many places and seating them at 0 would make every one of
+those references wrong.
 
 Chapters not listed above still carry their text inside
 `src/vcqi/web/static/js/chapters.js` and are being moved a chapter at a time. If you want
@@ -23,6 +28,12 @@ important, and doing one because someone actually wants to edit it is a better r
 than doing them in sequence.
 
 ## What is not here
+
+The short caution banner at the top of every page. It is in
+`src/vcqi/web/static/index.html`, as plain markup rather than in a content file, because
+it has to be on the page even when the server cannot be reached and nothing has loaded —
+which is exactly when a reader most needs it. The full statement behind it *is* editable
+here, in `00-cautions.md`, and is mirrored in `README.md`; change one and change the other.
 
 Button and slider labels, the names of the organisations and certificates, the failure
 cases, and the tables in the last two chapters. Those are data rather than prose and live

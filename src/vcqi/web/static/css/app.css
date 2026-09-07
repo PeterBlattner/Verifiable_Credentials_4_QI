@@ -70,7 +70,8 @@
 html, body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
 }
 
 body {
@@ -84,19 +85,33 @@ body {
 
 /* ---------- layout ---------- */
 
+/* The caution banner has to stay visible without anything measuring its height, which
+   rules out a sticky bar with a matching offset on the rail: the banner wraps to two or
+   three lines depending on the viewport, and a hardcoded offset is wrong at most widths.
+   So the page is a fixed-height column instead. The banner is a row that does not
+   scroll, and the rail and the stage each get their own scrollbar. Below 860px this is
+   undone -- see the narrow-width block -- because there the rail stacks above the stage
+   and the document has to scroll as a whole or the content below is unreachable. */
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .shell {
   display: grid;
   grid-template-columns: var(--rail) minmax(0, 1fr);
-  min-height: 100vh;
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .rail {
   border-right: 1px solid var(--rule);
   background: var(--paper-raised);
   padding: 22px 0 40px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -147,6 +162,7 @@ body {
 }
 
 .rail__num { color: var(--ink-faint); font-variant-numeric: tabular-nums; font-size: 12px; }
+.rail__num--mark { color: var(--warn); }
 .rail__link[aria-current="true"] .rail__num { color: var(--accent); }
 
 .rail__note {
@@ -158,7 +174,39 @@ body {
   color: var(--ink-faint);
 }
 
-.stage { padding: 40px 44px 96px; max-width: 1180px; }
+.stage { padding: 40px 44px 96px; min-height: 0; overflow-y: auto; }
+.stage > * { max-width: 1180px; }
+
+/* ---------- caution banner ---------- */
+
+.banner {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 9px 22px;
+  background: var(--warn-soft);
+  border-bottom: 1px solid var(--rule);
+}
+
+.banner__text {
+  margin: 0;
+  flex: 1 1 32ch;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.banner__text strong { color: var(--warn); }
+
+.banner__link {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 560;
+  color: var(--anchor);
+  white-space: nowrap;
+}
 
 /* ---------- typography ---------- */
 
@@ -235,9 +283,14 @@ a { color: var(--accent); }
 }
 
 @media (max-width: 860px) {
-  .shell { grid-template-columns: 1fr; }
-  .rail { position: static; height: auto; }
-  .stage { padding: 24px 20px 64px; }
+  /* The rail stacks above the stage here, so two independent scrollers would put the
+     whole demonstration below the fold of a box that does not scroll. Give the document
+     back its own scroll and stick the banner to the top of it instead. */
+  body { height: auto; overflow: visible; }
+  .banner { position: sticky; top: 0; z-index: 20; }
+  .shell { grid-template-columns: 1fr; overflow: visible; }
+  .rail { height: auto; }
+  .stage { padding: 24px 20px 64px; height: auto; overflow: visible; }
 }
 
 /* ---------- controls ---------- */
@@ -438,8 +491,8 @@ pre.code, .json {
   tab-size: 2;
 }
 
-.json { max-height: 460px; overflow-y: auto; }
-.json--tall { max-height: 720px; }
+.json { max-height: min(460px, 55vh); overflow-y: auto; }
+.json--tall { max-height: min(720px, 70vh); }
 
 .tok-key { color: var(--accent); }
 .tok-str { color: var(--pass); }
@@ -576,4 +629,14 @@ svg.graph { display: block; width: 100%; height: auto; }
   padding: 1px 6px;
   font-family: var(--mono);
   font-size: 12px;
+}
+
+/* ---------- print ---------- */
+
+@media print {
+  html, body { height: auto; overflow: visible; }
+  .shell { display: block; overflow: visible; }
+  .rail { display: none; }
+  .stage { padding: 0; min-height: 0; overflow: visible; }
+  .banner { border-bottom: 1px solid #999; }
 }

@@ -54,7 +54,7 @@ MISSING_PREFIX: Final[str] = "[missing content: "
 #: ``mapping.title``, ``mapping.hint`` and ``mapping.rows`` read as belonging together.
 _BLOCK: Final = re.compile(r"^## +([a-z0-9][a-z0-9.-]*)\s*$", re.MULTILINE)
 
-#: ``00-orientation.md`` -> ``orientation``. The number is there so a directory listing
+#: ``01-orientation.md`` -> ``orientation``. The number is there so a directory listing
 #: reads in chapter order; the authoritative order is the CHAPTERS array in chapters.js,
 #: and a test asserts the two agree so the listing cannot lie.
 _FILENAME: Final = re.compile(r"^(\d+)-([a-z][a-z-]*)$")
@@ -136,9 +136,9 @@ def _stamp() -> tuple[tuple[str, int], ...]:
     """Return a fingerprint of the content files as they are on disk now.
 
     Returns:
-        One ``(name, modification time)`` per file. Eighteen ``stat`` calls per request
-        to ``/api/content``, which is once per page load, in exchange for an edit being
-        visible on reload without restarting anything.
+        One ``(name, modification time)`` per file -- one ``stat`` per migrated
+        chapter, per request to ``/api/content``, which is once per page load. That is
+        the price of an edit being visible on reload without restarting anything.
     """
     return tuple(
         (path.name, path.stat().st_mtime_ns) for _, _, path in _chapter_files()

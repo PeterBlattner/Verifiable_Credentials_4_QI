@@ -55,6 +55,12 @@ import vcqi.web
 root = pathlib.Path(vcqi.web.__file__).parent / "static"
 for required in ("index.html", "js/app.js", "js/chapters.js", "css/app.css"):
     assert (root / required).is_file(), f"missing from the wheel: {required}"
+# The chapter prose is markdown rather than Python, so nothing about it being importable
+# proves it shipped. Without it every migrated chapter falls back to a descriptor that no
+# longer carries a title, and the reader gets a blank heading and a column of red markers
+# on the landing page -- which is the caution statement.
+import vcqi.web.content as content
+assert "cautions" in content.chapter_ids(), "the chapter prose did not reach the wheel"
 import vcqi.domain.unclib_blobs as blobs
 assert blobs.BLOBS_PATH.is_file(), "the committed UncLib blobs did not reach the wheel"
 print("interface and blobs present")

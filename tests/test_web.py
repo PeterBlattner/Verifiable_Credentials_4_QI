@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pathlib
 import re
 
 import pytest
@@ -249,6 +250,86 @@ def test_every_chapter_in_the_rail_has_a_render_function() -> None:
     assert len(ids) == len(set(ids))
     for name in re.findall(r"^    render: (\w+),$", source, flags=re.MULTILINE):
         assert f"async function {name}(" in source
+
+
+class TestTheCautionsCannotBeRemovedQuietly:
+    """The one part of this project whose disappearance should not be silent.
+
+    Nothing used to assert any of the caution wording, so every copy of it could be
+    softened or deleted by an edit that no test objected to. These assert structure and
+    a few load-bearing phrases rather than whole sentences: the statement is meant to be
+    editable through the content layer by whoever spots a mistake in it, and a test that
+    pinned the paragraphs would take that away.
+    """
+
+    #: The claims the banner exists to make. Wording around them is free to change.
+    BANNER_PHRASES = ("not validated", "not official", "reviewed or endorsed")
+
+    #: One panel each in the full statement, keyed rather than quoted.
+    CAUTION_KEYS = (
+        "nothing-validated",
+        "no-institution",
+        "spec-moving",
+        "no-warranty",
+        "no-permanence",
+    )
+
+    def test_the_banner_is_in_the_page_itself(self) -> None:
+        """Not rendered by app.js: it has to survive the server being unreachable."""
+        page = (STATIC_ROOT / "index.html").read_text(encoding="utf-8")
+        assert 'class="banner"' in page
+        for phrase in self.BANNER_PHRASES:
+            assert phrase in page, f"the banner no longer says {phrase!r}"
+        assert 'href="#cautions"' in page, "the banner does not link to the full statement"
+
+    def test_the_banner_is_served(self, client: TestClient) -> None:
+        """And reaches a browser, rather than only existing on disk."""
+        body = client.get("/").text
+        assert 'class="banner"' in body
+        for phrase in self.BANNER_PHRASES:
+            assert phrase in body
+
+    def test_the_cautions_are_the_first_chapter(self) -> None:
+        """Which is what makes them the landing page for a bare URL.
+
+        ``app.js`` falls back to ``CHAPTERS[0]`` for an empty or unknown hash, so this
+        is load-bearing and an unrelated reordering would undo it without a word.
+        """
+        source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+        ids = re.findall(r"^    id: '([a-z-]+)',$", source, flags=re.MULTILINE)
+        assert ids[0] == "cautions", f"the first chapter is {ids[0]!r}"
+
+    def test_the_cautions_carry_no_chapter_number(self) -> None:
+        """Renumbering the chapters would falsify every reference to one by number."""
+        source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+        entry = re.search(r"\{[^{}]*id: 'cautions'[^{}]*\}", source, flags=re.DOTALL)
+        assert entry and "unnumbered: true" in entry.group(0)
+        app_js = (STATIC_ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        assert "unnumbered" in app_js, "buildRail no longer honours the flag"
+
+    def test_the_full_statement_is_served(self, client: TestClient) -> None:
+        """Every panel of it, by key, so the words stay editable."""
+        blocks = client.get("/api/content").json()["chapters"]["cautions"]
+        for key in self.CAUTION_KEYS:
+            assert f"{key}.title" in blocks, f"the {key} caution lost its heading"
+            assert blocks[f"{key}.body"]["text"].strip(), f"the {key} caution is empty"
+        assert blocks["where-this-came-from"]["text"].strip()
+        assert blocks["correction"]["text"].strip()
+
+    def test_the_repository_says_the_same_thing(self, client: TestClient) -> None:
+        """Two copies of a caution drift; this is the cheapest thing that notices.
+
+        The words are deliberately not compared -- the two are formatted differently and
+        always will be. What must not diverge is which cautions are made at all, so the
+        headings are matched instead.
+        """
+        readme = (
+            pathlib.Path(__file__).resolve().parents[1] / "README.md"
+        ).read_text(encoding="utf-8")
+        blocks = client.get("/api/content").json()["chapters"]["cautions"]
+        for key in self.CAUTION_KEYS:
+            heading = blocks[f"{key}.title"]["text"]
+            assert heading in readme, f"README.md does not make the {heading!r} caution"
 
 
 def test_harmonisation_serves_three_tiers_and_a_ladder(client: TestClient) -> None:
