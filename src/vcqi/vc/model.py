@@ -1,6 +1,6 @@
 """Builders for the credential shapes this demonstration uses.
 
-Four credential types carry the story:
+Six credential types carry the story:
 
 ``RecognizedEntityCredential``
     Straight from the Recognized Entities specification. A recognising authority lists
@@ -19,6 +19,16 @@ Four credential types carry the story:
 ``ProductConformityCredential``
     The certificate of conformity of the Product Conformity use case, which references
     the test reports it rests on.
+
+``TypeEvaluationReportCredential``
+    An OIML type evaluation report. Like a test report it references the calibration
+    certificates of the equipment used, which is what makes a type evaluation traceable
+    rather than merely signed.
+
+``OimlCertificateCredential``
+    An OIML certificate. It states that a *type* of instrument meets a specific OIML
+    Recommendation, references the type evaluation report it rests on, and says in
+    ``legalEffect`` that it authorises nothing anywhere.
 
 The credential subjects are kept deliberately readable rather than being modelled on
 the PTB/DKD DCC schema. A calibration certificate additionally carries a PTB/DKD DCC
@@ -60,6 +70,8 @@ __all__ = [
     "calibration_certificate_credential",
     "test_report_credential",
     "product_conformity_credential",
+    "type_evaluation_report_credential",
+    "oiml_certificate_credential",
     "status_entry",
     "budget_to_json",
     "measurement_result_to_json",
@@ -523,6 +535,190 @@ def product_conformity_credential(
                 "capabilityReference": capability_reference,
                 "testReports": test_reports,
             },
+        },
+    }
+    if credential_status is not None:
+        credential["credentialStatus"] = credential_status
+    return credential
+
+
+def type_evaluation_report_credential(
+    *,
+    credential_id: str,
+    issuer: dict[str, Any],
+    valid_from: str,
+    valid_until: str,
+    report_number: str,
+    performed_on: str,
+    instrument_type: dict[str, Any],
+    client: dict[str, Any],
+    recommendation: dict[str, Any],
+    tests: list[dict[str, Any]],
+    capability_reference: dict[str, Any],
+    equipment_traceability: list[dict[str, Any]],
+    credential_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build an OIML type evaluation report as a verifiable credential.
+
+    This is the document the legal-metrology branch rests on, and the reason that branch
+    is worth having: a type evaluation is a measurement, so the report has to say what it
+    measured with. ``equipment_traceability`` points by content digest at the calibration
+    certificates of the instruments used, and those certificates carry their own
+    recognition upward through an accreditation body and a national institute.
+
+    So a verifier that follows this report reaches two roots of trust from one document:
+    OIML, by following recognition up from the issuer, and the BIPM, by following
+    evidence down into the calibrations. Nothing else here does that.
+
+    The results are stated as plain values with an Expanded Uncertainty rather than as
+    ``MeasurementResult`` objects with a dependency representation. That is a deliberate
+    limit: a type evaluation establishes that a design meets a requirement, and the
+    requirement is a limit rather than a value anyone propagates further. See
+    ARCHITECTURE.md.
+
+    Args:
+        credential_id: URL the report is published at.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        valid_from: Start of validity, as an XML Schema dateTime.
+        valid_until: End of validity, as an XML Schema dateTime.
+        report_number: The report number as printed on a paper report.
+        performed_on: Date the evaluation was performed, as an ISO 8601 date.
+        instrument_type: The evaluated design, from ``InstrumentType.to_json``.
+        client: Reference to the organisation that commissioned the evaluation.
+        recommendation: The Recommendation evaluated against, from
+            ``Recommendation.to_json``.
+        tests: The individual test results, each carrying its own limit and verdict.
+        capability_reference: Reference to the recognition bounding the evaluation.
+        equipment_traceability: References to the calibration certificates of the
+            equipment used. This is what carries traceability into a type evaluation,
+            and the failure case for an expired one exists because of it.
+        credential_status: Optional credentialStatus member.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    credential: dict[str, Any] = {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": credential_id,
+        "type": ["VerifiableCredential", "TypeEvaluationReportCredential"],
+        "name": f"OIML type evaluation report {report_number}",
+        "issuer": issuer,
+        "validFrom": valid_from,
+        "validUntil": valid_until,
+        "credentialSubject": {
+            **instrument_type,
+            "client": client,
+            "typeEvaluation": {
+                "type": "TypeEvaluation",
+                "reportNumber": report_number,
+                "performedOn": performed_on,
+                "recommendation": recommendation,
+                # The quantity the results report, lifted from the Recommendation so the
+                # two cannot disagree. The capability check reads the claim's measurand
+                # from here rather than from an individual result.
+                "measurand": recommendation.get("measurand"),
+                "standard": recommendation.get("identifier"),
+                "results": tests,
+                "capabilityReference": capability_reference,
+                "equipmentTraceability": equipment_traceability,
+                "recognized": True,
+            },
+        },
+    }
+    if credential_status is not None:
+        credential["credentialStatus"] = credential_status
+    return credential
+
+
+def oiml_certificate_credential(
+    *,
+    credential_id: str,
+    issuer: dict[str, Any],
+    valid_from: str,
+    valid_until: str,
+    certificate_number: str,
+    issued_on: str,
+    instrument_type: dict[str, Any],
+    applicant: dict[str, Any],
+    recommendation: dict[str, Any],
+    characteristics: dict[str, Any],
+    test_report: dict[str, Any],
+    capability_reference: dict[str, Any] | None = None,
+    credential_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build an OIML certificate of type evaluation.
+
+    An OIML certificate is real evidence and it is not an approval. It says that a design
+    was evaluated against an international Recommendation and met it, which is exactly
+    the technical work a national authority would otherwise have to repeat. What it cannot
+    do is make the instrument lawful anywhere, because a Recommendation is not law. Only
+    a national or regional authority can do that, and it does so in a separate document
+    that this demonstration does not model.
+
+    The distinction is carried explicitly in ``legalEffect`` rather than left to be
+    inferred, so that a verifier can act on it instead of a reader having to know it.
+
+    ``test_report`` is a reference rather than an identifier string. The Issuing
+    Authority's defined job under the OIML-CS is to review the test results before
+    issuing, so the report it reviewed has to be something a verifier can fetch and check
+    rather than a number it can only read.
+
+    Args:
+        credential_id: URL the certificate is published at.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        valid_from: Start of validity, as an XML Schema dateTime.
+        valid_until: End of validity, as an XML Schema dateTime.
+        certificate_number: The OIML certificate number.
+        issued_on: Date of issue, as an ISO 8601 date.
+        instrument_type: The evaluated design, from ``InstrumentType.to_json``.
+        applicant: Reference to the manufacturer that applied.
+        recommendation: The Recommendation certified against, from
+            ``Recommendation.to_json``.
+        characteristics: The metrological characteristics the evaluation established.
+        test_report: Reference to the type evaluation report, from
+            :func:`credential_reference`.
+        capability_reference: Reference to the recognition bounding what the Issuing
+            Authority may certify.
+        credential_status: Optional credentialStatus member.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    certificate: dict[str, Any] = {
+        "type": "OimlTypeApproval",
+        "certificateNumber": certificate_number,
+        "issuedOn": issued_on,
+        "recommendation": recommendation,
+        # A certificate states no measured value, so the capability check takes its
+        # method path: does the Recommendation this was issued against appear among
+        # those the recognition covers. That is the OIML analogue of a CMC deciding
+        # whether the logo may be applied.
+        "standard": recommendation.get("identifier"),
+        "characteristics": characteristics,
+        "testReport": test_report,
+    }
+    if capability_reference is not None:
+        certificate["capabilityReference"] = capability_reference
+    certificate["legalEffect"] = "none"
+    certificate["legalEffectNote"] = (
+        "This certificate is type-evaluation evidence under the OIML certification "
+        "system. It is not a national or regional approval and confers no legal "
+        "permission to place the instrument on the market or put it into use in any "
+        "jurisdiction. Legal effect comes only from the competent authority of that "
+        "jurisdiction."
+    )
+    credential: dict[str, Any] = {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": credential_id,
+        "type": ["VerifiableCredential", "OimlCertificateCredential"],
+        "name": f"OIML certificate {certificate_number}",
+        "issuer": issuer,
+        "validFrom": valid_from,
+        "validUntil": valid_until,
+        "credentialSubject": {
+            **instrument_type,
+            "applicant": applicant,
+            "oimlCertificate": certificate,
         },
     }
     if credential_status is not None:

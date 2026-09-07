@@ -85,15 +85,23 @@ class Recommendation:
             edition and editions are not interchangeable.
         title: Title of the Recommendation.
         instrument_category: The kind of instrument it governs.
-        measurand: Machine-readable identifier of the regulated quantity.
-        unit: Unit symbol the range is expressed in.
-        range_minimum: Lowest level the Recommendation covers, in ``unit``.
-        range_maximum: Highest level it covers, in ``unit``.
+        regulated_quantity: The quantity the instrument measures, for prose.
+        regulated_unit: Unit of that quantity.
+        measurand: Machine-readable identifier of the quantity a type evaluation
+            actually reports, which is the *error* of the instrument rather than the
+            quantity it measures. A meter under evaluation is not asked what energy it
+            recorded; it is asked how far its reading was from the truth.
+        unit: Unit symbol the reported error and its range are expressed in.
+        range_minimum: Most negative error the Recommendation admits, in ``unit``.
+        range_maximum: Most positive error it admits, in ``unit``.
         accuracy_classes: The classes it defines, most accurate first.
         conditions: The reference conditions its requirements are stated at.
-        evaluation_uncertainty: The largest Expanded Uncertainty a type evaluation may
-            have and still support a verdict. Expressed as an uncertainty floor so the
-            same machinery that checks a CMC can check this.
+        evaluation_uncertainty: The smallest Expanded Uncertainty the scheme recognises
+            for an evaluation against this Recommendation. Expressed as an uncertainty
+            floor, and checked in the same direction a CMC is: a laboratory claiming
+            better than the scheme recognises is the suspicious case, not the reassuring
+            one. Whether the uncertainty is *small enough* to support a verdict is a
+            different question, and this demonstration does not add a step for it.
         machine_readable: Whether a machine-actionable form of the requirements exists.
             ``False`` everywhere today, which is the point of the chapter 11 item.
     """
@@ -102,6 +110,8 @@ class Recommendation:
     edition: str
     title: str
     instrument_category: str
+    regulated_quantity: str
+    regulated_unit: str
     measurand: str
     unit: str
     range_minimum: float
@@ -143,7 +153,17 @@ class Recommendation:
         )
 
     def to_json(self) -> dict[str, Any]:
-        """Return the JSON-LD form used inside a credential."""
+        """Return the form published in the registry and embedded in a credential.
+
+        The member names follow what a verifier already looks for in a CMC entry or an
+        accreditation scope -- ``measurand``, ``unit``, ``rangeMinimum``,
+        ``rangeMaximum`` and an uncertainty block -- so that the existing capability
+        check reads this document without being taught a third shape.
+
+        ``methods`` carries the Recommendation identifier for the same reason: a
+        certificate states the Recommendation it was issued against, and the method path
+        of the capability check is what compares the two.
+        """
         return {
             "id": self.url,
             "type": "OimlRecommendation",
@@ -152,12 +172,16 @@ class Recommendation:
             "identifier": self.identifier,
             "title": self.title,
             "instrumentCategory": self.instrument_category,
+            "regulatedQuantity": self.regulated_quantity,
+            "regulatedUnit": self.regulated_unit,
             "measurand": self.measurand,
             "unit": self.unit,
             "rangeMinimum": self.range_minimum,
             "rangeMaximum": self.range_maximum,
+            "evaluationUncertainty": self.evaluation_uncertainty.to_json(),
             "accuracyClasses": list(self.accuracy_classes),
             "conditions": self.conditions,
+            "methods": [f"{self.identifier}, {self.title}"],
             "machineReadable": self.machine_readable,
         }
 
@@ -233,19 +257,24 @@ RECOMMENDATIONS: tuple[Recommendation, ...] = (
         edition="2012",
         title="Active electrical energy meters",
         instrument_category="Electricity meter",
-        measurand="ac.active.energy",
-        unit="kWh",
-        range_minimum=0.0,
-        range_maximum=1.0e6,
+        regulated_quantity="Active electrical energy",
+        regulated_unit="kWh",
+        # What the evaluation reports is the meter's percentage error, so that is the
+        # quantity the capability check compares. The range is the widest error any
+        # accuracy class in the Recommendation admits; the class narrows it further, and
+        # the individual test results carry their own limits.
+        measurand="ac.active.energy.error",
+        unit="%",
+        range_minimum=-2.0,
+        range_maximum=2.0,
         accuracy_classes=("A", "B", "C"),
         conditions=(
             "Reference conditions: 230 V, 50 Hz, unity power factor, 23 degrees Celsius"
         ),
-        # A type evaluation has to be able to distinguish a meter that meets its class
-        # from one that does not. The bound here is on the evaluating laboratory's own
-        # uncertainty, not on the meter: 0.1 percent of reading with a floor, at k = 2.
+        # The smallest uncertainty the scheme recognises for an evaluation against R 46:
+        # 0.02 percentage points, plus 5 percent of the error being reported, at k = 2.
         evaluation_uncertainty=UncertaintyFloor(
-            absolute=1.0e-3, relative=1.0e-3, coverage_factor=2.0
+            absolute=0.02, relative=0.05, coverage_factor=2.0
         ),
     ),
     Recommendation(
@@ -253,14 +282,16 @@ RECOMMENDATIONS: tuple[Recommendation, ...] = (
         edition="2017",
         title="Metrological regulation for load cells",
         instrument_category="Load cell",
-        measurand="force",
-        unit="N",
-        range_minimum=0.0,
-        range_maximum=1.0e6,
+        regulated_quantity="Force",
+        regulated_unit="N",
+        measurand="force.relative.error",
+        unit="%",
+        range_minimum=-1.0,
+        range_maximum=1.0,
         accuracy_classes=("A", "B", "C", "D"),
         conditions="Reference conditions per the Recommendation",
         evaluation_uncertainty=UncertaintyFloor(
-            absolute=1.0e-2, relative=2.0e-4, coverage_factor=2.0
+            absolute=0.01, relative=0.05, coverage_factor=2.0
         ),
     ),
 )
