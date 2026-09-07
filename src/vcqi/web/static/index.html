@@ -8,6 +8,19 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>&#9878;</text></svg>">
 </head>
 <body>
+<!-- Static markup rather than rendered by app.js, deliberately. The stage shows only
+     "Could not reach the demonstration server" when the world fetch fails, and that is
+     exactly the state in which a reader most needs to be told what these pages are. A
+     caution that arrives with the JavaScript is absent whenever the page is confusing. -->
+<aside class="banner" role="note">
+  <p class="banner__text">
+    <strong>Curiosity project &mdash; not validated, not official.</strong>
+    An AI-assisted weekend experiment exploring what W3C Verifiable Credentials might mean
+    for the Quality Infrastructure. No institution named here has reviewed or endorsed any
+    of it.
+  </p>
+  <a class="banner__link" href="#cautions">Full caution statement</a>
+</aside>
 <div class="shell">
   <nav class="rail" aria-label="Chapters">
     <div class="rail__brand">
@@ -21,7 +34,7 @@
       derived from a published seed and protect nothing.
     </p>
   </nav>
-  <main class="stage" id="stage">
+  <main class="stage" id="stage" tabindex="0" aria-label="Chapter">
     <p class="spinner">Building the demonstration world&hellip;</p>
   </main>
 </div>

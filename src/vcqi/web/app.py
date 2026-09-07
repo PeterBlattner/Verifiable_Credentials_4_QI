@@ -129,7 +129,9 @@ app = FastAPI(
     description=(
         "An interactive demonstration of W3C Verifiable Credentials and Recognized "
         "Entities applied to metrology, accreditation and conformity assessment. "
-        "Every organisation, certificate and key in it is fictional."
+        "Not validated and not official: every organisation, certificate and key in it "
+        "is fictional, and no institution named has reviewed or endorsed any of it. "
+        "The full caution statement is the first chapter of the demonstration."
     ),
     version="0.1.0",
     lifespan=lifespan,
@@ -826,7 +828,8 @@ def main() -> None:
 
     where = os.environ.get("RENDER_EXTERNAL_URL") or f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
     print(f"Demonstration server on {where}")
-    print("Every organisation, key and certificate in it is fictional.")
+    print("Not validated and not official. Every organisation, key and certificate")
+    print("in it is fictional, and no institution named has reviewed or endorsed it.")
     uvicorn.run(
         app,
         host=DEFAULT_HOST,
