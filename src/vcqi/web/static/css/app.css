@@ -512,6 +512,12 @@ pre.code, .json {
 .graph-wrap { background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius); }
 svg.graph { display: block; width: 100%; height: auto; }
 
+/* Dimmed, not hidden: a branch filter that removed the other arrangements would remove
+   the joins between them, which are the whole reason for drawing all three together. */
+.node--dimmed { opacity: 0.22; }
+.edge--dimmed { opacity: 0.15; }
+.node--dimmed, .edge--dimmed { transition: opacity 120ms ease-out; }
+
 .node__box {
   fill: var(--paper-raised);
   stroke: var(--rule-strong);

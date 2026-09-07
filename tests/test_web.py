@@ -55,6 +55,24 @@ def test_every_node_has_a_position_in_the_diagram(client: TestClient) -> None:
     assert not declared - served, f"graph.js positions an actor nobody serves: {sorted(declared - served)}"
 
 
+def test_every_credential_has_a_label_in_the_interface(client: TestClient) -> None:
+    """A credential missing from CREDENTIAL_LABELS is unreachable in chapters 3 and 4.
+
+    Both the chip picker and the document selector are built from that object's keys, so
+    a credential absent from it verifies perfectly well over the API and simply cannot
+    be chosen. Nothing raised, nothing logged: it is just not there.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    block = re.search(r"const CREDENTIAL_LABELS = \{(.*?)^\};", source, re.DOTALL | re.MULTILINE)
+    assert block, "could not find CREDENTIAL_LABELS in chapters.js"
+    labelled = set(re.findall(r"^  '([a-zA-Z0-9-]+)':", block.group(1), re.MULTILINE))
+
+    data = client.get("/api/world").json()
+    served = {item["name"] for item in data["credentials"] if not item["name"].startswith("status-")}
+    assert not served - labelled, f"no label in chapters.js for: {sorted(served - labelled)}"
+    assert not labelled - served, f"chapters.js labels a credential nobody issues: {sorted(labelled - served)}"
+
+
 def test_graph_edges_are_derived_from_the_credentials(client: TestClient) -> None:
     """Every edge names a credential that really exists.
 

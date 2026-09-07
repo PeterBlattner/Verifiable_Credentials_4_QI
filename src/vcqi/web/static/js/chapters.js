@@ -35,6 +35,10 @@ const CREDENTIAL_LABELS = {
   'metas-SR10K-0092': 'Calibration certificate METAS-2026-0419 (check standard B)',
   'testlab-report': 'Test report HTS-2026-3391',
   'cab-conformity': 'Certificate of conformity CPC-2026-0055',
+  'oiml-ia-recognition': 'OIML recognition of Issuing Authorities',
+  'oiml-tl-recognition': 'OIML recognition of Test Laboratories',
+  'oiml-evaluation': 'OIML type evaluation report HTS-TE-2024-0114',
+  'oiml-certificate': 'OIML certificate R46/2024-CH1-0037',
 };
 
 const MAIN_CREDENTIALS = Object.keys(CREDENTIAL_LABELS);
@@ -434,20 +438,72 @@ async function chapterGraph(context) {
   const fragment = document.createDocumentFragment();
   fragment.append(
     prose([
-      'Ten organisations, and one supply chain running through them. A national metrology institute calibrates a laboratory&rsquo;s transfer standard; the laboratory calibrates a testing laboratory&rsquo;s multimeter; the testing laboratory measures a kettle; a certification body certifies the kettle; the manufacturer presents that certificate at a border.',
-      'The two organisations at the top are the roots of trust: one for metrology, one for accreditation. Both are inventions, like everything else here. <strong>Global ACI</strong> stands in for whichever body holds the accreditation role, and nothing in the demonstration rests on that name &mdash; a verifier reaches an anchor by following identifiers upward from the document in front of it, not by knowing who occupies the position.',
+      'Thirteen organisations, and two supply chains running through them. A national metrology institute calibrates a laboratory&rsquo;s transfer standard; the laboratory calibrates a testing laboratory&rsquo;s multimeter; the testing laboratory measures a kettle; a certification body certifies the kettle; the manufacturer presents that certificate at a border. The same testing laboratory also evaluates a type of electricity meter against an OIML Recommendation, and an Issuing Authority certifies the type on the strength of that evaluation.',
+      'The three organisations at the top are the roots of trust: one for metrology, one for accreditation, one for legal metrology. All three are inventions, like everything else here. <strong>Global ACI</strong> stands in for whichever body holds the accreditation role, and nothing in the demonstration rests on that name &mdash; a verifier reaches an anchor by following identifiers upward from the document in front of it, not by knowing who occupies the position.',
+      'The three arrangements are separate, and the interesting part is where they are not. <strong>Helvetia Testing</strong> is accredited by SAS under ISO/IEC 17025 <em>and</em> recognised by OIML to perform type evaluation &mdash; one laboratory, one identifier, two arrangements above it, neither aware of the other. Filter to one arrangement to see its shape; the rest dims rather than disappearing, because a document resting on two of them at once is the thing worth looking at.',
       'Click any organisation to see the identifier it signs with and what it has issued. Click any edge to read the credential behind it.',
     ])
   );
 
   const detail = panel('Select an organisation or an edge', 'Everything below is fetched from the running server', el('p', { class: 'muted', text: 'Nothing selected yet.' }));
   const graphHolder = el('div', {});
+  const filterHolder = el('div', { class: 'controls' });
+  const filterNote = el('p', { class: 'muted' });
+  const state = { branch: null };
+
+  // The chips come from the server's own list of arrangements, so adding a fourth would
+  // need nothing here.
+  const branches = context.world.graph.branches || [];
+  const nodes = context.world.graph.nodes;
+  const edges = context.world.graph.edges;
+
+  // The filter dims rather than removes, which means it changes no text on the page --
+  // and a control that changes nothing is indistinguishable from a broken one, both to
+  // a reader and to tools/ui-clicks.mjs, which reported these three as inert. So the
+  // selection says what it selected, and how much of the diagram that is.
+  const describe = () => {
+    if (!state.branch) {
+      return `All three arrangements: ${nodes.length} organisations, ${edges.length} documents and recognitions.`;
+    }
+    const option = branches.find((item) => item.key === state.branch) || {};
+    const inBranch = nodes.filter((node) => (node.branches || []).includes(state.branch));
+    const shared = inBranch.filter((node) => (node.branches || []).length > 1);
+    const edgeCount = edges.filter((edge) => edge.branch === state.branch).length;
+    const names = shared.map((node) => node.name).join(', ');
+    return (
+      `${option.label}: ${inBranch.length} organisations and ${edgeCount} documents, ` +
+      `the rest dimmed. ` +
+      (shared.length
+        ? `${names} also appear${shared.length === 1 ? 's' : ''} in another arrangement, which is where the branches join.`
+        : 'Nothing here belongs to another arrangement.')
+    );
+  };
+
+  const drawFilters = () => {
+    clear(filterHolder).append(
+      el('span', { class: 'muted', text: 'Arrangement' }),
+      ...[{ key: null, label: 'All three' }, ...branches].map((option) =>
+        el('button', {
+          class: 'action',
+          'aria-pressed': String(state.branch === option.key),
+          text: option.label,
+          onclick: () => {
+            state.branch = option.key;
+            drawFilters();
+            draw(null, []);
+          },
+        })
+      )
+    );
+    clear(filterNote).append(document.createTextNode(describe()));
+  };
 
   const draw = (selectedNode, highlightEdges) => {
     clear(graphHolder).append(
       renderGraph(context.world.graph, {
         selectedNode,
         highlightEdges,
+        branch: state.branch,
         onSelectNode: async (did) => {
           draw(did, []);
           const data = await api.actor(did);
@@ -462,6 +518,12 @@ async function chapterGraph(context) {
               ['Country', data.actor.country || 'international'],
               ['What it does', data.actor.description],
               ['What it issues', data.actor.issues || 'nothing; it receives and verifies'],
+              [
+                'Arrangements',
+                (context.world.graph.nodes.find((node) => node.id === did) || {}).branches
+                  ?.map((key) => (branches.find((option) => option.key === key) || {}).label || key)
+                  .join(', ') || 'none',
+              ],
               ['Public key', el('span', { class: 'hash', text: data.actor.publicKeyMultibase })],
             ]),
             el('h3', { text: 'DID document' }),
@@ -504,8 +566,9 @@ async function chapterGraph(context) {
     );
   };
 
+  drawFilters();
   draw(null, []);
-  fragment.append(graphHolder, detail);
+  fragment.append(filterHolder, filterNote, graphHolder, detail);
   return fragment;
 }
 

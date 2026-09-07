@@ -111,6 +111,15 @@ export function renderGraph(graph, options) {
 
   const edges = graph.edges.filter((edge) => POSITIONS[edge.source] && POSITIONS[edge.target]);
 
+  // `branch` narrows the diagram to one arrangement. Everything outside it is dimmed
+  // rather than removed: the point of drawing three arrangements together is that a
+  // document can rest on two of them at once, and hiding the others would hide exactly
+  // that. A node keeps full strength if any of its branches is the selected one, which
+  // is how the laboratory recognised twice stays lit in either view.
+  const branch = settings.branch || null;
+  const inBranch = (branches) =>
+    !branch || (Array.isArray(branches) ? branches.includes(branch) : branches === branch);
+
   const defs = svg('defs', {}, [
     marker('arrow-recognition', 'edge--recognition'),
     marker('arrow-issuance', 'edge--issuance'),
@@ -134,9 +143,10 @@ export function renderGraph(graph, options) {
   for (const edge of edges) {
     const active = highlight.has(edge.credential);
     const kind = active ? 'active' : edge.kind;
+    const dimmed = !inBranch(edge.branch);
     const path = svg('path', {
       d: edgePath(edge),
-      class: `edge edge--${edge.kind}${active ? ' edge--active' : ''}`,
+      class: `edge edge--${edge.kind}${active ? ' edge--active' : ''}${dimmed ? ' edge--dimmed' : ''}`,
       'marker-end': `url(#arrow-${kind})`,
       style: 'cursor: pointer',
       onclick: () => settings.onSelectEdge && settings.onSelectEdge(edge),
@@ -152,6 +162,7 @@ export function renderGraph(graph, options) {
     const classes = ['node'];
     if (node.isTrustAnchor) classes.push('node--anchor');
     if (node.id === selected) classes.push('node--selected');
+    if (!inBranch(node.branches)) classes.push('node--dimmed');
 
     const group = svg(
       'g',
@@ -187,7 +198,7 @@ export function renderGraph(graph, options) {
           class: 'legend__swatch',
           style: 'border-top-color: var(--anchor); border-top-width: 3px;',
         }),
-        'boxes outlined in blue are the two trust anchors',
+        'boxes outlined in blue are the trust anchors, one per arrangement',
       ]),
     ]),
   ]);
