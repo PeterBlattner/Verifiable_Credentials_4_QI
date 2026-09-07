@@ -1654,11 +1654,18 @@ async function chapterInfrastructure(context) {
 
 // ---------------------------------------------------------------- chapter 11
 
-// Green where a register already exists and the work is adoption, amber where somebody
-// else is already building it, blue where the page is genuinely blank.
+// Ordered by how much already exists, and coloured for it: green where a register exists
+// and the work is adoption, amber where a specification answers the mechanical half and
+// something institutional is left, grey where somebody else is still building it, blue
+// where the page is genuinely blank.
+//
+// `partial` arrived with the review. Without it, five items that had answers in published
+// specifications were filed under 'Nothing exists yet', which is the one thing on this
+// page most likely to be quoted and the one it was most wrong about.
 const HARMONISATION_STATUS = {
   available: ['pass', 'A register already exists'],
-  emerging: ['warn', 'Being built elsewhere'],
+  partial: ['warn', 'Answered in part, elsewhere'],
+  emerging: ['skip', 'Being built elsewhere'],
   open: ['anchor', 'Nothing exists yet'],
 };
 
@@ -1711,6 +1718,30 @@ async function chapterHarmonisation(context) {
     ])
   );
 
+  // Counted from the items rather than written into the prose. An earlier draft of this
+  // chapter left the impression that most of the list was a blank page, and it was the
+  // one claim here a reader was most likely to repeat.
+  const items = data.tiers.flatMap((tier) => tier.items);
+  const count = (status) => items.filter((item) => item.status === status).length;
+  const openCount = count('open');
+  const share = Math.round((openCount / items.length) * 100);
+
+  fragment.append(
+    panel('How much of this is actually open', 'counted from the items below, not asserted', [
+      el('div', { class: 'chips' }, [
+        badge('pass', `${count('available')} already exist`),
+        badge('warn', `${count('partial')} answered in part`),
+        badge('skip', `${count('emerging')} being built`),
+        badge('anchor', `${openCount} genuinely open`),
+      ]),
+      callout([
+        `Of ${items.length} items, <strong>${openCount}</strong> — about ${share}% — have nothing to read yet. The rest have a specification, a register or a deployed mechanism behind them, and the work is adoption or a choice rather than invention.`,
+        'That balance is a correction. The first version of this page filed seven items under <em>nothing exists yet</em>, and a reviewer who works on these specifications pointed out that five of them had answers — some published while this was being written, some still moving through as pull requests. The items below now open by saying what the earlier draft got wrong, which is left visible on purpose: a page about unsolved problems goes stale by overstating them, and one shown correction is a cheap warning that there are probably others.',
+        'What is left, once the answered items are set aside, is a short list and it is not a technical one: what a document authorises as distinct from what it attests, how three arrangements compose when no two of them share a technical body, which copy of a certificate governs, and whether anyone can undertake that an identifier still means the same organisation in thirty years. The last of those cannot be settled by evidence until something has been running for thirty years. Theories are available. Data is not.',
+      ]),
+    ])
+  );
+
   for (const tier of data.tiers) {
     fragment.append(
       el('h3', { text: tier.label }),
@@ -1723,6 +1754,12 @@ async function chapterHarmonisation(context) {
         ['What would have to be agreed', item.requirement],
         ['This demonstration', item.demonstrated],
         item.exists ? ['What already exists', item.exists] : null,
+        // A bare URL in a field of its own, linked here rather than written into the
+        // prose: every other field reaches textContent, so an anchor tag in one of them
+        // would show the reader its angle brackets.
+        item.source
+          ? ['Where to read it', el('a', { href: item.source, text: item.source })]
+          : null,
         ['If two parties answer differently', item.consequence],
         ['Who would have to agree it', item.forum],
       ].filter(Boolean);
@@ -1745,7 +1782,11 @@ async function chapterHarmonisation(context) {
   for (const step of data.nextSteps) {
     fragment.append(
       panel(`${step.order}. ${step.title}`, step.scope, [
-        prose([step.detail]),
+        // Split on the blank line rather than passing the whole detail as one string.
+        // Two steps write paragraph breaks into their text, and inside a single <p>
+        // those collapse to a space -- a wall of prose that reads as a mistake nobody
+        // can point at.
+        prose(step.detail.split('\n\n')),
         step.unblocks.length
           ? el('p', {
               class: 'muted',

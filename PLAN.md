@@ -1744,3 +1744,157 @@ chapters that should have moved.
   from Scheme B, and what SMART stands for. The last two because no primary source to hand
   settled them, which given what the caution statement now says matters more here than
   anywhere else in the project.
+
+# Change set 10 - what a reviewer corrected
+
+## Context
+
+The demonstration was reviewed, unsolicited, by someone who works on the verifiable
+credentials specifications. About thirty minutes, over the data structures and the
+harmonisation chapter. Three findings, and they are not equally comfortable.
+
+The data structures held up: better than 90% of them sound for a first draft, with
+changes to suggest but the general shape workable. That is the pleasant one and it needs
+no work.
+
+**The harmonisation chapter overstated the problem.** Seven of its sixteen items carried
+*nothing exists yet*, and the reviewer's estimate was that only about a fifth of the list
+needed a long argument. Checked item by item against the published specifications rather
+than against the first draft's assumptions, five of those seven had answers - some
+published while this was being written, some still moving through as pull requests.
+
+**Two things it never considered**, both bearing directly on a document that has to
+verify in thirty years: cryptographic event logs, and long-term retrieval of the
+documents a verification reads.
+
+**And there is no exchange anywhere in it.** Every credential here is handed around as
+JSON. The reviewer pointed at VCALM's figure of a holder and an issuer/verifier, which is
+the shape the cross-border case actually has. That is change set 11, on its own branch.
+
+This is the second time this project has made one class of mistake. Change set 6 assumed
+the metrology vocabularies were missing and had to be told the BIPM already publishes
+them. This time it assumed the credential mechanisms were missing. Both run the same way -
+concluding a gap exists because the author had not read far enough - and that is worth
+recording as a pattern rather than as two incidents.
+
+## Decisions taken with the user
+
+- The re-audit, the two missing items and the caution update on one branch; the exchange
+  on its own, because it is a chapter and endpoints rather than editorial data.
+- did:webvh is **described, not built**. It answers three questions this chapter said were
+  unanswered, and citing it costs nothing; migrating the world to it would move every
+  digest and signature for a claim the page can make honestly in prose.
+- The reviewer is not named. Their reading is described, their affiliation is not given,
+  and nothing needed clearing with them before publishing.
+
+## What changed
+
+**A fourth status, `partial`.** The vocabulary was `available`, `emerging`, `open`, and it
+had no way to say *a specification answers the mechanical half and something institutional
+is left over*. Five items needed exactly that, and without it they were all filed as
+`open`, which reads as *nothing exists*.
+
+**A `source` field.** A bare URL per item, rendered as a link. A field of its own rather
+than a sentence inside `exists`, because every other field reaches `textContent`, where an
+anchor tag shows the reader its angle brackets - a trap `tests/test_deployment.py` already
+guards, and which the `units` item had worked around by spelling a URL out in prose. Two
+new tests make it load-bearing: a source must be a bare `https://` URL, and any item
+claiming `available` or `partial` must have one. A researched claim and an assumed one
+were previously indistinguishable to the suite.
+
+**Five items re-audited.**
+
+| Item | Was | Now | What answers it |
+| --- | --- | --- | --- |
+| `did-method` | open | partial | did:webvh. Rotation identity through the SCID, withdrawal through pre-rotation, and the resolver's obligation written down. Mechanical migration from did:web. |
+| `status-meaning` | open | partial | Bitstring Status List, a Recommendation since May 2025: `statusPurpose: message`, `statusMessage` per value, `statusReference` at the governing document. |
+| `anchors` | open | partial | ETSI TS 119 612 and the EU list of trusted lists. A signed, rotatable anchor list is deployed at scale, not unbuilt. |
+| `persistence` | open | partial | SCID portability across domains, and watchers caching indefinitely. The thirty-year undertaking stays open and cannot be settled by evidence yet. |
+| `timestamps` | open | partial | RFC 3161 was already named; what changed is that an issuer's own witnessed log answers *was this key valid then* without a third party being asked. |
+
+`legal-effect` stays open and gained the near miss worth naming: `termsOfUse` sounds like
+the answer and is not. It constrains what a recipient may do with a credential, not what
+the credential permits in the world, and pressing it into service would produce a document
+that reads plausibly to a person and means something else to a machine.
+
+Still open, and these are the ones needing a long argument: `chain-crossing`,
+`legal-effect`, `type-identity`, `governing-copy`, `uncertainty-transport`.
+
+**Two new items, both second tier.** `event-logs` and `retrieval`. Second tier and not
+third for the same reason in both cases: neither can be started late. A log not kept from
+the first day cannot be reconstructed, and a document nobody archived in 2026 is not
+archivable in 2056.
+
+`retrieval` is the sharper of the two, because chapter 10 had already measured it without
+naming it. Verifying one certificate of conformity reads 31 distinct documents from 7
+hosts. The credential travels with its holder and is safe; the other 30 are fetched from
+wherever they live. A test compares both numbers against what `/api/infrastructure`
+actually reports, so the sentence stays a measurement rather than a number that was true
+once.
+
+**The chapter counts instead of asserting.** A panel above the tiers reports how many
+items are available, partial, emerging and open, computed from the items themselves.
+
+**The cautions.** *"have not been reviewed, tested or checked against the specification by
+anyone"* was no longer true. All three copies now say what the review was and what it was
+not - one reader, thirty minutes, not validation - and the closing offer records that
+correction arrived once and improved the work. The banner is untouched and still correct:
+no institution named here has reviewed or endorsed any of it.
+
+## One defect found while doing it
+
+`prose([step.detail])` put a whole ladder step into a single paragraph, so the blank lines
+step 7 has carried since change set 9 rendered as spaces. Splitting on the blank line
+fixes step 7 as well as the rewritten step 2.
+
+## Files
+
+```
+src/vcqi/actors/harmonisation.py              partial, source, five re-audits, two new items
+src/vcqi/web/static/js/chapters.js            status map, source link, count panel, step split
+src/vcqi/web/content/chapters/00-cautions.md  what the review was, and was not
+README.md                                     the same statement, kept in step by test
+tests/test_harmonisation.py                   source shape, citation, the count, the new items
+tests/test_web.py                             the fourth status, and the served source field
+```
+
+## Verification
+
+- `uv run pytest`
+- `node tools/ui-clicks.mjs` against a running server
+- `python -m vcqi.actors.scenarios --dump` twice. No credential content changed here, so
+  this must be untouched, and it is the check that proves it.
+
+## Git
+
+Branch `feature/harmonisation-review`, from `develop`. Nothing pushed without asking.
+
+## Change set 10 - build order
+
+- [x] **R1 - Vocabulary.** The `partial` status and the `source` field, with the two tests
+      that make a citation compulsory for any item claiming an answer.
+- [x] **R2 - Re-audit.** Five items restated against the specifications; `legal-effect`
+      gains the near miss.
+- [x] **R3 - The two gaps.** `event-logs` and `retrieval`, both second tier, with the
+      retrieval count checked against what chapter 10 measures.
+- [x] **R4 - Ladder.** Step 2 becomes publish a key as a log, and keep what you fetched.
+- [x] **R5 - The count panel.** Computed in the interface, not written into the prose.
+- [x] **R6 - Cautions.** All three copies, plus the closing offer.
+
+## Change set 10 - progress log
+
+401 tests pass, 46 skipped. All thirteen chapters render and every control responds.
+
+- Eighteen items now, from sixteen. Five open, which the chapter reports as about 28% -
+  higher than the reviewer's estimate of a fifth, and reported as counted rather than
+  adjusted to match it.
+- The five re-audited items each open by saying what the first draft got wrong. That is
+  deliberate and should stay: a page about unsolved problems goes stale by overstating
+  them, and one visible correction is the cheapest available warning that there are
+  probably others.
+- `test_an_item_claiming_an_answer_says_where_to_read_it` is the check this chapter needed
+  from the beginning. Nothing previously could tell a researched claim from an assumed
+  one, which is exactly how seven items came to say *nothing exists yet*.
+- The retrieval item was the only place where the two new gaps could be made concrete
+  rather than argued, because chapter 10 already produced the measurement. 31 distinct
+  documents, 7 hosts, and only one of the 31 travels with the holder.
