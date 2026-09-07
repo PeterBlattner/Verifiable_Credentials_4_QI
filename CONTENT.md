@@ -40,4 +40,4 @@ cases, and the tables in the last two chapters. Those are data rather than prose
 in `src/vcqi/actors/`. The editing guide explains why, and the boundary can move if it
 turns out to be in the wrong place.
 
-`README.md`, `ARCHITECTURE.md` and `LEGAL-METROLOGY.md` are edited where they are.
+`README.md` and `ARCHITECTURE.md` are edited where they are.

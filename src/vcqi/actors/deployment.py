@@ -96,10 +96,18 @@ class DeploymentProfile:
         }
 
 
-#: The four roles that span the range of the burden, from the trust anchor down to the
-#: verifier that operates nothing at all. The accreditation body is deliberately left
-#: out: operationally it is the trust anchor's profile at a smaller scale, and a fifth
-#: column that says so adds length without adding an argument.
+#: The roles that span the range of the burden, from the trust anchor down to the
+#: verifier that operates nothing at all.
+#:
+#: The accreditation body is deliberately left out: operationally it is the trust
+#: anchor's profile at a smaller scale, and a column that says so adds length without
+#: adding an argument. That reasoning would exclude an OIML Issuing Authority too, and
+#: it is here anyway, for one reason the others do not have to answer for. An OIML
+#: certificate is valid for about a decade where a calibration certificate is valid for
+#: a year, so long-term validation -- which the institute's profile already calls the
+#: hardest part -- stops being a caveat and becomes the design constraint. An Issuing
+#: Authority also reviews rather than measures, which puts the hardest part of its
+#: profile upstream, on the laboratory whose evidence it has to be able to re-check.
 DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
     DeploymentProfile(
         did="did:web:bipm.example",
@@ -231,6 +239,127 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
         scale=(
             "Hundreds of certificates a year, issued by people whose expertise is "
             "measurement and should not have to be anything else."
+        ),
+    ),
+    # OIML and the Issuing Authority. The accreditation body was left out above because
+    # "operationally it is the trust anchor's profile at a smaller scale", and the same
+    # argument would exclude an Issuing Authority -- except for one thing no other
+    # profile has to deal with. An OIML certificate is valid for about a decade, where a
+    # calibration certificate is valid for a year or two. Long-term validation, which the
+    # institute's profile calls the hardest part, is an order of magnitude harder when
+    # the document has to still verify in 2034.
+    DeploymentProfile(
+        did="did:web:oiml.example",
+        posture=(
+            "A third anchor, with a third arrangement's worth of governance behind it. "
+            "Operationally it looks like the BIPM's profile: two lists to publish, a key "
+            "to protect, and nothing to compute. What is different is the "
+            "<strong>lifetime of what it underwrites</strong> -- the recognitions it "
+            "signs bound certificates that stay valid for a decade, so a key rotation "
+            "here has to be survivable by documents issued long before it."
+        ),
+        custody=(
+            "Root grade. The same problem as the other two anchors and no easier for "
+            "being third: whoever holds this key can add an Issuing Authority to the "
+            "scheme, and every certificate in the world beneath it rests on that not "
+            "having happened quietly."
+        ),
+        custody_grade="root",
+        availability=(
+            "If the OIML is unreachable, a verifier that has not cached its recognition "
+            "lists cannot establish that an Issuing Authority is approved, and every "
+            "OIML certificate stops verifying rather than failing -- which is the right "
+            "outcome and an unwelcome one. Certificates valid for ten years make the "
+            "caching question sharper than it is anywhere else here: a verifier holding "
+            "a copy from 2024 is holding something the scheme may have changed twice."
+        ),
+        already_runs=(
+            "A public register of Issuing Authorities and Test Laboratories, searchable, "
+            "which is the same information these credentials carry.",
+            "A register of the certificates themselves, and their associated type "
+            "evaluation reports.",
+            "A publication process for Recommendations, with numbered editions.",
+            "A stable domain, and decades of institutional continuity behind it.",
+        ),
+        must_add=(
+            "A signing key, and the governance to say who may use it.",
+            "The two recognition lists as signed credentials rather than as web pages, "
+            "with a status list for a recognition that has been suspended.",
+            "A decision about what the scheme means by suspension, which is not the same "
+            "question as how to encode it.",
+            "A published answer on Scheme A and Scheme B: whether they differ in what a "
+            "verifier should check, and if so how a certificate says which it was issued "
+            "under. This demonstration does not model the distinction at all.",
+        ),
+        hardest_part=(
+            "Not the cryptography, and not even the key. It is that a Recommendation is "
+            "not law, so this anchor underwrites a technical claim and no permission "
+            "whatsoever -- and the value of the whole scheme depends on national "
+            "authorities relying on it anyway. Making a credential say that clearly "
+            "enough that a verifier acts on it, rather than reading a certificate as an "
+            "approval, is the part with no technical answer."
+        ),
+        scale=(
+            "A few hundred Issuing Authorities and laboratories, and a few thousand "
+            "certificates, changing slowly. The lists are small enough to sign whole and "
+            "republish; the interesting number is not throughput but retention."
+        ),
+    ),
+    DeploymentProfile(
+        did="did:web:legal-ia.example",
+        posture=(
+            "A certification body that already issues these certificates on paper. The "
+            "work is in the certificate production workflow, as it is for an institute -- "
+            "with one difference that runs through everything below. It "
+            "<strong>reviews rather than measures</strong>, so what it has to be able to "
+            "check is somebody else's document, and what it has to be able to prove later "
+            "is that it checked."
+        ),
+        custody=(
+            "Service grade. A signing key in whatever the body already uses for the "
+            "electronic signatures on the certificates it issues today, with a separate "
+            "key and a separate purpose."
+        ),
+        custody_grade="service",
+        availability=(
+            "If the Issuing Authority is unreachable, its own certificates stop "
+            "verifying and nobody else's do. The uncomfortable case is the one where the "
+            "body no longer exists: a certificate valid until 2034 outlives corporate "
+            "arrangements, and somebody has to keep answering for its key and its status "
+            "list after the organisation that made it has gone."
+        ),
+        already_runs=(
+            "A certification workflow that reviews type evaluation reports and issues "
+            "certificates against OIML Recommendations.",
+            "A file of the reports it reviewed, kept for as long as the certificates "
+            "are valid.",
+            "An accreditation, in most cases, and the quality system that comes with it.",
+        ),
+        must_add=(
+            "Verification of the type evaluation report as a document rather than as a "
+            "PDF somebody read: that the laboratory was recognised for those tests on "
+            "the day, and that the calibrations the tests rested on were live.",
+            "Emission of the certificate as a credential from the existing workflow, so "
+            "it is a by-product of issuing rather than a second process that can "
+            "disagree with the first.",
+            "A status list for withdrawn certificates, with a retention period measured "
+            "against a ten-year validity rather than a one-year one.",
+            "Trusted timestamping at issuance. A signature is comfortable for perhaps "
+            "fifteen years and these certificates are valid for ten, so the margin is "
+            "thinner here than anywhere else in this demonstration.",
+        ),
+        hardest_part=(
+            "Checking the report it rests on, rather than filing it. Reviewing the test "
+            "results is this body's defined job under the scheme, and today that review "
+            "is a person reading a document and forming a judgement. Turning it into "
+            "something a recipient can re-run means the evidence has to be structured, "
+            "which means the laboratory upstream has to emit it that way -- so the "
+            "hardest part of this profile is really a requirement on somebody else."
+        ),
+        scale=(
+            "Tens to hundreds of certificates a year, each one the outcome of months of "
+            "testing. Nothing about the volume is difficult; everything about the "
+            "lifetime is."
         ),
     ),
     DeploymentProfile(

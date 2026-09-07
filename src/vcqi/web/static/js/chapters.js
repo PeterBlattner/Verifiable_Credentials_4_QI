@@ -440,7 +440,7 @@ async function chapterGraph(context) {
     prose([
       'Thirteen organisations, and two supply chains running through them. A national metrology institute calibrates a laboratory&rsquo;s transfer standard; the laboratory calibrates a testing laboratory&rsquo;s multimeter; the testing laboratory measures a kettle; a certification body certifies the kettle; the manufacturer presents that certificate at a border. The same testing laboratory also evaluates a type of electricity meter against an OIML Recommendation, and an Issuing Authority certifies the type on the strength of that evaluation.',
       'The three organisations at the top are the roots of trust: one for metrology, one for accreditation, one for legal metrology. All three are inventions, like everything else here. <strong>Global ACI</strong> stands in for whichever body holds the accreditation role, and nothing in the demonstration rests on that name &mdash; a verifier reaches an anchor by following identifiers upward from the document in front of it, not by knowing who occupies the position.',
-      'The three arrangements are separate, and the interesting part is where they are not. <strong>Helvetia Testing</strong> is accredited by SAS under ISO/IEC 17025 <em>and</em> recognised by OIML to perform type evaluation &mdash; one laboratory, one identifier, two arrangements above it, neither aware of the other. Filter to one arrangement to see its shape; the rest dims rather than disappearing, because a document resting on two of them at once is the thing worth looking at.',
+      'The three arrangements are separate, and the interesting part is where they are not. <strong>Helvetia Testing</strong> is accredited by SAS under ISO/IEC 17025 <em>and</em> recognised by OIML to perform type evaluation &mdash; one laboratory, one identifier, two arrangements above it, and neither of them aware the other exists. Filter to one arrangement to see its shape; the rest dims rather than disappearing, because a document resting on two of them at once is the thing worth looking at.',
       'Click any organisation to see the identifier it signs with and what it has issued. Click any edge to read the credential behind it.',
     ])
   );
@@ -760,6 +760,8 @@ async function chapterScope(context) {
       'A national metrology institute may put the CIPM MRA logo on a calibration certificate only when the calibration falls inside a capability it has published in the key comparison database. The published entry gives a measurand, a range, the conditions, and the <strong>smallest</strong> Expanded Uncertainty the institute can achieve.',
       'That last one is the part that catches people out. The capability is a floor, not a ceiling. A certificate claiming a <em>larger</em> uncertainty is comfortably inside scope. A certificate claiming a <em>smaller</em> one is claiming to have done better than the institute has ever demonstrated, and is outside it.',
       'Move the sliders. The verdict, and with it the legitimacy of the logo, is decided from the published entry rather than from anybody&rsquo;s judgement.',
+      'The same machinery bounds the legal-metrology branch, and there the bound is a better one. An OIML Issuing Authority may certify a type only against a Recommendation it has been approved for, and a Recommendation is a numbered, edition-controlled document published by somebody else &mdash; not a declaration the organisation wrote about itself. Try <em>Certify a type against a Recommendation nobody approved</em> in chapter 8: the certificate is signed by a genuinely recognised body and rejected anyway, twice over, because the recognition names both the Recommendation and a schema built from it.',
+      'What is still missing is that the schema is this project&rsquo;s reading of R 46 rather than R 46 speaking for itself. The OIML is working towards machine-readable Recommendations; until then, the bound is only as good as whoever transcribed it. That is the last item in chapter 11.',
     ])
   );
 
@@ -1756,7 +1758,8 @@ async function chapterHarmonisation(context) {
 
   fragment.append(
     callout([
-      'Notice where the ladder stops. Every rung up to the fourth needs nobody’s permission, and the fifth needs one organisation to decide something about data it already owns. Only the last one requires two arrangements to agree — and it is the only item here with no existing forum to agree it in. The CIPM MRA and the Global ACI arrangement have no standing joint technical body. Creating somewhere for the conversation to happen is the real first step, and it is institutional rather than technical, which is usually the finding nobody wants.',
+      'Notice where the ladder stops. Every rung up to the fourth needs nobody’s permission, and the fifth needs one organisation to decide something about data it already owns. The sixth requires two arrangements to agree — and it is the one item here with no existing forum to agree it in, because the CIPM MRA and the Global ACI arrangement have no standing joint technical body. Creating somewhere for the conversation to happen is the real first step, and it is institutional rather than technical, which is usually the finding nobody wants.',
+      'The seventh rung is the newest and the odd one out. Legal metrology raised two questions the other two pillars never had to ask — what a document authorises as distinct from what it attests, and what identifies a design rather than one instrument — and both sit in the first tier, because getting either wrong is not a missing feature but a wrong answer. It is also the only rung whose forum plainly exists: the OIML has a standing structure for this conversation, which is more than the sixth rung can say.',
     ])
   );
 
@@ -1809,7 +1812,7 @@ export const CHAPTERS = [
   },
   {
     id: 'issuing',
-    title: 'Issuing a calibration certificate',
+    title: 'Issuing a certificate',
     eyebrow: 'How signing works',
     lede: 'From the claims an institute wants to make, through canonicalization and hashing, to the signature itself. Every intermediate value shown.',
     render: chapterIssuing,
@@ -1846,7 +1849,7 @@ export const CHAPTERS = [
     id: 'break',
     title: 'Break it',
     eyebrow: 'Failure modes',
-    lede: 'Eleven ways this can go wrong, and the one check that catches each. The interesting ones pass every cryptographic test.',
+    lede: 'Eighteen ways this can go wrong, and the check that catches each. The interesting ones pass every cryptographic test.',
     render: chapterBreakIt,
   },
   {

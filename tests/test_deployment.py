@@ -8,6 +8,7 @@ the number of credentials it has issued.
 
 from __future__ import annotations
 
+from vcqi.actors.harmonisation import HARMONISATION_ITEMS
 from vcqi.actors.deployment import DEPLOYMENT_PROFILES, hosting_burden
 from vcqi.actors.registry import actor_by_did
 
@@ -58,3 +59,60 @@ class TestHostingBurden:
             assert actor_by_did(profile.did) is not None
             assert profile.custody_grade in {"root", "service", "delegated"}
             assert profile.must_add and profile.hardest_part
+
+class TestTheEditorialFieldsSuitTheSlotsTheyFill:
+    """Half of these records reach `innerHTML` and half reach `textContent`.
+
+    `posture`, `custody` and `hardest_part` go through `callout`/`prose`, which set
+    `html:`, so inline markup in them works. `availability`, `scale`, `already_runs` and
+    `must_add` go through `keyValues`/`checklist`, which set `text:` -- and so does every
+    field of a harmonisation item, because the chapter renders all five through
+    `keyValues`. Markup in any of those is shown to the reader as literal angle
+    brackets.
+
+    Nothing raises. The page just looks wrong, on the two chapters nobody clicks through
+    because they have no controls to click.
+    """
+
+    #: Fields the interface renders as plain text, per record type.
+    PLAIN_TEXT = {
+        "deployment": ("availability", "scale"),
+        "deployment_lists": ("already_runs", "must_add"),
+        "harmonisation": (
+            "requirement",
+            "demonstrated",
+            "exists",
+            "consequence",
+            "forum",
+        ),
+    }
+
+    def test_deployment_plain_text_fields_carry_no_markup(self) -> None:
+        """`keyValues` and `checklist` set textContent, so a tag would show literally."""
+        offenders = []
+        for profile in DEPLOYMENT_PROFILES:
+            for field in self.PLAIN_TEXT["deployment"]:
+                if "<" in getattr(profile, field):
+                    offenders.append(f"{profile.did}/{field}")
+            for field in self.PLAIN_TEXT["deployment_lists"]:
+                for index, line in enumerate(getattr(profile, field)):
+                    if "<" in line:
+                        offenders.append(f"{profile.did}/{field}[{index}]")
+        assert not offenders, "markup in a plain-text slot: " + ", ".join(offenders)
+
+    def test_harmonisation_fields_carry_no_markup(self) -> None:
+        """Every item field is rendered through `keyValues`, so none may hold markup.
+
+        This is why the `units` item spells its URL out in prose rather than linking it.
+        """
+        offenders = []
+        for item in HARMONISATION_ITEMS:
+            for field in self.PLAIN_TEXT["harmonisation"]:
+                if "<" in getattr(item, field):
+                    offenders.append(f"{item.key}/{field}")
+        assert not offenders, "markup in a plain-text slot: " + ", ".join(offenders)
+
+    def test_every_profile_names_an_actor_that_exists(self) -> None:
+        """A profile whose DID resolves to nothing renders a blank panel heading."""
+        for profile in DEPLOYMENT_PROFILES:
+            assert actor_by_did(profile.did) is not None, profile.did

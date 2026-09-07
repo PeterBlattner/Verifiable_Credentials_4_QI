@@ -375,7 +375,7 @@ def test_harmonisation_serves_three_tiers_and_a_ladder(client: TestClient) -> No
     data = client.get("/api/harmonisation").json()
     assert [tier["key"] for tier in data["tiers"]] == ["floor", "irreversible", "optional"]
     assert all(tier["items"] for tier in data["tiers"])
-    assert [step["order"] for step in data["nextSteps"]] == [1, 2, 3, 4, 5, 6]
+    assert [step["order"] for step in data["nextSteps"]] == [1, 2, 3, 4, 5, 6, 7]
 
 
 def test_harmonisation_items_carry_what_the_chapter_renders(client: TestClient) -> None:
@@ -402,3 +402,41 @@ def test_harmonisation_quotes_the_cryptosuite_the_demonstration_actually_uses(
     data = client.get("/api/harmonisation").json()
     items = {item["key"]: item for tier in data["tiers"] for item in tier["items"]}
     assert CRYPTOSUITE in items["cryptosuite"]["demonstrated"]
+
+#: Numbers written out in prose, so they can be compared with what the code does.
+#: English rather than digits because that is how the interface writes them.
+WORD_FOR_NUMBER = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+    "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+}
+
+
+def test_the_failure_chapter_counts_its_own_cases() -> None:
+    """The break-it lede says how many ways there are, in words.
+
+    It has been wrong twice: the lede said eleven and the README said fifteen while
+    there were fifteen, and then both were wrong again. A number spelled out in prose
+    next to a list that grows is a small thing that is always slightly untrue, so this
+    compares the two.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    match = re.search(r"lede: '([A-Za-z]+) ways this can go wrong", source)
+    assert match, "could not find the break-it lede in chapters.js"
+    written = WORD_FOR_NUMBER.get(match.group(1).lower())
+    assert written is not None, f"unrecognised number word {match.group(1)!r}"
+    assert written == len(TAMPER_CASES), (
+        f"the lede says {match.group(1)} ways, there are {len(TAMPER_CASES)}"
+    )
+
+
+def test_the_graph_chapter_counts_its_own_organisations(client: TestClient) -> None:
+    """The same problem, on the chapter whose first sentence names the number."""
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    match = re.search(r"'([A-Za-z]+) organisations, and", source)
+    assert match, "could not find the organisation count in chapters.js"
+    written = WORD_FOR_NUMBER.get(match.group(1).lower())
+    assert written is not None, f"unrecognised number word {match.group(1)!r}"
+    served = len(client.get("/api/world").json()["graph"]["nodes"])
+    assert written == served, f"the prose says {match.group(1)}, the world serves {served}"
