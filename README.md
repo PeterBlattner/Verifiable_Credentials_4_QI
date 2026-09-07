@@ -170,10 +170,12 @@ The quality infrastructure already works this way on paper.
 | Leaf credential | Calibration certificate, test report, certificate of conformity |
 | `recognizedIn`, followed upward | The recognition path a recipient checks by hand today |
 
-Note that one anchor is new: on 1 January 2026 the IAF and ILAC consolidated into
-**Global Accreditation Cooperation Incorporated (Global ACI)**, whose arrangement is the
-Global ACI *Multilateral* Recognition Arrangement. The CIPM MRA remains a *Mutual*
-Recognition Arrangement; the demo keeps the distinction exact.
+The accreditation anchor is a placeholder: **Global ACI** stands in for whichever body
+holds that role, and nothing in the demonstration rests on the name. Its arrangement is
+written as a *Multilateral* Recognition Arrangement and the CIPM MRA as a *Mutual* one,
+because the demonstration keeps that distinction rather than treating the two as
+interchangeable. A verifier follows identifiers upward and never needs to know which
+organisation occupies a position.
 
 Chapter 1 answers the question the rest of the demonstration assumes: what a public and
 a private key actually are. It derives a keypair in front of you, computes the public key

@@ -1628,4 +1628,14 @@ section against the pre-change baseline: no word of the twelve existing chapters
 - Unverified and deliberately left so: "Recognized Entities v1.0 is a W3C Working Draft,
   described by the Working Group as experimental and not fit for production deployment."
   The version string and status wording should be checked against the published document.
+- Follow-up on the same theme: chapter 2 asserted that the IAF and ILAC consolidated into
+  Global Accreditation Cooperation Incorporated on 1 January 2026, and drew a lesson from
+  it about a trust anchor changing its identifier. A dated claim about two real bodies is
+  the kind of unnecessary complication the caution statement was written to avoid, and it
+  was in three reader-facing places: the chapter prose, `README.md`, and the `description`
+  field in `actors/registry.py` served through `/api/actor`. All three now describe
+  Global ACI as a stand-in for whichever body holds the accreditation role, with the point
+  that nothing in the demonstration rests on the name. The identifier-churn argument is
+  worth making somewhere -- most naturally in chapter 10, next to the other things a
+  deployment would have to survive -- and is not made anywhere at the moment.
 
