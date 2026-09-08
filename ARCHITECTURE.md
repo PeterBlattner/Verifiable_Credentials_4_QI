@@ -358,6 +358,57 @@ loudly on a module that 404s or arrives with a content type a browser will not e
 `console.error`. Against a server deliberately serving one stale module it now reports
 `FAILED: 1 chapter(s) failed to render` and exits non-zero.
 
+### An exchange has state, and it is the only thing here that does
+
+Everything else in this application is a function of the world plus the request. Ask the
+same question twice and you get the same answer, no session, nothing to expire, nothing
+to evict. `actors/exchange.py` breaks that, and it is worth being clear that this is
+forced rather than chosen: a challenge that the coordinator does not remember issuing
+cannot be checked, and without the challenge the exchange is a download.
+
+So `ExchangeStore` is an in-process dictionary, capped at 256 exchanges with a
+fifteen-minute expiry, evicting oldest-first. The same honest choice `web/limits.py`
+makes for its token buckets, and with the same consequences: exchanges vanish on
+restart, and they do not survive more than one worker, which is one more reason `main()`
+runs one.
+
+The cost is not only technical. `actors/deployment.py` argued that verification is a
+computation rather than a conversation and concluded that a verifier operates nothing.
+The premise is true and the conclusion does not follow once somebody has to *ask*. That
+module and chapter 10 now say so where it applies, and chapter 12 states the corrected
+split: checking a credential you already hold is free and works offline; obtaining one
+needs both parties reachable and needs the asking party to run a service.
+
+### The presentation's own proof is verified, and the ordering matters
+
+`_check_presentation` reads the challenge, the domain, the holder and the verification
+method out of the proof, and then verifies the proof against the key that holder
+publishes for authentication. Every one of those string comparisons is worthless without
+the last step, because a forger holding an intercepted presentation can edit a string.
+They count only because the challenge sits in the proof configuration that was hashed,
+so editing it breaks the signature.
+
+This is recorded because the first version of the module got it wrong. It compared the
+three strings and never verified the presentation, and
+`test_the_challenge_is_signed_and_not_merely_carried` caught it: an intercepted
+presentation, re-pointed at a live exchange by editing one field, collected a type
+certificate. Nothing else in the suite would have noticed, because every credential
+inside the presentation was genuine and verified perfectly. Credentials are public
+documents — anyone can obtain a copy — and the authentication proof is the only thing
+between a public certificate and anyone claiming to hold it.
+
+`vc/resolver.py` gained `authentication_methods` for this, the mirror of
+`assertion_methods`, and for the same reason in the other direction: a key published
+only for signing credentials is not thereby authorised to prove who is holding them.
+
+Worth naming as a related gap rather than leaving it to be found: identifier-based
+recognition discovery in `vc/recognition.py` fetches a whois presentation and reads
+credentials out of it *without* verifying the presentation's proof. That is defensible
+there and deliberate — each credential inside is verified independently, so the
+presentation is a container and adds no claim of its own. It is not defensible in an
+exchange, where the presentation is the authentication. The difference is which question
+the signature is being asked to answer.
+
 ### The network is a dictionary
 
 `vc/resolver.py` stands in for retrieval. Every document is published at the address a
@@ -414,8 +465,17 @@ reason they are worth demonstrating.
   and degrees of freedom are UncLib features with no substitute in this repository. If
   the demonstration ever needs one, the equivalence test fails on a licensed machine
   rather than quietly producing a plausible wrong number.
-- **Holder wallets and presentation protocols.** Credentials are handed around as JSON.
-  OpenID4VP and a wallet are what a real flow would use.
+- **Holder wallets.** Chapter 12 implements VCALM's exchange, so credentials are no
+  longer only handed around as JSON -- but the holder's key still lives on this server,
+  because one process plays every actor. A real holder keeps its own key in its own
+  wallet, and `/api/exchange/.../present` is the seam where that would be cut.
+- **Authorization on the exchange.** Anyone may open any exchange here and this world's
+  fictional holders will present for them. A deployment puts OAuth or a capability in
+  front of the endpoint; VCALM discusses it, and it would teach nothing extra here.
+- **A second exchange protocol.** OpenID for Verifiable Presentations answers the same
+  question differently and is what the European digital identity wallets are deploying.
+  Only VCALM is built, and the harmonisation chapter records the choice between them as
+  a profile decision rather than a research problem.
 - **Any authority whatsoever.** No part of this reflects the position of any real
   institute, accreditation body, RMO, Global ACI, or the BIPM.
 

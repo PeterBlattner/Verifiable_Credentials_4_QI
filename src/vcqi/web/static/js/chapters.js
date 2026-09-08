@@ -1506,7 +1506,7 @@ async function chapterInfrastructure(context) {
   fragment.append(
     prose([
       'Two properties of the design settle most of this question, and neither of them is about capacity.',
-      '<strong>Verification is a computation, not a conversation.</strong> A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier&rsquo;s behalf, and nothing here grows with the number of people who check.',
+      '<strong>Verification is a computation, not a conversation.</strong> A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier&rsquo;s behalf, and nothing here grows with the number of people who check. That is a claim about <em>checking</em> a credential; chapter 12 shows what it costs to <em>ask</em> for one, and the answer is not zero.',
       '<strong>A credential travels with whoever holds it.</strong> The certificate arrives from the customer, not from the laboratory that wrote it. What an issuer must keep online is therefore only what describes the issuer itself — its key, and which of its credentials it has since withdrawn. The certificates need not be hosted at all.',
       'Everything below is computed from what this demonstration actually published, so the figures move if the world does.',
     ])
@@ -1815,6 +1815,213 @@ async function chapterHarmonisation(context) {
   return fragment;
 }
 
+// ---------------------------------------------------------------- chapter 12
+
+// What the coordinator is doing in a given exchange, which is a property of the exchange
+// and not of the organisation. Verifica is an issuer here and a verifier in the same
+// breath; that it can be both at once is the whole point of the last one.
+const EXCHANGE_ROLE = {
+  issuer: ['pass', 'issuing'],
+  verifier: ['anchor', 'verifying'],
+  'issuer-verifier': ['warn', 'both at once'],
+};
+
+function exchangeMessage(number, direction, title, hint, body, context) {
+  const arrow = direction === 'up' ? '&uarr;' : '&darr;';
+  const who = direction === 'up' ? 'holder to coordinator' : 'coordinator to holder';
+  return panel(`${number}. ${title}`, hint, [
+    el('p', { class: 'muted', html: `${arrow} ${who}` }),
+    body === null ? el('p', { class: 'muted', text: 'Empty body.' }) : jsonView(body, context.inspect, { tall: true }),
+  ]);
+}
+
+async function chapterExchange(context) {
+  const fragment = document.createDocumentFragment();
+  const data = await api.workflows();
+
+  fragment.append(
+    prose([
+      'Every chapter before this one hands credentials around as JSON. A certificate exists, somebody checks it, and the step where one party <em>asked</em> another for it is skipped entirely — which is awkward, because the hard case in the quality infrastructure is a document crossing a border between two organisations that have never dealt with each other, and the crossing is the part that was missing.',
+      'What follows is W3C&rsquo;s <a href="https://www.w3.org/TR/vcalm-1.0/">VCALM</a> exchange, implemented against the world the earlier chapters built. Two properties of it do all the work.',
+      '<strong>One endpoint, used twice.</strong> The holder POSTs to an exchange and is answered with a request for a presentation. It POSTs the presentation to the same URL and is answered with a result. Not two services with two protocols — one conversation with two turns.',
+      '<strong>The holder starts it.</strong> There is no way for an issuer or a verifier to reach into a wallet. Every flow begins with the party holding the credentials, which is why the whole arrangement survives a fifteen-person laboratory sitting behind a firewall with no inbound port.',
+    ])
+  );
+
+  const stage = el('div');
+  let selected = data.workflows[0];
+
+  // aria-pressed marks the one already chosen, which the CSS colours and which
+  // tools/ui-clicks.mjs skips -- a chip that selects the state it is already in has
+  // nothing to change, and saying so is better than leaving the harness to call it
+  // broken. It was right to: without this the first chip really did nothing.
+  const chips = el(
+    'div',
+    { class: 'chips' },
+    data.workflows.map((workflow, index) =>
+      el('button', {
+        class: 'chip',
+        text: workflow.title,
+        'aria-pressed': String(index === 0),
+        onclick: (event) => {
+          chips
+            .querySelectorAll('.chip')
+            .forEach((chip) => chip.setAttribute('aria-pressed', String(chip === event.target)));
+          selected = workflow;
+          show();
+        },
+      })
+    )
+  );
+
+  fragment.append(panel('Three exchanges this world can hold', 'pick one, then run it', [chips, stage]));
+
+  async function run(replay) {
+    const log = el('div');
+    clear(stage).append(describe(), log);
+
+    try {
+      const opened = await api.openExchange(selected.id);
+      log.append(
+        exchangeMessage(
+          1,
+          'up',
+          'The holder opens an exchange',
+          `POST /workflows/${selected.id}/exchanges`,
+          { workflowId: opened.workflowId, exchangeId: opened.exchangeId, url: opened.url },
+          context
+        )
+      );
+
+      const request = await api.exchangeTurn(selected.id, opened.exchangeId, {});
+      log.append(
+        exchangeMessage(
+          2,
+          'down',
+          'The coordinator asks for a presentation',
+          'the same URL, answered with a request',
+          request.verifiablePresentationRequest,
+          context
+        ),
+        callout([request.vcqi.explains])
+      );
+
+      const presented = await api.presentAs(selected.id, opened.exchangeId);
+      const presentation = presented.verifiablePresentation;
+      log.append(
+        exchangeMessage(
+          3,
+          'up',
+          'The holder answers',
+          selected.presents.length
+            ? `signed with ${selected.holderName}&rsquo;s key, carrying ${selected.presents.length} credential${selected.presents.length === 1 ? '' : 's'}`
+            : `signed with ${selected.holderName}&rsquo;s key, carrying no credential at all`,
+          presentation,
+          context
+        ),
+        callout([
+          `Look at the proof. Its <code>proofPurpose</code> is <code>authentication</code> rather than <code>assertionMethod</code> — the holder is not asserting the contents, which the issuers already signed, but proving it is the party that was asked. And it carries the <code>challenge</code> from the request and the <code>domain</code> of the coordinator, both signed in. That is what makes this presentation an answer to <em>this</em> exchange and no other, and it is why it could not have been prepared in advance: the challenge did not exist until step 1.`,
+        ])
+      );
+
+      let target = opened.exchangeId;
+      if (replay) {
+        const second = await api.openExchange(selected.id);
+        await api.exchangeTurn(selected.id, second.exchangeId, {});
+        target = second.exchangeId;
+        log.append(
+          callout([
+            `Now a second exchange has been opened, with its own challenge, and the presentation from the first one is about to be posted into it — which is precisely what an attacker who intercepted a presentation would try.`,
+          ])
+        );
+      }
+
+      const result = await api.exchangeTurn(selected.id, target, {
+        verifiablePresentation: presentation,
+      });
+      const outcome = result.vcqi;
+
+      log.append(
+        panel(
+          `4. The coordinator ${outcome.state === 'complete' ? 'answers' : 'refuses'}`,
+          outcome.state === 'complete' ? 'verified, and issued where there is something to issue' : 'and nothing is issued',
+          [
+            el('div', { style: 'margin-bottom:12px' }, [
+              badge(outcome.state === 'complete' ? 'pass' : 'fail', outcome.state),
+              ...(outcome.reports || []).map((report) =>
+                badge(report.outcome === 'verified' ? 'pass' : 'fail', `presented: ${report.outcome}`)
+              ),
+            ]),
+            outcome.refused ? callout([`<strong>Refused.</strong> ${outcome.refused}`]) : null,
+            result.verifiablePresentation
+              ? jsonView(result.verifiablePresentation, context.inspect, { tall: true })
+              : el('p', { class: 'muted', text: 'Empty body — the exchange is finished and there is nothing further to send.' }),
+            callout([outcome.explains]),
+          ].filter(Boolean)
+        )
+      );
+
+      if ((outcome.reports || []).length) {
+        log.append(
+          panel(
+            'What the coordinator checked before answering',
+            'the same pipeline every other chapter uses, run over what the holder sent',
+            outcome.reports.map((report) => stepTree(report.steps, 0))
+          )
+        );
+      }
+    } catch (error) {
+      log.append(callout([`The exchange could not be completed: ${error.message}`]));
+    }
+  }
+
+  function describe() {
+    const [tone, label] = EXCHANGE_ROLE[selected.role];
+    return panel(selected.title, null, [
+      el('div', { style: 'margin-bottom:12px' }, [
+        badge(tone, `${selected.coordinatorName} is ${label}`),
+      ]),
+      keyValues([
+        ['Holder, who starts it', `${selected.holderName} (${selected.holder})`],
+        ['Coordinator, who answers', `${selected.coordinatorName} (${selected.coordinator})`],
+        ['What is asked for', selected.asksFor.length ? selected.asksFor.join(', ') : 'Only proof that the holder controls its identifier'],
+        ['What comes back', selected.issues ? selected.issues : 'Nothing — this coordinator is checking, not issuing'],
+      ]),
+      callout([selected.lesson]),
+      el('div', { class: 'chips' }, [
+        el('button', { class: 'chip', text: 'Run the exchange', onclick: () => run(false) }),
+        el('button', { class: 'chip', text: 'Replay the answer into a second exchange', onclick: () => run(true) }),
+      ]),
+    ]);
+  }
+
+  function show() {
+    clear(stage).append(describe());
+  }
+
+  show();
+
+  fragment.append(
+    panel('What this costs, and it is not nothing', 'the claim in chapter 10, corrected', [
+      prose([
+        'Chapter 10 argues that verification is a computation rather than a conversation, and concludes that a verifier operates nothing. The first half is true. The conclusion does not survive anybody having to <em>ask</em>.',
+        `An exchange has state — which exchange, which turn, which challenge — and state means a service, a store, an expiry policy and something to attack. This is the first thing in the whole demonstration that the server has to remember between requests: it holds at most ${data.maxExchanges} exchanges, each for ${Math.round(data.ttlSeconds / 60)} minutes, and evicts the oldest when it runs out of room.`,
+        'So the honest split is finer than that chapter drew it. Checking a credential you already hold is free and works offline on a laptop at a border post. Obtaining one needs both parties reachable at once, and needs the asking party to run something. The cheap case is a courier arriving with the credentials in hand; the case that needs a service is the authority requesting them.',
+      ]),
+    ])
+  );
+
+  fragment.append(
+    el('p', {
+      class: 'footnote',
+      html:
+        'Two things here are deliberately not real. There is no authorization on these endpoints, so anyone may open any exchange and this world&rsquo;s fictional holders will present for them; a deployment puts OAuth or a capability in front, which VCALM discusses and which would teach nothing extra here. And the browser cannot hold a private key it was never given, so when it acts as the holder it asks this same server to sign on the holder&rsquo;s behalf — one process still plays every actor, exactly as it does in every other chapter. The credentials that come back are the ones the earlier chapters already showed, which is the honest thing to point out about an exchange: it is transport, and the same document arrives. What changed is that somebody had to ask for it.',
+    })
+  );
+
+  return fragment;
+}
+
 // ----------------------------------------------------------------
 
 export const CHAPTERS = [
@@ -1913,5 +2120,16 @@ export const CHAPTERS = [
     eyebrow: 'Harmonisation',
     lede: 'The minimum that has to be common for any of this to cross a border, what cannot be decided later however convenient that would be, and what a deployment can do without.',
     render: chapterHarmonisation,
+  },
+  {
+    // Last, and after harmonisation on purpose. Seating it earlier would renumber
+    // every chapter from 9 upward, and two dozen references to a chapter by number --
+    // several of them editorial fields in actors/harmonisation.py served to the reader
+    // -- would quietly become wrong. ARCHITECTURE.md records the rule.
+    id: 'exchange',
+    title: 'How a credential actually moves',
+    eyebrow: 'The conversation',
+    lede: 'Every other chapter hands documents around as JSON. This one makes somebody ask for them, which is where the cross-border case actually lives.',
+    render: chapterExchange,
   },
 ];
