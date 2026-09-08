@@ -305,6 +305,27 @@ class Resolver:
         methods = document.get("assertionMethod", [])
         return [method for method in methods if isinstance(method, str)]
 
+    def authentication_methods(self, did: str) -> list[str]:
+        """List the verification methods an identifier allows for authenticating.
+
+        The mirror of :meth:`assertion_methods`, and needed for the same reason in the
+        other direction: a key published only for signing credentials is not thereby
+        authorised to prove who is holding them. A presentation is an authentication,
+        so its proof has to name a key the controller published for that purpose.
+
+        Args:
+            did: The identifier of the controller.
+
+        Returns:
+            The identifiers of its authentication methods, empty when it resolves to
+            nothing or authorises none.
+        """
+        document = self.resolve_did_document(did)
+        if document is None:
+            return []
+        methods = document.get("authentication", [])
+        return [method for method in methods if isinstance(method, str)]
+
     def reset_log(self) -> None:
         """Discard the retrieval log, so a fresh verification starts from empty."""
         self.log.clear()

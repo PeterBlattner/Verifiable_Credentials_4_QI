@@ -1744,3 +1744,349 @@ chapters that should have moved.
   from Scheme B, and what SMART stands for. The last two because no primary source to hand
   settled them, which given what the caution statement now says matters more here than
   anywhere else in the project.
+
+# Change set 10 - what a reviewer corrected
+
+## Context
+
+The demonstration was reviewed, unsolicited, by someone who works on the verifiable
+credentials specifications. About thirty minutes, over the data structures and the
+harmonisation chapter. Three findings, and they are not equally comfortable.
+
+The data structures held up: better than 90% of them sound for a first draft, with
+changes to suggest but the general shape workable. That is the pleasant one and it needs
+no work.
+
+**The harmonisation chapter overstated the problem.** Seven of its sixteen items carried
+*nothing exists yet*, and the reviewer's estimate was that only about a fifth of the list
+needed a long argument. Checked item by item against the published specifications rather
+than against the first draft's assumptions, five of those seven had answers - some
+published while this was being written, some still moving through as pull requests.
+
+**Two things it never considered**, both bearing directly on a document that has to
+verify in thirty years: cryptographic event logs, and long-term retrieval of the
+documents a verification reads.
+
+**And there is no exchange anywhere in it.** Every credential here is handed around as
+JSON. The reviewer pointed at VCALM's figure of a holder and an issuer/verifier, which is
+the shape the cross-border case actually has. That is change set 11, on its own branch.
+
+This is the second time this project has made one class of mistake. Change set 6 assumed
+the metrology vocabularies were missing and had to be told the BIPM already publishes
+them. This time it assumed the credential mechanisms were missing. Both run the same way -
+concluding a gap exists because the author had not read far enough - and that is worth
+recording as a pattern rather than as two incidents.
+
+## Decisions taken with the user
+
+- The re-audit, the two missing items and the caution update on one branch; the exchange
+  on its own, because it is a chapter and endpoints rather than editorial data.
+- did:webvh is **described, not built**. It answers three questions this chapter said were
+  unanswered, and citing it costs nothing; migrating the world to it would move every
+  digest and signature for a claim the page can make honestly in prose.
+- The reviewer is not named. Their reading is described, their affiliation is not given,
+  and nothing needed clearing with them before publishing.
+
+## What changed
+
+**A fourth status, `partial`.** The vocabulary was `available`, `emerging`, `open`, and it
+had no way to say *a specification answers the mechanical half and something institutional
+is left over*. Five items needed exactly that, and without it they were all filed as
+`open`, which reads as *nothing exists*.
+
+**A `source` field.** A bare URL per item, rendered as a link. A field of its own rather
+than a sentence inside `exists`, because every other field reaches `textContent`, where an
+anchor tag shows the reader its angle brackets - a trap `tests/test_deployment.py` already
+guards, and which the `units` item had worked around by spelling a URL out in prose. Two
+new tests make it load-bearing: a source must be a bare `https://` URL, and any item
+claiming `available` or `partial` must have one. A researched claim and an assumed one
+were previously indistinguishable to the suite.
+
+**Five items re-audited.**
+
+| Item | Was | Now | What answers it |
+| --- | --- | --- | --- |
+| `did-method` | open | partial | did:webvh. Rotation identity through the SCID, withdrawal through pre-rotation, and the resolver's obligation written down. Mechanical migration from did:web. |
+| `status-meaning` | open | partial | Bitstring Status List, a Recommendation since May 2025: `statusPurpose: message`, `statusMessage` per value, `statusReference` at the governing document. |
+| `anchors` | open | partial | ETSI TS 119 612 and the EU list of trusted lists. A signed, rotatable anchor list is deployed at scale, not unbuilt. |
+| `persistence` | open | partial | SCID portability across domains, and watchers caching indefinitely. The thirty-year undertaking stays open and cannot be settled by evidence yet. |
+| `timestamps` | open | partial | RFC 3161 was already named; what changed is that an issuer's own witnessed log answers *was this key valid then* without a third party being asked. |
+
+`legal-effect` stays open and gained the near miss worth naming: `termsOfUse` sounds like
+the answer and is not. It constrains what a recipient may do with a credential, not what
+the credential permits in the world, and pressing it into service would produce a document
+that reads plausibly to a person and means something else to a machine.
+
+Still open, and these are the ones needing a long argument: `chain-crossing`,
+`legal-effect`, `type-identity`, `governing-copy`, `uncertainty-transport`.
+
+**Two new items, both second tier.** `event-logs` and `retrieval`. Second tier and not
+third for the same reason in both cases: neither can be started late. A log not kept from
+the first day cannot be reconstructed, and a document nobody archived in 2026 is not
+archivable in 2056.
+
+`retrieval` is the sharper of the two, because chapter 10 had already measured it without
+naming it. Verifying one certificate of conformity reads 31 distinct documents from 7
+hosts. The credential travels with its holder and is safe; the other 30 are fetched from
+wherever they live. A test compares both numbers against what `/api/infrastructure`
+actually reports, so the sentence stays a measurement rather than a number that was true
+once.
+
+**The chapter counts instead of asserting.** A panel above the tiers reports how many
+items are available, partial, emerging and open, computed from the items themselves.
+
+**The cautions.** *"have not been reviewed, tested or checked against the specification by
+anyone"* was no longer true. All three copies now say what the review was and what it was
+not - one reader, thirty minutes, not validation - and the closing offer records that
+correction arrived once and improved the work. The banner is untouched and still correct:
+no institution named here has reviewed or endorsed any of it.
+
+## One defect found while doing it
+
+`prose([step.detail])` put a whole ladder step into a single paragraph, so the blank lines
+step 7 has carried since change set 9 rendered as spaces. Splitting on the blank line
+fixes step 7 as well as the rewritten step 2.
+
+## Files
+
+```
+src/vcqi/actors/harmonisation.py              partial, source, five re-audits, two new items
+src/vcqi/web/static/js/chapters.js            status map, source link, count panel, step split
+src/vcqi/web/content/chapters/00-cautions.md  what the review was, and was not
+README.md                                     the same statement, kept in step by test
+tests/test_harmonisation.py                   source shape, citation, the count, the new items
+tests/test_web.py                             the fourth status, and the served source field
+```
+
+## Verification
+
+- `uv run pytest`
+- `node tools/ui-clicks.mjs` against a running server
+- `python -m vcqi.actors.scenarios --dump` twice. No credential content changed here, so
+  this must be untouched, and it is the check that proves it.
+
+## Git
+
+Branch `feature/harmonisation-review`, from `develop`. Nothing pushed without asking.
+
+## Change set 10 - build order
+
+- [x] **R1 - Vocabulary.** The `partial` status and the `source` field, with the two tests
+      that make a citation compulsory for any item claiming an answer.
+- [x] **R2 - Re-audit.** Five items restated against the specifications; `legal-effect`
+      gains the near miss.
+- [x] **R3 - The two gaps.** `event-logs` and `retrieval`, both second tier, with the
+      retrieval count checked against what chapter 10 measures.
+- [x] **R4 - Ladder.** Step 2 becomes publish a key as a log, and keep what you fetched.
+- [x] **R5 - The count panel.** Computed in the interface, not written into the prose.
+- [x] **R6 - Cautions.** All three copies, plus the closing offer.
+
+## Change set 10 - progress log
+
+401 tests pass, 46 skipped. All thirteen chapters render and every control responds.
+
+- Eighteen items now, from sixteen. Five open, which the chapter reports as about 28% -
+  higher than the reviewer's estimate of a fifth, and reported as counted rather than
+  adjusted to match it.
+- The five re-audited items each open by saying what the first draft got wrong. That is
+  deliberate and should stay: a page about unsolved problems goes stale by overstating
+  them, and one visible correction is the cheapest available warning that there are
+  probably others.
+- `test_an_item_claiming_an_answer_says_where_to_read_it` is the check this chapter needed
+  from the beginning. Nothing previously could tell a researched claim from an assumed
+  one, which is exactly how seven items came to say *nothing exists yet*.
+- The retrieval item was the only place where the two new gaps could be made concrete
+  rather than argued, because chapter 10 already produced the measurement. 31 distinct
+  documents, 7 hosts, and only one of the 31 travels with the holder.
+
+# Change set 11 - the exchange, which was never there
+
+## Context
+
+The reviewer's third finding, and the one with the most in it. Twelve chapters modelled
+what a certificate says and none of them modelled anybody asking for it. Credentials
+were handed around as JSON: a document existed, a verifier read it, and the step where
+one organisation requested it from another was skipped entirely.
+
+That is not a small omission, because the skipped step is the hard case. The quality
+infrastructure exists for a document crossing a border between two organisations with no
+prior relationship, and the crossing was the part that had never been built. The
+harmonisation chapter's own inclusion test - *two conforming implementations that differ
+here cannot interoperate* - catches it plainly, and it went unlisted for eleven chapters.
+
+The reviewer pointed at VCALM's figure of an exchange between a holder and an
+issuer/verifier. That figure is the shape this world was already built for and could not
+show: the OIML Issuing Authority verifies what a test laboratory presents and issues a
+type certificate on the strength of it. Every earlier chapter had that certificate simply
+existing.
+
+## Decisions taken
+
+- VCALM's paths, not this project's. `/workflows/{id}/exchanges/{id}` are the only routes
+  in the application not under `/api/`, and using the specification's shape rather than a
+  local convention is most of what the chapter has to show.
+- Chapter 12, last, after harmonisation. Seating it where it belongs thematically - next
+  to the deployment chapters - would renumber everything from chapter 9 up, and roughly
+  two dozen references to a chapter by number would silently become wrong, several of
+  them editorial fields served to the reader from `actors/harmonisation.py`.
+- Three workflows, in increasing order of interest, all using credentials the world
+  already has.
+- The credentials returned on success are the world's own rather than freshly minted.
+  That keeps the build deterministic and makes the honest point about an exchange: it is
+  transport, the same document arrives, and what changed is that somebody had to ask.
+
+## What was built
+
+**`src/vcqi/actors/exchange.py`.** Three workflows, an exchange store, the presentation
+request, the holder's presentation, and the turn logic.
+
+| Workflow | Coordinator | Role | What it shows |
+| --- | --- | --- | --- |
+| `accreditation` | SAS | issuer | The simplest exchange there is, and it still needs two turns. What is checked is not a credential but control of an identifier. |
+| `border` | Market surveillance | verifier | Pure verification - and the reason chapter 10 had to be corrected. |
+| `oiml-type` | Verifica | issuer-verifier | Two credentials verified and a third issued in one response, and nothing issued if either fails. The reviewer's figure. |
+
+**Four routes.** `POST /workflows/{id}/exchanges` opens one;
+`POST /workflows/{id}/exchanges/{id}` takes either turn - the body distinguishes them,
+not the address; `GET /api/exchange/workflows` lists them for the chapter;
+`POST /api/exchange/{wf}/{ex}/present` signs on the holder's behalf, which is ours and
+not VCALM's and would not exist in a deployment.
+
+**`challenge` and `domain` on `sign_document`.** Optional, and they go into the proof
+configuration that is canonicalized and hashed, so they are covered by the signature
+rather than travelling beside it. Verification needed no change at all:
+`verify_document` rebuilds the configuration from every proof member except
+`proofValue`, so an added member is included automatically.
+
+**`Resolver.authentication_methods`.** The mirror of `assertion_methods`, and needed for
+the same reason in the other direction: a key published only for signing credentials is
+not thereby authorised to prove who is holding them.
+
+## The bug the tests caught, which is the most useful thing here
+
+The first version of `_check_presentation` read the challenge, the purpose and the domain
+out of the proof, compared all three, and **never verified the presentation's signature**.
+
+`test_the_challenge_is_signed_and_not_merely_carried` caught it. An intercepted
+presentation, re-pointed at a live exchange by editing one string in the proof, collected
+a type certificate. Nothing else in the suite would have noticed, because every
+credential inside the presentation was genuine and verified perfectly.
+
+The lesson generalises and is now in ARCHITECTURE.md: credentials are public documents,
+anyone can obtain a copy, and the authentication proof on the presentation is the only
+thing between a public certificate and anyone claiming to hold it. Every string
+comparison in that function is worthless without the signature check that follows it -
+the comparisons count only because the challenge sits inside the hashed proof
+configuration, so editing it breaks the signature.
+
+Related, and recorded rather than left to be found: identifier-based recognition
+discovery in `vc/recognition.py` reads credentials out of a whois presentation without
+verifying that presentation's proof. That is defensible there and deliberate - each
+credential inside is verified independently, so the presentation is a container with no
+claim of its own. It is not defensible in an exchange, where the presentation *is* the
+authentication.
+
+## What it cost, and the claim it falsifies
+
+`actors/deployment.py` argued that verification is a computation rather than a
+conversation, and concluded that a verifier operates nothing. The premise is true. The
+conclusion does not survive anybody having to *ask*.
+
+An exchange has state - which exchange, which turn, which challenge - and state means a
+service, a store, an expiry policy and something to attack. `ExchangeStore` is the first
+thing in this project the server has to remember between requests: 256 exchanges, fifteen
+minutes each, oldest evicted first.
+
+So the corrected split, which chapter 12 states and chapter 10 now bridges into:
+checking a credential you already hold is free and works offline on a laptop at a border
+post. Obtaining one needs both parties reachable at once and needs the asking party to
+run something. The verifier profile and the module docstring both say so now, where it
+applies, rather than the chapter quietly overstating its case.
+
+The exchange turn is charged at the same rate as `/api/verify`, because it is
+`/api/verify` with the number of credentials also in the caller's hands. Opening an
+exchange is charged lightly, and for a different reason: what it consumes is a store slot
+with a ceiling, not CPU.
+
+## The nineteenth harmonisation item
+
+`exchange`, first tier, `partial`. Not open, because the difficulty is that there is more
+than one answer rather than none: VCALM is a Working Draft describing exactly this, and
+OpenID for Verifiable Presentations answers the same question differently and is what the
+European digital identity wallets are deploying. Choosing is a profile decision. The
+consequential part is not which protocol but whether the choice is made once for the
+quality infrastructure or once per country, and the second is the default that happens
+when nobody decides.
+
+Ladder step 3 - two institutes verifying each other bilaterally - now says to hand the
+certificates over through an exchange rather than by email, because the disagreements
+worth finding are in the protocol as much as in the documents.
+
+## Files
+
+```
+src/vcqi/actors/exchange.py           new: workflows, store, request, presentation, turns
+src/vcqi/actors/harmonisation.py      the exchange item, and ladder step 3
+src/vcqi/actors/deployment.py         the verifier operates nothing, corrected
+src/vcqi/crypto/dataintegrity.py      challenge and domain in the proof configuration
+src/vcqi/vc/resolver.py               authentication_methods
+src/vcqi/web/app.py                   four routes, and the only non-/api/ ones
+src/vcqi/web/limits.py                what a turn costs, and why opening costs less
+src/vcqi/web/static/js/api.js         four calls
+src/vcqi/web/static/js/chapters.js    chapter 12, and chapter 10's bridge forward
+tests/test_exchange.py                new: 23 tests, eight of them refusals
+README.md, ARCHITECTURE.md
+```
+
+## Verification
+
+- `uv run pytest`
+- `node tools/ui-clicks.mjs` against a running server
+- `python -m vcqi.actors.scenarios --dump` twice, byte-identical. Exchanges are runtime
+  state and no credential content changed, so the world must be untouched.
+
+## Git
+
+Branch `feature/vcalm-exchange`, from `develop`, with `feature/harmonisation-review`
+merged in so the two read as one piece of work. Nothing pushed without asking.
+
+## Change set 11 - build order
+
+- [x] **X1 - The module.** Workflows, `ExchangeStore`, `presentation_request`,
+      `holder_presentation`, `respond`.
+- [x] **X2 - Challenge binding.** `challenge` and `domain` on `sign_document`, inside the
+      hashed proof configuration.
+- [x] **X3 - Routes.** The two VCALM paths, the listing, and the holder-signing seam.
+- [x] **X4 - Limits.** A turn costs what `/api/verify` costs; opening costs less.
+- [x] **X5 - Verify the presentation.** `authentication_methods` on the resolver, and the
+      proof check that the first version was missing.
+- [x] **X6 - Chapter 12.** Three exchanges, the message trace, the replay button.
+- [x] **X7 - Corrections.** The verifier profile, the module docstring, chapter 10's
+      bridge, and the nineteenth harmonisation item.
+- [x] **X8 - Tests and docs.** `tests/test_exchange.py`, ARCHITECTURE.md, README.md.
+
+## Change set 11 - progress log
+
+424 tests pass, 46 skipped. Thirteen chapters render and every control responds. Two
+`--dump` runs are byte-identical at 76 documents, which is the check that the world was
+not touched.
+
+- The dual-role exchange works on the credentials the world already had, which is the
+  strongest thing about it: nothing was invented for the chapter. Helvetia Testing
+  presents the recognition the OIML gave it and the type evaluation it performed, and
+  Verifica returns the certificate. Alter either presented credential and the certificate
+  is not issued.
+- Eight of the twenty-three tests are refusals, and they are the ones worth having.
+  Replay, forwarding to a second verifier, an unsigned presentation, a proof made for
+  `assertionMethod` instead of `authentication`, a tampered credential inside a validly
+  signed presentation, someone else's credentials wrapped in a presentation signed with
+  the wrong key, a challenge edited to match its target, and an exchange id used under
+  the wrong workflow.
+- **The missing proof check is the finding of this change set.** It is recorded in
+  ARCHITECTURE.md and in the module because the class of error is worth more than the
+  instance: three string comparisons that look like security and are not, until the
+  signature is checked. It was written, reviewed by eye, and read as correct.
+- One thing not done and deliberately so: no failure case was added to chapter 8. The
+  break-it chapter is about documents that are wrong, and every refusal here is about a
+  conversation that is wrong. Folding them together would have cost the eighteen-case
+  count two tests pin and blurred a real distinction.

@@ -45,6 +45,16 @@ export const api = {
   gtc: () => request('/api/gtc'),
   infrastructure: () => request('/api/infrastructure'),
   harmonisation: () => request('/api/harmonisation'),
+  workflows: () => request('/api/exchange/workflows'),
+  openExchange: (workflowId) => post(`/workflows/${workflowId}/exchanges`, {}),
+  // The two turns of an exchange are the same POST to the same URL. What distinguishes
+  // them is the body, which is why there is one call here and not two.
+  exchangeTurn: (workflowId, exchangeId, body) =>
+    post(`/workflows/${workflowId}/exchanges/${exchangeId}`, body || {}),
+  // Not part of VCALM. The browser has to play a holder whose key lives on the server,
+  // so it asks the server to sign on the holder's behalf; chapter 12 says so plainly.
+  presentAs: (workflowId, exchangeId) =>
+    post(`/api/exchange/${workflowId}/${exchangeId}/present`, {}),
   // Dependency data is XML or a binary blob, so it comes back as text rather than JSON.
   uncertaintyData: async (url) => {
     const response = await fetch(`/api/uncertainty-data?url=${encodeURIComponent(url)}`);

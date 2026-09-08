@@ -163,10 +163,19 @@ class BodySizeLimitMiddleware:
 def route_cost(path: str) -> int:
     """Return how many tokens a path costs.
 
-    The test is not "how much work is this" but "can the caller raise it". Only two
-    routes can. ``/api/keys/*`` performs scalar multiplications on caller-supplied
-    numbers, and ``/api/verify`` runs the whole pipeline over a credential the caller
-    wrote, whose size and nesting are theirs to choose.
+    The test is not "how much work is this" but "can the caller raise it". Three routes
+    can. ``/api/keys/*`` performs scalar multiplications on caller-supplied numbers,
+    ``/api/verify`` runs the whole pipeline over a credential the caller wrote, whose
+    size and nesting are theirs to choose, and a POST to an exchange runs that same
+    pipeline over every credential in a presentation the caller composed -- which is
+    ``/api/verify`` again with the count of credentials also in the caller's hands.
+
+    Opening an exchange is charged too, and for a different reason. It costs almost
+    nothing to serve and it allocates state that lives for fifteen minutes, so the thing
+    being rationed there is the store rather than the CPU. It is charged lightly, because
+    ``ExchangeStore`` has a ceiling and evicts oldest-first: the worst a flood achieves
+    is to push out other people's exchanges, which is worth slowing and not worth
+    treating as an attack on anything.
 
     Everything else is fixed-cost. ``/api/uncertainty``, ``/api/scope`` and
     ``/api/combine`` evaluate a model of four inputs however the sliders are set;
@@ -185,6 +194,10 @@ def route_cost(path: str) -> int:
         return 5
     if path.startswith("/api/verify"):
         return 3
+    if path.startswith("/workflows/"):
+        # ".../exchanges" opens one; ".../exchanges/{id}" takes a turn, and only the
+        # turn can carry credentials to verify.
+        return 1 if path.endswith("/exchanges") else 3
     return 0
 
 
