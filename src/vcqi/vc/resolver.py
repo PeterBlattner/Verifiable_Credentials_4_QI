@@ -55,6 +55,34 @@ class FetchRecord:
         return {"url": self.url, "kind": self.kind, "found": self.found, "source": self.source}
 
 
+#: Kinds of document a holder may **never** supply alongside its credential, and which a
+#: verifier must therefore go and get for itself.
+#:
+#: The distinction is not fussiness, it is the whole trust model, and getting it wrong is
+#: not a degraded check but a defeated one:
+#:
+#: - ``did-document`` establishes a key. Accepting the holder's copy means accepting the
+#:   holder's opinion about who somebody else is, which is a total forgery: staple a
+#:   document claiming a trust anchor's identifier, sign in that anchor's name, and every
+#:   check passes. There is a regression test for exactly that.
+#: - ``status-list`` is a claim about *now*. A stapled one is stale by construction, and a
+#:   holder who keeps a copy from before its revocation replays it forever.
+#: - ``registry-entry`` -- a CMC or an accreditation scope -- carries no signature and no
+#:   digest, so a copy cannot be checked at all. Accepting one lets a laboratory declare
+#:   its own measurement capability. This is the one entry on this list that is here for a
+#:   reason that could be fixed rather than a reason that is inherent: signing the KCDB
+#:   would move it off.
+#: - ``presentation`` is what identifier-based discovery dereferences from the issuer's own
+#:   endpoint. Letting the holder supply it means letting the holder choose what the issuer
+#:   says about itself.
+#:
+#: Everything else -- credentials, schemas, uncertainty data -- either carries its own
+#: signature or is covered by a ``digestMultibase`` inside one, so a copy from any source
+#: is checkable and may travel with the holder.
+RESOLVE_ONLY_KINDS: frozenset[str] = frozenset(
+    {"did-document", "status-list", "registry-entry", "presentation"}
+)
+
 DID_KEY_PREFIX = "did:key:"
 
 
@@ -214,13 +242,40 @@ class Resolver:
             The document, or None when it cannot be found. A missing document is never
             treated as permission to skip a check.
         """
+        kind = self.store.kind_of(url)
         document = self.presented.get(url)
-        if document is not None:
+        # Belt and braces. Every call site that wants one of these kinds calls `retrieve`
+        # instead, and this is the guard that stops a future one reopening the hole by
+        # calling the wrong method.
+        if document is not None and kind not in RESOLVE_ONLY_KINDS:
             self.log.append(
-                FetchRecord(url=url, kind=self.store.kind_of(url), found=True, source="presented")
+                FetchRecord(url=url, kind=kind, found=True, source="presented")
             )
             return document
 
+        document = self.store.get(url)
+        self.log.append(
+            FetchRecord(
+                url=url,
+                kind=self.store.kind_of(url),
+                found=document is not None,
+                source="retrieved",
+            )
+        )
+        return document
+
+    def retrieve(self, url: str) -> dict[str, Any] | None:
+        """Retrieve a document from its publisher, ignoring anything the holder supplied.
+
+        For the kinds in :data:`RESOLVE_ONLY_KINDS`. Reads as a statement of intent at the
+        call site: *this is a document I must not accept second-hand.*
+
+        Args:
+            url: The address to retrieve.
+
+        Returns:
+            The document, or None when it cannot be found.
+        """
         document = self.store.get(url)
         self.log.append(
             FetchRecord(
@@ -249,7 +304,8 @@ class Resolver:
                 FetchRecord(url=did, kind="did-document", found=True, source="self-describing")
             )
             return local
-        return self.fetch(did)
+        # Never `fetch`: a holder's copy of somebody else's DID document is a forged key.
+        return self.retrieve(did)
 
     def resolve_public_key(
         self, verification_method_id: str

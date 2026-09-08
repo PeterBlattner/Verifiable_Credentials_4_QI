@@ -45,6 +45,7 @@ export const api = {
   gtc: () => request('/api/gtc'),
   infrastructure: () => request('/api/infrastructure'),
   harmonisation: () => request('/api/harmonisation'),
+  portability: () => request('/api/portability'),
   workflows: () => request('/api/exchange/workflows'),
   openExchange: (workflowId) => post(`/workflows/${workflowId}/exchanges`, {}),
   // The two turns of an exchange are the same POST to the same URL. What distinguishes

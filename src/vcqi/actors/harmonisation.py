@@ -231,12 +231,16 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "able to read each other's certificates and unable to obtain one."
         ),
         demonstrated=(
-            "Chapter 12 implements VCALM's exchange for three cases, including the one "
-            "the quality infrastructure is actually made of: a party that verifies what "
-            "was presented and issues in the same round trip. What it does not "
-            "implement is authorization, which is the half a real deployment argues "
-            "about - anyone may open an exchange here and the fictional holders will "
-            "present for them."
+            "Chapter 12 now shows both answers. It implements VCALM's exchange for "
+            "three cases, including the one the quality infrastructure is actually made "
+            "of: a party that verifies what was presented and issues in the same round "
+            "trip. What it does not implement is authorization, which is the half a real "
+            "deployment argues about - anyone may open an exchange here and the "
+            "fictional holders will present for them.\n\n"
+            "Beside it the chapter measures the other answer, which is to need no "
+            "protocol at all. Every credential here already verifies from a file, and "
+            "the audit reports exactly how much of a verification can arrive that way "
+            "and what is left over."
         ),
         exists=(
             "More than one answer, which is the difficulty rather than the absence. "
@@ -245,7 +249,16 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "question differently and is what the European digital identity wallets are "
             "deploying, so for a quality infrastructure that ever has to meet an EUDI "
             "wallet the choice is already half made by somebody else. Choosing between "
-            "them is a profile decision, not a research problem."
+            "them is a profile decision, not a research problem.\n\n"
+            "And there is a third position, which is that the question is smaller than "
+            "it looks. UN/CEFACT's portable-credential architecture argues that no "
+            "protocol is needed for most of it: a signed document travels by whatever "
+            "means is to hand, and a network of hubs and pipes never reaches everyone "
+            "who needs the document anyway. UNVTD names OpenID4VP where it names a "
+            "protocol at all, and says it is compatible with business wallets without "
+            "depending on them. On that reading a protocol is what you need for the "
+            "narrow case where the verifier has to ask, and agreeing one is less urgent "
+            "than agreeing what the document says."
         ),
         source="https://www.w3.org/TR/vcalm-1.0/",
         consequence=(
@@ -507,7 +520,12 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "The BIPM's SI Digital Framework publishes permanent digital identifiers for "
             "every SI unit, prefix and defining constant, with RDF behind them. The ohm "
             "is at https://si-digital-framework.org/SI/units/ohm, carrying its symbol, "
-            "its quantity and the CGPM resolution that defined it."
+            "its quantity and the CGPM resolution that defined it." "\n\n"
+            "Worth knowing how easily this gets skipped by people who are not "
+            "metrologists: UN/CEFACT's Digital Conformity Credential writes a measured "
+            "result with its unit as a bare string, so a UN construction published in "
+            "2026 has the same gap this demonstration has. A register existing is not the "
+            "same as anybody using it."
         ),
         source="https://si-digital-framework.org/SI?lang=en",
         consequence=(
@@ -799,15 +817,28 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "its signature slot unused."
         ),
         exists=(
-            "The DCC is much the most mature candidate, and it is a national "
-            "construction of the PTB and the DKD. Its technical merit is not in "
-            "question. Its route to worldwide adoption is a governance question and "
-            "deserves to be argued as one rather than assumed away."
+            "The PTB/DKD DCC is much the most mature candidate for a calibration "
+            "certificate, and it is a national construction of the PTB and the DKD. Its "
+            "technical merit is not in question. Its route to worldwide adoption is a "
+            "governance question and deserves to be argued as one rather than assumed "
+            "away.\n\n"
+            "There is now a second candidate carrying the international standing the "
+            "first lacks, and it is not a replacement. UN/CEFACT's Digital Conformity "
+            "Credential, under the UN Transparency Protocol, models third-party "
+            "conformity assessment: an attestation, the criteria assessed against, a "
+            "pass or fail, and a measured result. That is the testing and certification "
+            "case rather than the calibration one — no traceability chain, and no "
+            "uncertainty. So the honest reading is that the quality infrastructure has "
+            "one mature format without standing and one standing format that does not "
+            "reach metrology, and nobody has joined them.\n\n"
+            "It is also called the DCC, which is the reason every mention in this "
+            "project says PTB/DKD DCC."
         ),
-        source="",
+        source="https://untp.unece.org/docs/specification/ConformityCredential/",
         consequence=(
             "Regions standardise separately, and the cross-border case is the one that "
-            "fails — again."
+            "fails — again. Or two formats each cover half of it and neither covers "
+            "the join, which is the shape the problem actually has now."
         ),
         forum=(
             "An international body, or the DCC brought through one. Which of those, and "
@@ -860,7 +891,15 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         exists=(
             "Nothing, and this is the one item on the page where the demonstration's "
             "invented labels reflect a real absence rather than an oversight. Neither "
-            "D-SI nor the SI Digital Framework models dependency structure."
+            "D-SI nor the SI Digital Framework models dependency structure, and a third "
+            "source now confirms it from a different direction: UN/CEFACT's Digital "
+            "Conformity Credential, at "
+            "https://untp.unece.org/docs/specification/ConformityCredential/, is a UN "
+            "construction for third-party conformity assessment, and it carries a "
+            "measured result as a value and a unit with no uncertainty of any kind. "
+            "Three independent efforts have now modelled a measurement without modelling "
+            "how good it is, which makes this an absence in the field rather than an "
+            "oversight in any one of them."
         ),
         source="",
         consequence=(

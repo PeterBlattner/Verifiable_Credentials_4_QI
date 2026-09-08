@@ -50,6 +50,7 @@ from vcqi.actors.exchange import (
     respond,
     workflow_by_id,
 )
+from vcqi.actors.portability import PORTABILITY_CLASSES, portability_audit
 from vcqi.actors.registry import ACTORS, TRUST_ANCHORS, actor_by_did, did_document
 from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
@@ -1596,6 +1597,21 @@ def get_harmonisation() -> dict[str, Any]:
         "nextSteps": [step.to_json() for step in NEXT_STEPS],
     }
 
+
+
+@app.get("/api/portability")
+def get_portability() -> dict[str, Any]:
+    """Return what can travel with a credential and what a verifier must fetch.
+
+    Computed, not editorial: the same certificate is verified twice, once with nothing
+    supplied and once with everything supplied that is allowed to travel, and the
+    difference is read out of the resolver's own retrieval log.
+
+    Returns:
+        The four classes, the split of what one real verification read, both retrieval
+        counts, and what would remain if the registries were signed.
+    """
+    return portability_audit(world(), now=DEMO_NOW, trusted_issuers=TRUST_ANCHORS)
 
 # ---------------------------------------------------------------- exchange
 #

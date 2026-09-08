@@ -549,6 +549,11 @@ svg.graph { display: block; width: 100%; height: auto; }
 .kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 16px; font-size: 12.5px; }
 .kv dt { color: var(--ink-faint); }
 .kv dd { margin: 0; }
+/* A field long enough to have paragraphs, inside a definition list that does not
+   otherwise expect any. Tighter than a browser default <p> so the pair still
+   reads as one entry rather than as a new section. */
+.stacked p { margin: 0 0 7px; }
+.stacked p:last-child { margin-bottom: 0; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
 

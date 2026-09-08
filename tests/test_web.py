@@ -290,6 +290,24 @@ def test_every_chapter_in_the_rail_has_a_render_function() -> None:
         assert f"async function {name}(" in source
 
 
+def test_no_panel_title_carries_an_html_entity() -> None:
+    """`panel()` sets textContent, so an entity in a title reaches the reader raw.
+
+    Written after exactly that happened: a panel headed ``Chapter 10&rsquo;s claim``
+    rendered the ampersand, the r, the s and so on. Nothing failed, no console error, and
+    the page simply looked like a mistake -- which is the failure mode this file exists
+    for. `prose` and `callout` set `html:` and may use entities freely; titles, hints,
+    `stat` labels and `badge` labels may not.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    # Single-quoted first arguments only. A template literal or a variable cannot be
+    # checked this way, and the ones that exist are computed from server data.
+    titles = re.findall(r"panel\(\s*'([^']*)'", source)
+    assert titles, "no panel titles found -- the pattern has stopped matching"
+    offenders = [title for title in titles if re.search(r"&[a-zA-Z]+;|&#\d+;", title)]
+    assert not offenders, "HTML entity in a text-only slot: " + ", ".join(offenders)
+
+
 class TestTheCautionsCannotBeRemovedQuietly:
     """The one part of this project whose disappearance should not be silent.
 
