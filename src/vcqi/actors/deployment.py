@@ -13,14 +13,24 @@ about the issuer itself -- its key, and which of its credentials it has since wi
 The certificates themselves need not be hosted at all. :func:`hosting_burden` computes
 that split from what the demonstration actually published rather than restating it here.
 
-**One correction, which chapter 12 forced.** All of the above is about *checking* a
-credential, and it is true. It says nothing about *obtaining* one, because until the
-exchange chapter existed this project had no way for anybody to ask. Asking is a
-conversation, a conversation has state, and state is a service with a store, an expiry
-and something to attack -- see :mod:`vcqi.actors.exchange`, which is the first thing here
-the server has to remember between requests. So the split is finer than the figures below
-suggest: verifying what you already hold is free, and joining the system is not. The
-profiles say so where it applies rather than the module quietly overstating its case.
+**Where the figures stop, which chapter 12 measures.** All of the above is about
+*checking* a credential, and it holds -- not by luck, but because a credential here
+travels as a signed file, which is the portable-credential architecture that UN/CEFACT
+argues for and that this module had been describing without naming.
+
+It says nothing about *obtaining* one. Asking is a conversation, a conversation has
+state, and state is a service with a store, an expiry and something to attack -- see
+:mod:`vcqi.actors.exchange`, the only thing here the server has to remember between
+requests. So the cost is a property of the architecture chosen rather than of
+credentials: choose the portable model and a verifier really does operate nothing, at
+the price of never being able to ask; choose an exchange and it can ask, at the price of
+running something. The profiles below say which, where it applies.
+
+:mod:`vcqi.actors.portability` measures the boundary from the other side and arrives at
+the same place. Once everything that can travel has travelled and the registries are
+signed, what a verifier still has to fetch is each organisation's key and its revocation
+list -- which is exactly what :func:`hosting_burden` computes here. Two chapters, opposite
+directions, one quantity.
 
 What is left is genuinely hard, and it is not capacity. It is key custody, which is a
 governance problem with a technical surface, and long-term validation, because a
@@ -379,8 +389,9 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
             "Operates a service to <em>ask</em> for one. An authority that wants a "
             "document it does not have must run an exchange endpoint, hold state for "
             "each conversation in progress, and expire it -- chapter 12 builds exactly "
-            "that. The cheap case is a courier arriving with credentials already in "
-            "hand; the case that needs a service is the authority requesting them."
+            "that. Which of the two a verifier is depends on the architecture around it "
+            "rather than on anything about verification: the cheap case is a courier "
+            "arriving with the credentials already in hand, and it is the common one."
         ),
         custody=(
             "None. A verifier holds no key and signs nothing. It needs only a list of "

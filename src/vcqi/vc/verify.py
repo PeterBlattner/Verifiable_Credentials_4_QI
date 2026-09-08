@@ -628,7 +628,10 @@ def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
             detail="the document names no capability to check against",
         )
 
-    document = resolver.fetch(reference["id"])
+    # `retrieve`: a CMC or an accreditation scope carries neither a signature nor a
+    # digest, so a copy cannot be checked. Accepting one from the holder would let a
+    # laboratory declare its own capability. Signing the KCDB is what would change this.
+    document = resolver.retrieve(reference["id"])
     if document is None:
         return Step(
             id="scope",

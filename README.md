@@ -333,7 +333,7 @@ them: what distinguishes OIML-CS Scheme A from Scheme B, and what SMART stands f
 9. **What this would mean in practice** — the argument, and the open questions
 10. **What it would take to run** — the hosting burden computed per role, from the trust anchor down to a fifteen-person laboratory, and what a verifier actually fetches
 11. **What would have to be agreed** — global harmonisation in three tiers, what cannot be decided later, and a ladder of next steps ordered by who is able to act
-12. **How a credential actually moves** — VCALM's exchange, built: one endpoint used twice, the holder starting every flow, and one party verifying and issuing in the same round trip. Run all three, then try replaying an answer into a second exchange
+12. **How a credential moves** — two architectures that disagree about almost everything. UN/CEFACT's portable model, where the signed document travels and no protocol is needed, measured against VCALM's exchange, where the parties talk. The measurement is the point: of the 31 documents one verification reads, 13 can arrive with the holder, and what cannot be handed over second-hand is each organisation's key and its revocation list
 
 ## The 18 failure cases
 

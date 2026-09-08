@@ -243,7 +243,9 @@ def _discover_via_identifier(
     if endpoint is None:
         return None, None
 
-    presentation = resolver.fetch(endpoint)
+    # `retrieve`: the point of identifier-based discovery is to ask the issuer's own
+    # endpoint. A holder-supplied copy would let the holder choose the answer.
+    presentation = resolver.retrieve(endpoint)
     if not isinstance(presentation, dict):
         return None, None
 

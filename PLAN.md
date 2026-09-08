@@ -2090,3 +2090,189 @@ not touched.
   break-it chapter is about documents that are wrong, and every refusal here is about a
   conversation that is wrong. Folding them together would have cost the eighteen-case
   count two tests pin and blurred a real distinction.
+
+# Change set 12 - two ways a credential moves
+
+## Context
+
+Chapter 12 implemented one architecture and presented it as the answer. It was not the one
+METAS intends, and -- the part that mattered more -- it was not the one the rest of the
+demonstration is built on.
+
+UN/CEFACT's portable-credential architecture, at
+`https://unvtd.unece.org/architecture/portable-credentials/`, argues from failure rather
+than from elegance: fifty years of EDI digitised about a tenth of cross-border trade,
+because a network of hubs and pipes only reaches the parties who joined it. So stop
+building the network. Sign the document and let it travel with the consignment, by email,
+file transfer, a USB drive or a QR code.
+
+**This project was already built that way and had not noticed.** `actors/deployment.py`
+says verification is *a computation, not a conversation*; chapter 10 computes that the
+institute keeps three documents online while six of its credentials travel unhosted. And
+metrology has the oldest instance of the idea in existence, which is not digital at all: a
+calibration certificate already travels with the instrument. The paper in the box is a
+portable credential.
+
+So change set 11 imported a second architecture and then rewrote chapter 10's claim as
+though the exchange's cost were unavoidable. It is not. It is the price of choosing the API
+model, and the chapter now says so.
+
+## Decisions taken with the user
+
+- **Both architectures, at full length.** The three VCALM workflows are untouched. The
+  portable model goes in beside them, and the chapter is reordered so the reader meets the
+  cheap answer first and the protocol as the narrow case that needs one.
+- **The audit is computed, not asserted.** It is the novel result and the machinery for it
+  already existed.
+- **All three UNTP findings** go into chapter 11, plus a fourth in the exchange item.
+- The chapter keeps its `exchange` id so no link breaks; `chapterExchange` becomes
+  `chapterMoving` and the title becomes *How a credential moves*.
+
+## The vulnerability this turned up, which is the most useful thing in it
+
+The audit needed a rule about what a holder may hand over. Writing the rule down exposed
+that the code did not have one.
+
+`Resolver.fetch` preferred any document the holder supplied, and `resolve_did_document`
+went through it. **So a holder could staple a DID document claiming a trust anchor's
+identifier, sign a credential in that anchor's name with its own key, and the pipeline
+reported `verified`.** Every check passed -- `proof` included -- because from the
+verifier's point of view the anchor's published key really was the attacker's. The
+attacker had supplied the document that said so.
+
+It predates the exchange: `presented` and `resolve_did_document` are from change sets 1
+and 6. What change set 11 did was make it reachable over HTTP, because `respond()` passes
+the credentials a holder posted straight into `presented`.
+
+It was caught once, by accident. The status check fetches the status list from the real
+host, and that list's signature does not verify against the attacker's key -- so the first
+attempt failed on `status` while `proof` passed. A credential publishing no status list
+went through completely. Being saved by an unrelated check is not a defence.
+
+The fix is `Resolver.retrieve`, which ignores `presented` entirely, plus
+`RESOLVE_ONLY_KINDS` as a second guard inside `fetch` so a future call site using the
+wrong method does not reopen it. Four call sites moved: DID documents, status lists, whois
+presentations and registry entries.
+
+## The measurement
+
+`actors/portability.py` sorts every document one real verification reads into four classes
+and then proves the sort by running the verification twice -- once with nothing supplied,
+once with everything supplied that is allowed to travel.
+
+| Class | Kinds | Count | Why |
+| --- | --- | --- | --- |
+| It travels | credential, schema, uncertainty-data | 13 | Signed in its own right, or covered by a `digestMultibase` inside something signed. Checkable whatever hand it arrived in. |
+| Must be resolved | did-document, presentation | 7 | Establishes a key, or is what an issuer says about itself. Inherent. |
+| Must be fetched now | status-list | 7 | A claim about the present tense. Inherent. |
+| Could travel, and does not | registry-entry | 4 | No signature, no digest, so a copy cannot be checked. **Removable.** |
+
+Both runs reach `verified`. Stapling removes 13 of the 31 retrievals and changes no
+verdict, which is the portable-credential claim holding up under measurement.
+
+**And the residue is the finding.** If the registries were signed -- the one removable
+reason -- what a verifier would still have to fetch is 14 documents of exactly two kinds,
+`did-document` and `status-list`: each organisation's key and its revocation list, and
+nothing else. Which is, to the document, the hosting burden chapter 10 computed from the
+opposite direction. Neither chapter knew it was describing the same quantity, and a test
+pins the two kinds so they cannot drift apart.
+
+The audit therefore prices *sign the KCDB*, which the harmonisation ladder already called
+the highest-value single item on the page: four documents out of thirty-one, and the
+difference between a registry a verifier must reach and one that can travel.
+
+## Chapter 11
+
+Four items gain facts, no statuses change, and the count panel recomputes itself so
+nineteen items and five open stay correct with no edit.
+
+- **`uncertainty-transport`** -- UNTP's Digital Conformity Credential carries a measured
+  result as a value and a unit with **no uncertainty of any kind**. Three independent
+  efforts have now modelled a measurement without modelling how good it is, which makes
+  this an absence in the field rather than an oversight in any one of them.
+- **`certificate-format`** -- there is now a second candidate with the international
+  standing the PTB/DKD DCC lacks, and it is not a replacement: UNTP covers conformity
+  assessment, not calibration, with no traceability chain and no uncertainty. One mature
+  format without standing, one standing format that does not reach metrology, and nobody
+  has joined them.
+- **`units`** -- UNTP writes a unit as a bare string, so a UN construction published in
+  2026 has the same gap this demonstration has. A register existing is not the same as
+  anybody using it.
+- **`exchange`** -- gains the third position, which is that the question is smaller than it
+  looks: a portable credential needs no protocol, and UNVTD names OpenID4VP where it names
+  one at all, and says it is compatible with business wallets without depending on them.
+
+`ARCHITECTURE.md`'s naming section has earned its keep: change set 5 qualified every
+mention as *PTB/DKD DCC* because "other DCCs exist", and one of them has now turned up.
+
+## One defect fixed on the way
+
+Editorial fields reach `textContent` by design, so the blank lines these four items now
+contain rendered as spaces. `textParagraphs` builds real `<p>` elements and still sets
+`text:` on each, which gives paragraphs without opening the fields to markup -- the
+contract `tests/test_deployment.py` guards.
+
+## Files
+
+```
+src/vcqi/actors/portability.py        new: four classes, and the audit that proves them
+src/vcqi/vc/resolver.py               retrieve(), RESOLVE_ONLY_KINDS
+src/vcqi/vc/checks.py                 the status list is retrieved, never presented
+src/vcqi/vc/recognition.py            so is the whois presentation
+src/vcqi/vc/verify.py                 so is the registry entry
+src/vcqi/actors/harmonisation.py      four items gain UNTP and portable-credential facts
+src/vcqi/web/app.py                   GET /api/portability
+src/vcqi/web/static/js/api.js          one call
+src/vcqi/web/static/js/chapters.js    chapter 12 reordered; textParagraphs; ch10 reworded
+src/vcqi/web/static/css/app.css       one rule for stacked paragraphs in a kv field
+tests/test_portability.py             new: the exploit, and the audit as a measurement
+README.md, ARCHITECTURE.md
+```
+
+Nothing was deleted. `exchange.py`, its four routes, `challenge`/`domain` on
+`sign_document` and `authentication_methods` all stay, all still tested.
+
+## Verification
+
+- `uv run pytest`
+- `node tools/ui-clicks.mjs` against a running server
+- `python -m vcqi.actors.scenarios --dump` twice, byte-identical
+
+## Git
+
+Branch `feature/portable-credentials`, from `develop`. Nothing pushed without asking.
+
+## Change set 12 - build order
+
+- [x] **P1 - The rule.** `retrieve()` and `RESOLVE_ONLY_KINDS`; four call sites moved off
+      `fetch`.
+- [x] **P2 - The exploit, kept.** The stapled-DID-document forgery as a regression test,
+      confirmed to verify with the fix reverted.
+- [x] **P3 - The audit.** `actors/portability.py`, four classes, two runs, the residue.
+- [x] **P4 - Endpoint.** `GET /api/portability`, free in `route_cost`.
+- [x] **P5 - Chapter 12 reordered.** Portable first, the audit second, the exchange third,
+      the contrast and chapter 10's claim last.
+- [x] **P6 - Chapter 11.** Four items, and `textParagraphs` so they render.
+- [x] **P7 - Docs.** README, ARCHITECTURE, and this.
+
+## Change set 12 - progress log
+
+436 tests pass, 46 skipped. Thirteen chapters render and every control responds. Two
+`--dump` runs are byte-identical at 76 documents, so no credential content moved.
+
+- **The vulnerability was found by writing prose, not by writing code.** The audit needed
+  a sentence saying what a holder may hand over; the sentence turned out to be false about
+  this code; the exploit followed in twenty minutes. Worth recording as a method rather
+  than as luck: the classification had to be defensible before it could be displayed, and
+  making it defensible is what surfaced the hole.
+- The residue coming out as exactly `did-document` and `status-list` was predicted before
+  it was measured, and it is the strongest result in the project so far: two chapters
+  built months apart, from opposite directions, computing the same minimum. A test asserts
+  the two kinds rather than the count, so growing the world cannot quietly falsify it.
+- `must-resolve` first reported zero hosts, because `deployment.host_of` understands
+  `https://` only and every DID document here is addressed `did:web:`. The count that
+  mattered most was the one silently reading zero.
+- One thing not done and deliberately so: no attempt to make registry entries actually
+  travel. Signing them is the BIPM's to do, the demonstration can say what it would buy
+  without pretending to have done it, and inventing a signature over a KCDB entry would
+  have been this project asserting a decision nobody has taken.

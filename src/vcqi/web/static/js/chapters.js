@@ -1506,7 +1506,7 @@ async function chapterInfrastructure(context) {
   fragment.append(
     prose([
       'Two properties of the design settle most of this question, and neither of them is about capacity.',
-      '<strong>Verification is a computation, not a conversation.</strong> A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier&rsquo;s behalf, and nothing here grows with the number of people who check. That is a claim about <em>checking</em> a credential; chapter 12 shows what it costs to <em>ask</em> for one, and the answer is not zero.',
+      '<strong>Verification is a computation, not a conversation.</strong> A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier&rsquo;s behalf, and nothing here grows with the number of people who check. That is a claim about <em>checking</em> a credential, and it is true because a credential here travels as a signed file. Chapter 12 measures how far that goes, what a verifier still cannot be handed second-hand, and what it costs to <em>ask</em> for a document instead of being given one.',
       '<strong>A credential travels with whoever holds it.</strong> The certificate arrives from the customer, not from the laboratory that wrote it. What an issuer must keep online is therefore only what describes the issuer itself — its key, and which of its credentials it has since withdrawn. The certificates need not be hosted at all.',
       'Everything below is computed from what this demonstration actually published, so the figures move if the world does.',
     ])
@@ -1654,6 +1654,17 @@ async function chapterInfrastructure(context) {
 
 // ---------------------------------------------------------------- chapter 11
 
+// Render a blank-line-separated editorial field as paragraphs, without opening it to
+// markup. `keyValues` sets textContent, which is deliberate -- tests/test_deployment.py
+// asserts no harmonisation field contains a tag, because a field that reached innerHTML
+// would show a reader its angle brackets. So this builds real <p> elements and still
+// sets `text:` on each, which gives paragraphs and keeps that contract.
+function textParagraphs(value) {
+  const parts = String(value).split('\n\n').filter((part) => part.trim());
+  if (parts.length < 2) return value;
+  return el('div', { class: 'stacked' }, parts.map((part) => el('p', { text: part })));
+}
+
 // Ordered by how much already exists, and coloured for it: green where a register exists
 // and the work is adoption, amber where a specification answers the mechanical half and
 // something institutional is left, grey where somebody else is still building it, blue
@@ -1751,9 +1762,9 @@ async function chapterHarmonisation(context) {
     for (const item of tier.items) {
       const [tone, statusLabel] = HARMONISATION_STATUS[item.status];
       const pairs = [
-        ['What would have to be agreed', item.requirement],
-        ['This demonstration', item.demonstrated],
-        item.exists ? ['What already exists', item.exists] : null,
+        ['What would have to be agreed', textParagraphs(item.requirement)],
+        ['This demonstration', textParagraphs(item.demonstrated)],
+        item.exists ? ['What already exists', textParagraphs(item.exists)] : null,
         // A bare URL in a field of its own, linked here rather than written into the
         // prose: every other field reaches textContent, so an anchor tag in one of them
         // would show the reader its angle brackets.
@@ -1835,16 +1846,14 @@ function exchangeMessage(number, direction, title, hint, body, context) {
   ]);
 }
 
-async function chapterExchange(context) {
+async function chapterMoving(context) {
   const fragment = document.createDocumentFragment();
   const data = await api.workflows();
 
   fragment.append(
     prose([
-      'Every verifier you have met so far already had the document in hand. That is a comfortable place to start a chapter and nobody arrives there by accident: somebody asked, somebody answered, and both steps happened before the page opened. Two organisations that have never dealt with each other do not begin holding each other&rsquo;s certificates.',
-      'What follows is W3C&rsquo;s <a href="https://www.w3.org/TR/vcalm-1.0/">VCALM</a> exchange, implemented against the world the earlier chapters built. Two properties of it do all the work.',
-      '<strong>One endpoint, used twice.</strong> The holder POSTs to an exchange and is answered with a request for a presentation. It POSTs the presentation to the same URL and is answered with a result. Not two services with two protocols — one conversation with two turns.',
-      '<strong>The holder starts it.</strong> There is no way for an issuer or a verifier to reach into a wallet. Every flow begins with the party holding the credentials, which is why the whole arrangement survives a fifteen-person laboratory sitting behind a firewall with no inbound port.',
+      'Every verifier you have met so far already had the document in hand. That is a comfortable place to start a chapter and nobody arrives there by accident: somebody asked, somebody answered, and both steps happened before the page opened.',
+      'There are two ways to answer the question, and they disagree about almost everything. One says the document should travel — signed, self-contained, by whatever means is to hand — and that no protocol is needed for most of it. The other says the parties should talk, over an agreed protocol, so that each can ask for exactly what it needs. This world can do both, and the rest of the chapter is what each one costs.',
     ])
   );
 
@@ -1874,6 +1883,64 @@ async function chapterExchange(context) {
     )
   );
 
+  fragment.append(
+    el('h3', { text: 'One: the credential is a file' }),
+    prose([
+      'UN/CEFACT put the argument for this most sharply, and it is an argument from failure rather than from elegance. Fifty years of electronic data interchange digitised something like a tenth of cross-border trade, because a network of hubs and pipes only ever reaches the parties who joined it, and a commercial invoice is needed by the exporter, the importer, two customs authorities, banks, insurers, brokers and freight forwarders. The network never reaches all of them. So <a href="https://unvtd.unece.org/architecture/portable-credentials/">stop building the network</a>: sign the document, and let it travel with the consignment by email, file transfer, a USB drive or a QR code.',
+      '<strong>This demonstration was already built that way and had not noticed.</strong> Every credential here is a signed file that verifies wherever it is found; the world dumps to 76 documents on disk and they verify from there. Chapter 10 computes the same property from the other end — the institute keeps three documents online while six of its credentials travel unhosted — and calls it a hosting burden rather than an architecture.',
+      'Metrology has the oldest instance of the idea in existence, and it is not digital. <strong>A calibration certificate already travels with the instrument.</strong> The paper in the box is a portable credential: self-contained, checkable by whoever opens the box, and dependent on no service being reachable. What the cryptography adds is not the idea. It is that the copy in the box can now be checked.',
+    ])
+  );
+  const portability = await api.portability();
+  const travelling = portability.split.find((row) => row.key === 'travels') || { count: 0 };
+  const signed = portability.ifRegistriesWereSigned;
+
+  fragment.append(
+    el('h3', { text: 'Two: what can travel, and what cannot' }),
+    prose([
+      'The interesting question is not whether the portable model works. It is where it stops, and that is measurable rather than arguable. Below, the same certificate of conformity is verified twice: once with the verifier given nothing, and once with the verifier handed every document a holder is allowed to bring. The difference is read out of the resolver&rsquo;s own retrieval log.',
+    ]),
+    panel('The same verification, twice', `${portability.title}`, [
+      el('div', { class: 'stat-row' }, [
+        stat(portability.baseline.distinct, 'documents, nothing supplied'),
+        stat(travelling.count, 'a holder may bring'),
+        stat(portability.stapled.stillFetched, 'still fetched'),
+        stat(signed.stillFetched, 'if registries were signed'),
+      ]),
+      callout([
+        `Both runs reach <strong>${portability.stapled.outcome}</strong>. Handing the verifier everything it is allowed to accept second-hand removes ${travelling.count} of the ${portability.baseline.distinct} retrievals and changes no verdict, which is the portable-credential claim holding up under measurement rather than in principle.`,
+        `What is left is the part that is not portable. And if the registries were signed — the one removable reason below — the residue would be ${signed.stillFetched} documents of exactly two kinds: <strong>${signed.kinds.join(' and ')}</strong>. That is each organisation&rsquo;s key and its revocation list, and nothing else. It is also, to the document, the hosting burden chapter 10 computed from the opposite direction. Neither chapter knew it was describing the same quantity.`,
+      ]),
+    ])
+  );
+
+  for (const item of portability.classes) {
+    const row = portability.split.find((entry) => entry.key === item.key) || { count: 0, hosts: [] };
+    fragment.append(
+      panel(item.label, `${row.count} of ${portability.baseline.distinct} documents, across ${row.hosts.length} host${row.hosts.length === 1 ? '' : 's'}`, [
+        el('div', { style: 'margin-bottom:12px' }, [
+          badge(item.travels ? 'pass' : 'anchor', item.travels ? 'may be brought by the holder' : 'the verifier must fetch it'),
+          item.removable ? badge('warn', 'and this reason could be removed') : null,
+        ]),
+        keyValues([['Kinds', item.kinds.join(', ')], ['Why', item.why]]),
+      ])
+    );
+  }
+
+  fragment.append(
+    callout([
+      'The forgery in the second class is not hypothetical, and it is worth being plain that this demonstration had it. A holder could staple a DID document claiming a trust anchor&rsquo;s identifier, sign a credential in that anchor&rsquo;s name with its own key, and the pipeline reported <em>verified</em> — every check passing, because the verifier was reading the attacker&rsquo;s own account of whose key was whose. <code>vc/resolver.py</code> now refuses to take any of these kinds second-hand, and the exploit is kept as a regression test.',
+    ])
+  );
+
+  fragment.append(
+    el('h3', { text: 'Three: when somebody has to ask' }),
+    prose([
+      'Portable credentials answer distribution and say nothing about the case where the verifier does not have the document and wants it — an authority at a border, an issuing authority that needs to see evidence before it certifies anything. For that the parties do have to talk, and what follows is W3C&rsquo;s <a href="https://www.w3.org/TR/vcalm-1.0/">VCALM</a> exchange, implemented against this same world. Two properties of it do all the work.',
+      '<strong>One endpoint, used twice.</strong> The holder POSTs to an exchange and is answered with a request for a presentation. It POSTs the presentation to the same URL and is answered with a result. Not two services with two protocols — one conversation with two turns.',
+      '<strong>The holder starts it.</strong> There is no way for an issuer or a verifier to reach into a wallet. Every flow begins with the party holding the credentials, which is why even this arrangement survives a fifteen-person laboratory sitting behind a firewall with no inbound port.',
+    ])
+  );
   fragment.append(panel('Three exchanges this world can hold', 'pick one, then run it', [chips, stage]));
 
   async function run(replay) {
@@ -2002,11 +2069,27 @@ async function chapterExchange(context) {
   show();
 
   fragment.append(
-    panel('What this costs, and it is not nothing', 'the claim in chapter 10, corrected', [
+    panel('What each one buys', 'and what it charges for it', [
+      table(
+        ['', 'The document travels', 'The parties talk'],
+        [
+          ['What the verifier runs', 'Nothing. It needs the file and the issuer\u2019s key.', 'An endpoint, and state for every conversation in progress.'],
+          ['Works offline', 'Yes, apart from the residue above.', 'No. Both parties reachable at once.'],
+          ['Reaches parties with no prior relationship', 'Yes. Anyone handed the file.', 'Only those who implement the same protocol.'],
+          ['Proves who is presenting', 'No. Anyone with a copy can present it.', 'Yes. The challenge is signed into the answer.'],
+          ['Carries revocation', 'No. Status is a claim about now.', 'No, and it fetches it anyway.'],
+          ['Lets the verifier ask for something', 'No.', 'Yes, which is the entire point.'],
+        ]
+      ),
+      callout([
+        'The fourth row is where the two models genuinely need each other, and it is the honest limit of the portable one. A signed file proves who issued it and says nothing about who is holding it out, so <strong>anyone with a copy can present it</strong>. For a calibration certificate that is usually harmless — it is a public attestation about an instrument, and a copy is as true as the original. For a laboratory claiming its own accreditation in order to win work, a copy is enough to impersonate it. UNECE&rsquo;s own business-wallet page does not discuss holder binding, a nonce or replay at all, and that gap is exactly what the challenge in the exchange above closes.',
+        `And the exchange charges for it. State means a service, a store, an expiry policy and something to attack: this is the only thing in the whole demonstration that the server has to remember between requests, and it holds at most ${data.maxExchanges} exchanges for ${Math.round(data.ttlSeconds / 60)} minutes each, evicting the oldest when it runs out of room.`,
+      ]),
+    ]),
+    panel('Chapter 10’s claim, stated properly', 'it was right, and for a reason it did not give', [
       prose([
-        'Chapter 10 argues that verification is a computation rather than a conversation, and concludes that a verifier operates nothing. The first half is true. The conclusion does not survive anybody having to <em>ask</em>.',
-        `An exchange has state — which exchange, which turn, which challenge — and state means a service, a store, an expiry policy and something to attack. This is the first thing in the whole demonstration that the server has to remember between requests: it holds at most ${data.maxExchanges} exchanges, each for ${Math.round(data.ttlSeconds / 60)} minutes, and evicts the oldest when it runs out of room.`,
-        'So the honest split is finer than that chapter drew it. Checking a credential you already hold is free and works offline on a laptop at a border post. Obtaining one needs both parties reachable at once, and needs the asking party to run something. The cheap case is a courier arriving with the credentials in hand; the case that needs a service is the authority requesting them.',
+        'Chapter 10 says a verifier operates nothing, and an earlier version of this chapter called that an overstatement. It is not one — it is a claim about the portable model, and under that model it is true. Checking a credential you already hold is free and works on a laptop at a border post with an intermittent connection.',
+        'What is true alongside it is that <em>asking</em> for a credential is not free. So the cost is a property of the architecture chosen, not of credentials: choose the portable model and a verifier really does operate nothing, at the price of never being able to ask; choose the exchange and it can ask, at the price of running something. The measurement above is what that choice actually costs in this world, and the residue — a key and a revocation list per organisation — is what neither model can avoid.',
       ]),
     ])
   );
@@ -2127,9 +2210,9 @@ export const CHAPTERS = [
     // several of them editorial fields in actors/harmonisation.py served to the reader
     // -- would quietly become wrong. ARCHITECTURE.md records the rule.
     id: 'exchange',
-    title: 'How a credential actually moves',
-    eyebrow: 'The conversation',
-    lede: 'Every other chapter hands documents around as JSON. This one makes somebody ask for them, which is where the cross-border case actually lives.',
-    render: chapterExchange,
+    title: 'How a credential moves',
+    eyebrow: 'Distribution',
+    lede: 'Two architectures answer the same question and disagree about almost everything: let the document travel, or make the parties talk. Both are built here, and the cost of each is measured rather than argued.',
+    render: chapterMoving,
   },
 ];
