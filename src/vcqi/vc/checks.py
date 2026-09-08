@@ -308,7 +308,9 @@ def check_status(credential: dict[str, Any], resolver: Resolver) -> CheckOutcome
     except (TypeError, ValueError):
         return CheckOutcome(passed=False, detail=f"statusListIndex {raw_index!r} is not an integer")
 
-    status_credential = resolver.fetch(list_url)
+    # `retrieve`, not `fetch`: a stapled status list is a stale status list, and a
+    # holder who kept a copy from before its revocation would replay it forever.
+    status_credential = resolver.retrieve(list_url)
     if status_credential is None:
         return CheckOutcome(
             passed=False,
