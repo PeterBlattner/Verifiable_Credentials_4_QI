@@ -13,6 +13,15 @@ about the issuer itself -- its key, and which of its credentials it has since wi
 The certificates themselves need not be hosted at all. :func:`hosting_burden` computes
 that split from what the demonstration actually published rather than restating it here.
 
+**One correction, which chapter 12 forced.** All of the above is about *checking* a
+credential, and it is true. It says nothing about *obtaining* one, because until the
+exchange chapter existed this project had no way for anybody to ask. Asking is a
+conversation, a conversation has state, and state is a service with a store, an expiry
+and something to attack -- see :mod:`vcqi.actors.exchange`, which is the first thing here
+the server has to remember between requests. So the split is finer than the figures below
+suggest: verifying what you already hold is free, and joining the system is not. The
+profiles say so where it applies rather than the module quietly overstating its case.
+
 What is left is genuinely hard, and it is not capacity. It is key custody, which is a
 governance problem with a technical surface, and long-term validation, because a
 calibration certificate outlives the algorithm that signed it. Both are called out per
@@ -365,8 +374,13 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
     DeploymentProfile(
         did="did:web:surveillance.example",
         posture=(
-            "Operates nothing. This is the half of the system that is genuinely free, "
-            "and it is also the half on which all the value depends."
+            "Operates nothing to <em>check</em> a certificate, which is the half of the "
+            "system that is genuinely free and the half on which all the value depends. "
+            "Operates a service to <em>ask</em> for one. An authority that wants a "
+            "document it does not have must run an exchange endpoint, hold state for "
+            "each conversation in progress, and expire it -- chapter 12 builds exactly "
+            "that. The cheap case is a courier arriving with credentials already in "
+            "hand; the case that needs a service is the authority requesting them."
         ),
         custody=(
             "None. A verifier holds no key and signs nothing. It needs only a list of "
@@ -377,7 +391,10 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
         availability=(
             "Verification is a local computation over documents the verifier already "
             "holds, plus a handful of cached fetches. It works on a laptop at a border "
-            "post, and it keeps working with an intermittent connection."
+            "post, and it keeps working with an intermittent connection. Requesting a "
+            "presentation does not: an exchange needs both parties reachable at once, "
+            "which is the one place this system wants a network and cannot pretend "
+            "otherwise."
         ),
         already_runs=("Whatever it inspects goods with today.",),
         must_add=(

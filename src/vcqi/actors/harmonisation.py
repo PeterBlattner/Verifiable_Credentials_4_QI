@@ -218,6 +218,51 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
     ),
     HarmonisationItem(
+        key="exchange",
+        tier="floor",
+        title="One protocol for asking, not just one format for answering",
+        status="partial",
+        requirement=(
+            "Every item above this one is about what a certificate says. This is about "
+            "how anybody comes to be holding it. Two organisations have to agree how a "
+            "presentation is requested, what a request may ask for, how the answer is "
+            "bound to the request so it cannot be replayed, and what a refusal looks "
+            "like. Agreeing the document format and not the exchange leaves two parties "
+            "able to read each other's certificates and unable to obtain one."
+        ),
+        demonstrated=(
+            "Chapter 12 implements VCALM's exchange for three cases, including the one "
+            "the quality infrastructure is actually made of: a party that verifies what "
+            "was presented and issues in the same round trip. What it does not "
+            "implement is authorization, which is the half a real deployment argues "
+            "about - anyone may open an exchange here and the fictional holders will "
+            "present for them."
+        ),
+        exists=(
+            "More than one answer, which is the difficulty rather than the absence. "
+            "VCALM is a W3C Working Draft describing exactly this exchange, and it is "
+            "the one built here. OpenID for Verifiable Presentations answers the same "
+            "question differently and is what the European digital identity wallets are "
+            "deploying, so for a quality infrastructure that ever has to meet an EUDI "
+            "wallet the choice is already half made by somebody else. Choosing between "
+            "them is a profile decision, not a research problem."
+        ),
+        source="https://www.w3.org/TR/vcalm-1.0/",
+        consequence=(
+            "The cross-border case fails at the first step rather than the last. Two "
+            "conforming implementations hold certificates each could verify perfectly "
+            "and have no way to hand one over - which is the clearest possible instance "
+            "of this page's own test, and it went unlisted until a reviewer pointed at "
+            "the exchange this project had never built."
+        ),
+        forum=(
+            "The arrangements, choosing from what exists rather than writing anything. "
+            "The consequential part is not which protocol but whether the choice is made "
+            "once for the quality infrastructure or once per country, and the second is "
+            "the default that happens when nobody decides."
+        ),
+    ),
+    HarmonisationItem(
         key="did-method",
         tier="floor",
         title="One identifier method, and an agreed meaning for resolving it",
@@ -912,9 +957,12 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "Each institute verifies the other's certificates and records every point "
             "where they differ. This surfaces most of the first tier for the cost of two "
             "engineers and a fortnight, it produces evidence rather than opinion, and it "
-            "requires nobody's permission."
+            "requires nobody's permission.\n\nHand the certificates over through an "
+            "exchange rather than by email, even for a trial. The disagreements worth "
+            "finding are in the protocol as much as in the documents, and emailing them "
+            "hides exactly the half that a border crossing would depend on."
         ),
-        unblocks=("cryptosuite", "did-method", "status-meaning"),
+        unblocks=("cryptosuite", "did-method", "status-meaning", "exchange"),
     ),
     NextStep(
         order=4,
