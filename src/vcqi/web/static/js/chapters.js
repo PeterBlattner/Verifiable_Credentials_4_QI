@@ -1841,7 +1841,7 @@ async function chapterExchange(context) {
 
   fragment.append(
     prose([
-      'Every chapter before this one hands credentials around as JSON. A certificate exists, somebody checks it, and the step where one party <em>asked</em> another for it is skipped entirely — which is awkward, because the hard case in the quality infrastructure is a document crossing a border between two organisations that have never dealt with each other, and the crossing is the part that was missing.',
+      'Every verifier you have met so far already had the document in hand. That is a comfortable place to start a chapter and nobody arrives there by accident: somebody asked, somebody answered, and both steps happened before the page opened. Two organisations that have never dealt with each other do not begin holding each other&rsquo;s certificates.',
       'What follows is W3C&rsquo;s <a href="https://www.w3.org/TR/vcalm-1.0/">VCALM</a> exchange, implemented against the world the earlier chapters built. Two properties of it do all the work.',
       '<strong>One endpoint, used twice.</strong> The holder POSTs to an exchange and is answered with a request for a presentation. It POSTs the presentation to the same URL and is answered with a result. Not two services with two protocols — one conversation with two turns.',
       '<strong>The holder starts it.</strong> There is no way for an issuer or a verifier to reach into a wallet. Every flow begins with the party holding the credentials, which is why the whole arrangement survives a fifteen-person laboratory sitting behind a firewall with no inbound port.',
