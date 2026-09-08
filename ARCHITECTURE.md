@@ -66,6 +66,14 @@ Certificate. Note the name: several things are called a DCC, and this project al
 means the one the PTB and the DKD define, schema 3.3.0 in `https://ptb.de/dcc`, with
 quantities in D-SI 2.2.1 in `https://ptb.de/si`.
 
+That qualification has since earned its keep. UN/CEFACT's Digital Conformity Credential,
+under the UN Transparency Protocol, is also the DCC, and it is a different document for a
+different purpose -- third-party conformity assessment rather than calibration, with no
+traceability chain and no uncertainty at all. Two live specifications share the acronym,
+so an unqualified "DCC" in a metrology conversation is now genuinely ambiguous. The
+harmonisation chapter treats them as one mature format without international standing and
+one standing format that does not reach metrology.
+
 Every calibration certificate now *carries* a PTB/DKD DCC alongside its readable subject,
 in `domain/dcc.py`. It uses the real namespaces, element names and nesting, and includes
 only the elements this world has data for. Deliberately not done: validating against the
@@ -357,6 +365,41 @@ loudly on a module that 404s or arrives with a content type a browser will not e
 `ui-clicks.mjs` fails on a chapter that did not render and on anything written to
 `console.error`. Against a server deliberately serving one stale module it now reports
 `FAILED: 1 chapter(s) failed to render` and exits non-zero.
+
+### What a holder may hand over, and what it may not
+
+`vc/resolver.py` has two retrieval methods and the difference between them is the trust
+model. `fetch` prefers a document the holder supplied; `retrieve` ignores anything the
+holder brought and goes to the publisher. `RESOLVE_ONLY_KINDS` names the kinds that must
+use the second, and `actors/portability.py` explains each one to the reader.
+
+The rule is not fastidiousness. **Before it existed, a holder could staple a DID document
+claiming a trust anchor's identifier, sign a credential in that anchor's name with its own
+key, and the pipeline reported `verified`.** Every check passed, because from the
+verifier's point of view the anchor's published key really was the attacker's -- the
+attacker had supplied the document that said so. It was caught once by accident, by the
+status check failing against a list the real host serves, and a credential publishing no
+status list sailed through. `tests/test_portability.py` keeps the exploit.
+
+Four kinds, three reasons:
+
+- **`did-document`** establishes a key, so accepting the holder's copy means accepting the
+  holder's opinion about who somebody else is. Inherent.
+- **`status-list`** is a claim about *now*. A stapled one is stale by construction, and a
+  holder who kept a copy from before its suspension would present it forever. Inherent.
+- **`presentation`** is what identifier-based discovery dereferences from the issuer's own
+  endpoint, so letting the holder supply it means letting the holder choose what the issuer
+  says about itself. Inherent.
+- **`registry-entry`** -- a CMC or an accreditation scope -- carries neither a signature nor
+  a digest, so a copy cannot be checked at all and accepting one would let a laboratory
+  declare its own capability. **Not inherent.** Sign the entries and this kind moves, which
+  is what makes *sign the KCDB* worth its place on the harmonisation ladder, and chapter 12
+  now prices it: four of the thirty-one documents.
+
+Everything else -- credentials, schemas, uncertainty data -- either carries its own
+signature or is covered by a `digestMultibase` inside one, so a copy from any source is
+checkable and may travel. That set is exactly what UN/CEFACT's portable-credential
+architecture assumes, and chapter 12 measures how far it gets.
 
 ### An exchange has state, and it is the only thing here that does
 
