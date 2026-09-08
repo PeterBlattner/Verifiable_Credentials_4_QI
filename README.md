@@ -19,13 +19,23 @@ better myself. I was struck by how much came together in so little time — whic
 why the following warnings matter.
 
 **Nothing here has been validated.** The concepts, data models, credential examples and
-workflows have not been reviewed, tested or checked against the specification by anyone.
-They are illustrative sketches, not reference implementations. Every organisation,
-identifier, certificate, capability and signing key is invented: the identifiers use the
-`.example` domain reserved by RFC 2606 and the keys are derived from a seed published in
-this repository, so they protect nothing. Nothing produced by this project is an authentic
-output of any real institute, accreditation body or certification body, and none of it
-should ever be presented as one.
+workflows are illustrative sketches, not reference implementations. Nothing here has been
+tested in an interoperable deployment or checked line by line against the specifications.
+
+One reviewer who works on these specifications has since spent about half an hour on it,
+over the data structures and the harmonisation chapter. Their reading was that most of the
+data structures hold up as a first draft, and that the harmonisation chapter overstated the
+problem: several things it listed as unsolved already have answers, some of them published
+while this was being written. Those corrections are in chapter 11, which now counts its
+open questions rather than asserting them. That is one reader's opinion after thirty
+minutes, and it is the only review this work has had. It is not validation, and it changes
+nothing about the warnings here.
+
+Every organisation, identifier, certificate, capability and signing key is invented: the
+identifiers use the `.example` domain reserved by RFC 2606 and the keys are derived from a
+seed published in this repository, so they protect nothing. Nothing produced by this
+project is an authentic output of any real institute, accreditation body or certification
+body, and none of it should ever be presented as one.
 
 **No institution is speaking here.** BIPM, Global ACI, METAS and PTB appear only as
 recognisable placeholders in a fictional scenario. Nothing here represents their views,
@@ -46,6 +56,10 @@ The same statement is the first chapter of the demonstration itself, in
 [`00-cautions.md`](src/vcqi/web/content/chapters/00-cautions.md). Correct one and correct
 the other. The hope is simply that this sparks curiosity — and, ideally, correction. If
 something here is wrong, I would genuinely like to hear it.
+
+That has happened once already, unsolicited, and it made the work better rather than worse
+— which is the argument for publishing something unfinished in the first place. The offer
+stands.
 
 ## Run it
 

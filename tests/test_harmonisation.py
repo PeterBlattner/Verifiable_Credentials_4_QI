@@ -12,6 +12,8 @@ The second is the chapter's central claim, and it is the reason this file exists
 
 from __future__ import annotations
 
+from starlette.testclient import TestClient
+
 from vcqi.actors.harmonisation import (
     HARMONISATION_ITEMS,
     NEXT_STEPS,
@@ -21,6 +23,7 @@ from vcqi.actors.harmonisation import (
 )
 from vcqi.domain.accreditation import scope_by_id
 from vcqi.domain.kcdb import cmc_by_id
+from vcqi.web.app import app
 
 
 class TestTheLadderAndTheItemsAgree:
@@ -66,6 +69,76 @@ class TestTheLadderAndTheItemsAgree:
         for item in HARMONISATION_ITEMS:
             assert item.consequence.strip()
             assert item.forum.strip()
+
+    def test_a_source_is_a_bare_url_or_nothing(self) -> None:
+        """The chapter renders it with `el('a', ...)`, so it has to be a URL alone.
+
+        A sentence in this field reaches the reader as a link whose text is the sentence
+        and whose href is the sentence, which fails silently and looks deliberate.
+        """
+        for item in HARMONISATION_ITEMS:
+            if not item.source:
+                continue
+            assert item.source.startswith("https://"), item.key
+            assert " " not in item.source, item.key
+            assert "<" not in item.source, item.key
+
+    def test_an_item_claiming_an_answer_says_where_to_read_it(self) -> None:
+        """`available` and `partial` are claims about the world, and they need a citation.
+
+        This is the check the first draft of the chapter needed and did not have. It
+        filed five items under `open` that had published answers, and nothing in the
+        suite could tell the difference between a researched claim and an assumed one.
+        """
+        for item in HARMONISATION_ITEMS:
+            if item.status in {"available", "partial"}:
+                assert item.exists.strip(), f"{item.key} claims an answer without naming it"
+                assert item.source, f"{item.key} claims an answer with nowhere to read it"
+
+    def test_the_open_items_are_a_minority(self) -> None:
+        """The chapter counts these and tells the reader the proportion.
+
+        The count is computed in the interface rather than written into the prose, so it
+        cannot go stale -- but it can still be embarrassing. A page asserting that most
+        of the quality infrastructure's interoperability problem is an unwritten page is
+        the specific overstatement the review corrected.
+        """
+        open_items = [item for item in HARMONISATION_ITEMS if item.status == "open"]
+        assert len(open_items) * 2 < len(HARMONISATION_ITEMS)
+
+    def test_the_two_gaps_the_review_named_are_on_the_page(self) -> None:
+        """Cryptographic event logs and long-term retrieval, both in the second tier.
+
+        They are second-tier and not third because neither can be started late: a log
+        not kept from the first day cannot be reconstructed, and a document nobody
+        archived in 2026 is not archivable in 2056.
+        """
+        by_key = {item.key: item for item in HARMONISATION_ITEMS}
+        for key in ("event-logs", "retrieval"):
+            assert key in by_key, f"{key} is missing from the page"
+            assert by_key[key].tier == "irreversible", key
+
+    def test_the_retrieval_item_quotes_what_was_actually_measured(self) -> None:
+        """It rests on a real count, and the count is produced by another chapter.
+
+        Chapter 10 verifies the conformity certificate for real and reports how many
+        distinct documents across how many hosts that took. This item writes those two
+        numbers into a sentence, and a sentence is not recomputed when the world grows.
+        Comparing against the live figures is the difference between a measurement and
+        a number that was true once.
+
+        The remaining count -- everything except the credential the holder presents --
+        is checked too, because it is the whole point of the item: the credential is
+        safe and the documents behind it are not.
+        """
+        retrieval = next(item for item in HARMONISATION_ITEMS if item.key == "retrieval")
+
+        with TestClient(app) as client:
+            trace = client.get("/api/infrastructure").json()["verifierTrace"]
+
+        assert f"{trace['distinct']} distinct documents" in retrieval.demonstrated
+        assert f"{trace['hostCount']} hosts" in retrieval.demonstrated
+        assert f"other {trace['distinct'] - 1}" in retrieval.demonstrated
 
 
 class TestTheMeasurandCoincidence:

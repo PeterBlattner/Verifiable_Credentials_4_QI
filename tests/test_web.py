@@ -384,9 +384,35 @@ def test_harmonisation_items_carry_what_the_chapter_renders(client: TestClient) 
     items = [item for tier in data["tiers"] for item in tier["items"]]
     assert len(items) >= 10
     for item in items:
-        assert item["status"] in {"available", "emerging", "open"}
+        assert item["status"] in {"available", "partial", "emerging", "open"}
         for field in ("title", "requirement", "demonstrated", "consequence", "forum"):
             assert item[field].strip(), f"{item['key']} has an empty {field}"
+        # Rendered as a link rather than as text, so it has to be a bare URL. A
+        # sentence here would reach the reader as an unclickable line of prose.
+        assert "source" in item, f"{item['key']} serves no source field"
+        if item["source"]:
+            assert item["source"].startswith("https://"), item["key"]
+            assert " " not in item["source"], item["key"]
+
+
+def test_harmonisation_does_not_read_as_a_blank_page(client: TestClient) -> None:
+    """The chapter counts its own statuses, so the counts have to be worth showing.
+
+    A reviewer's correction was that the first draft of this chapter filed items under
+    "nothing exists yet" that had answers in published specifications. If every item
+    ever ends up back at `open`, the panel that counts them is telling the reader
+    something false again, and this is the check that notices.
+    """
+    data = client.get("/api/harmonisation").json()
+    items = [item for tier in data["tiers"] for item in tier["items"]]
+    open_items = [item for item in items if item["status"] == "open"]
+    assert len(open_items) < len(items) / 2, "most of the page claims nothing exists"
+
+    # Every item that claims something exists has to say where to read it, except the
+    # ones whose answer is an argument rather than a document.
+    for item in items:
+        if item["status"] in {"available", "partial"}:
+            assert item["source"], f"{item['key']} claims an answer with nowhere to read it"
 
 
 def test_harmonisation_quotes_the_cryptosuite_the_demonstration_actually_uses(
