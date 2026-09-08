@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 import copy
+import json
 import hashlib
 import os
 from contextlib import asynccontextmanager
@@ -31,7 +32,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -39,6 +40,16 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from vcqi.actors.deployment import DEPLOYMENT_PROFILES, host_of, hosting_burden
 from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS
+from vcqi.actors.exchange import (
+    EXCHANGE_TTL_SECONDS,
+    MAX_EXCHANGES,
+    WORKFLOWS,
+    ExchangeStore,
+    exchange_url,
+    holder_presentation,
+    respond,
+    workflow_by_id,
+)
 from vcqi.actors.registry import ACTORS, TRUST_ANCHORS, actor_by_did, did_document
 from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
@@ -1583,4 +1594,168 @@ def get_harmonisation() -> dict[str, Any]:
             for tier in TIERS
         ],
         "nextSteps": [step.to_json() for step in NEXT_STEPS],
+    }
+
+
+# ---------------------------------------------------------------- exchange
+#
+# These four are the only routes in the application that are not under /api/. That is
+# deliberate: the two /workflows/ paths are VCALM's, and using the specification's shape
+# rather than this project's own is most of what the chapter has to show. The other two
+# are ours, marked as ours, and exist because the browser has to play a holder whose
+# private key lives on this server.
+
+#: The exchanges currently in progress. The first state this application has ever kept
+#: between requests, and `actors/exchange.py` explains why an exchange forces it.
+EXCHANGES = ExchangeStore()
+
+
+def _base_url(request: Request) -> str:
+    """Return the origin this request arrived on, with no trailing slash.
+
+    The presentation request has to tell the holder where to send its answer, and a
+    hard-coded address would be wrong on every deployment but one. Taken from the
+    request so that the local server, the container and the public host each name
+    themselves correctly.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        Scheme and authority, for example ``https://example.org``.
+    """
+    return str(request.base_url).rstrip("/")
+
+
+@app.get("/api/exchange/workflows")
+def get_workflows() -> dict[str, Any]:
+    """Return the exchanges this world can conduct, and how many are open.
+
+    Returns:
+        The workflows in reading order, and the size of the exchange store, which the
+        chapter shows so that the server's new statefulness is visible rather than
+        merely asserted.
+    """
+    return {
+        "workflows": [workflow.to_json() for workflow in WORKFLOWS],
+        "open": len(EXCHANGES),
+        "maxExchanges": MAX_EXCHANGES,
+        "ttlSeconds": EXCHANGE_TTL_SECONDS,
+    }
+
+
+@app.post("/workflows/{workflow_id}/exchanges")
+def post_exchange(workflow_id: str, request: Request) -> dict[str, Any]:
+    """Open an exchange and return where to continue it.
+
+    Args:
+        workflow_id: Which workflow to run.
+        request: The incoming request, for the origin to build the URL from.
+
+    Returns:
+        The exchange identifier and its endpoint.
+
+    Raises:
+        HTTPException: If there is no such workflow.
+    """
+    workflow = workflow_by_id(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail=f"no workflow {workflow_id!r}")
+
+    exchange = EXCHANGES.open(workflow.id)
+    return {
+        "workflowId": workflow.id,
+        "exchangeId": exchange.id,
+        "url": exchange_url(_base_url(request), workflow, exchange),
+    }
+
+
+@app.post("/workflows/{workflow_id}/exchanges/{exchange_id}")
+async def post_exchange_turn(
+    workflow_id: str, exchange_id: str, request: Request
+) -> dict[str, Any]:
+    """Take one turn of an exchange.
+
+    Both turns are this same POST. An empty body is answered with a presentation
+    request; a body carrying a presentation is answered with a result or a refusal.
+
+    Args:
+        workflow_id: Which workflow is running.
+        exchange_id: Which exchange, from the URL the previous turn supplied.
+        request: The incoming request, read as JSON by hand so that an empty body is
+            allowed rather than rejected as malformed.
+
+    Returns:
+        What the coordinator sends back.
+
+    Raises:
+        HTTPException: If the workflow or the exchange is unknown or has expired.
+    """
+    workflow = workflow_by_id(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail=f"no workflow {workflow_id!r}")
+
+    exchange = EXCHANGES.get(exchange_id)
+    if exchange is None or exchange.workflow_id != workflow.id:
+        raise HTTPException(
+            status_code=404,
+            detail="no such exchange, or it has expired -- open a new one",
+        )
+
+    raw = await request.body()
+    if raw.strip():
+        try:
+            body = json.loads(raw)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="body is not JSON") from error
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="body is not an object")
+    else:
+        body = {}
+
+    return respond(
+        body,
+        workflow,
+        exchange,
+        world=world(),
+        base_url=_base_url(request),
+        now=DEMO_NOW,
+        trusted_issuers=TRUST_ANCHORS,
+    )
+
+
+@app.post("/api/exchange/{workflow_id}/{exchange_id}/present")
+def post_present(workflow_id: str, exchange_id: str) -> dict[str, Any]:
+    """Build the presentation the holder would send, signed with the holder's key.
+
+    Not part of VCALM, and it would not exist in a real deployment: the holder's private
+    key belongs in the holder's wallet, not on the coordinator's server. It is here for
+    the same reason every key in this demonstration is here -- one process plays every
+    actor -- and the chapter says so rather than letting a reader assume otherwise.
+
+    Args:
+        workflow_id: Which workflow is running.
+        exchange_id: Which exchange the presentation answers.
+
+    Returns:
+        The signed presentation, ready to post to the exchange endpoint.
+
+    Raises:
+        HTTPException: If the workflow or the exchange is unknown or has expired.
+    """
+    workflow = workflow_by_id(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail=f"no workflow {workflow_id!r}")
+
+    exchange = EXCHANGES.get(exchange_id)
+    if exchange is None or exchange.workflow_id != workflow.id:
+        raise HTTPException(
+            status_code=404,
+            detail="no such exchange, or it has expired -- open a new one",
+        )
+
+    return {
+        "verifiablePresentation": holder_presentation(
+            world(), workflow, exchange, now=DEMO_NOW
+        )
     }

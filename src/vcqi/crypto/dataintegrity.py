@@ -121,6 +121,8 @@ def sign_document(
     *,
     created: datetime,
     proof_purpose: str = "assertionMethod",
+    challenge: str | None = None,
+    domain: str | None = None,
 ) -> tuple[dict[str, Any], ProofTrace]:
     """Attach a Data Integrity proof to a document.
 
@@ -130,9 +132,22 @@ def sign_document(
         created: When the proof was created.
         proof_purpose: Why the proof was made. Credentials assert claims, so the
             default is assertionMethod.
+        challenge: A value supplied by whoever asked for this document, signed into the
+            proof so the result answers one request and cannot be replayed against
+            another. Only presentations use it; a credential is not a reply to anything.
+        domain: Who the document is being presented to, signed in for the same reason:
+            it stops a presentation made for one verifier being forwarded to a second.
 
     Returns:
         A tuple of the secured document and the trace of intermediate values.
+
+    Note:
+        Both optional members go into the proof configuration, which is canonicalized
+        and hashed along with everything else, so they are covered by the signature
+        rather than merely travelling beside it. Verification needs no change to read
+        them: ``verify_document`` rebuilds the configuration from every proof member
+        except ``proofValue``, so an added member is included automatically -- and a
+        tampered one therefore breaks the signature.
     """
     unsecured = {name: value for name, value in document.items() if name != "proof"}
 
@@ -143,6 +158,10 @@ def sign_document(
         "verificationMethod": key.verification_method_id,
         "proofPurpose": proof_purpose,
     }
+    if challenge is not None:
+        proof_config["challenge"] = challenge
+    if domain is not None:
+        proof_config["domain"] = domain
     # The proof configuration repeats the context of the document so that a verifier
     # cannot be shown the same claims under a different set of term definitions.
     if "@context" in unsecured:
