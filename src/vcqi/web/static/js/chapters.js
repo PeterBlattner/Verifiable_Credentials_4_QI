@@ -1570,6 +1570,8 @@ const HARMONISATION_STATUS = {
 };
 
 async function chapterHarmonisation(context) {
+  // Prose: web/content/chapters/12-harmonisation.md
+  const t = context.text('harmonisation');
   const fragment = document.createDocumentFragment();
   const data = await api.harmonisation();
   const titleOf = {};
@@ -1577,18 +1579,13 @@ async function chapterHarmonisation(context) {
     for (const item of tier.items) titleOf[item.key] = item.title;
   }
 
-  fragment.append(
-    prose([
-      'The previous chapter asked what one organisation would have to run. This asks the harder question: what would they all have to agree with each other, so that a certificate written in one country means the same thing in another. That is the problem the quality infrastructure exists to solve, and signatures do not touch it.',
-      'Start with something this demonstration gets wrong, because it is the clearest case on the page.',
-    ])
-  );
+  fragment.append(t.prose('the-harder-question'));
 
   const cmc = (context.world.cmcEntries || []).find((entry) => entry.measurand === 'dc.resistance');
   const scope = (context.world.accreditations || []).find((entry) => entry.measurand === 'dc.resistance');
 
   fragment.append(
-    panel('Two organisations, one string', 'fetch both — the BIPM publishes one, the accreditation body the other', [
+    panel(t.text('one-string.title'), t.text('one-string.hint'), [
       el('div', { class: 'chips' }, [
         cmc
           ? el('button', {
@@ -1605,18 +1602,11 @@ async function chapterHarmonisation(context) {
             })
           : null,
       ]),
-      callout([
-        'Both say <code>dc.resistance</code>, and chapter 5 decides whether a calibration may carry the CIPM MRA logo by comparing those two strings for equality. They match because one author wrote both files. Two organisations that had never spoken would not have produced the same string, and the comparison would fail — not because the laboratory was outside its scope, but because nobody had agreed a name for resistance.',
-        'The instinct is to conclude that the metrology vocabularies are missing and would have to be invented. That is wrong, and worth correcting carefully: the BIPM already publishes permanent digital identifiers for every SI unit through the <a href="https://si-digital-framework.org/SI?lang=en">SI Digital Framework</a>, resolvable CMC identifiers already exist through the <a href="https://si-digital-framework.org/kcdb-cmc/">KCDB-CMC service</a>, and identifiers for measurands are being worked on at ISO and IEC. The finding is not that no vocabulary exists. It is that one exists and this demonstration did not use it.',
-      ]),
+      t.callout('one-string.body'),
     ])
   );
 
-  fragment.append(
-    prose([
-      'What follows is sorted by one test, and anything failing it was left out: <strong>two conforming implementations that differ here cannot interoperate.</strong> That is what separates a harmonisation need from a deployment gap, and chapter 9 has the deployment gaps already. The tiers are meant to be read in order, because the order is the argument.',
-    ])
-  );
+  fragment.append(t.prose('one-test'));
 
   // Counted from the items rather than written into the prose. An earlier draft of this
   // chapter left the impression that most of the list was a blank page, and it was the
@@ -1627,18 +1617,17 @@ async function chapterHarmonisation(context) {
   const share = Math.round((openCount / items.length) * 100);
 
   fragment.append(
-    panel('How much of this is actually open', 'counted from the items below, not asserted', [
+    panel(t.text('open.title'), t.text('open.hint'), [
       el('div', { class: 'chips' }, [
         badge('pass', `${count('available')} already exist`),
         badge('warn', `${count('partial')} answered in part`),
         badge('skip', `${count('emerging')} being built`),
         badge('anchor', `${openCount} genuinely open`),
       ]),
-      callout([
-        `Of ${items.length} items, <strong>${openCount}</strong> — about ${share}% — have nothing to read yet. The rest have a specification, a register or a deployed mechanism behind them, and the work is adoption or a choice rather than invention.`,
-        'That balance is a correction. The first version of this page filed seven items under <em>nothing exists yet</em>, and a reviewer who works on these specifications pointed out that five of them had answers — some published while this was being written, some still moving through as pull requests. The items below now open by saying what the earlier draft got wrong, which is left visible on purpose: a page about unsolved problems goes stale by overstating them, and one shown correction is a cheap warning that there are probably others.',
-        'What is left, once the answered items are set aside, is a short list and it is not a technical one: what a document authorises as distinct from what it attests, how three arrangements compose when no two of them share a technical body, which copy of a certificate governs, and whether anyone can undertake that an identifier still means the same organisation in thirty years. The last of those cannot be settled by evidence until something has been running for thirty years. Theories are available. Data is not.',
-      ]),
+      el('div', {
+        class: 'callout',
+        html: t.fill('open.body', { total: items.length, open: openCount, share }),
+      }),
     ])
   );
 
@@ -1673,11 +1662,7 @@ async function chapterHarmonisation(context) {
     }
   }
 
-  fragment.append(
-    prose([
-      'The steps below are dependency structure rather than advice. Each rung is possible without the ones above it, and none of the upper rungs delivers anything without the lower ones — so whoever turns out to act, this is the order the blocking relationships force.',
-    ])
-  );
+  fragment.append(t.prose('the-ladder'));
 
   for (const step of data.nextSteps) {
     fragment.append(
@@ -1697,12 +1682,7 @@ async function chapterHarmonisation(context) {
     );
   }
 
-  fragment.append(
-    callout([
-      'Notice where the ladder stops. Every rung up to the fourth needs nobody’s permission, and the fifth needs one organisation to decide something about data it already owns. The sixth requires two arrangements to agree — and it is the one item here with no existing forum to agree it in, because the CIPM MRA and the Global ACI arrangement have no standing joint technical body. Creating somewhere for the conversation to happen is the real first step, and it is institutional rather than technical, which is usually the finding nobody wants.',
-      'The seventh rung is the newest and the odd one out. Legal metrology raised two questions the other two pillars never had to ask — what a document authorises as distinct from what it attests, and what identifies a design rather than one instrument — and both sit in the first tier, because getting either wrong is not a missing feature but a wrong answer. It is also the only rung whose forum plainly exists: the OIML has a standing structure for this conversation, which is more than the sixth rung can say.',
-    ])
-  );
+  fragment.append(t.callout('where-it-stops'));
 
   fragment.append(
     el('p', {
@@ -2069,10 +2049,8 @@ export const CHAPTERS = [
     render: chapterInfrastructure,
   },
   {
+    // Heading text comes from web/content/chapters/12-harmonisation.md
     id: 'harmonisation',
-    title: 'What would have to be agreed',
-    eyebrow: 'Harmonisation',
-    lede: 'The minimum that has to be common for any of this to cross a border, what cannot be decided later however convenient that would be, and what a deployment can do without.',
     render: chapterHarmonisation,
   },
   {
