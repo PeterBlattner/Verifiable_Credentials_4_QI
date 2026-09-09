@@ -26,6 +26,7 @@ from vcqi.web.content import (
     CHAPTERS_ROOT,
     CONTENT_ROOT,
     MISSING_PREFIX,
+    _BLOCK,
     blocks_for,
     chapter_ids,
     content_payload,
@@ -233,11 +234,22 @@ class TestChapterFiles:
                 )
 
     def test_there_is_a_readme_for_whoever_edits_these(self) -> None:
-        """The failure mode of a content layer is an editor who cannot tell what to do."""
+        """The failure mode of a content layer is an editor who cannot tell what to do.
+
+        The guide has to show the delimiter it describes, and this checks it against the
+        parser rather than against a string written down twice: somewhere in the text
+        there has to be a line the parser would accept as a block marker. It used to
+        assert ``"##" in text``, which went on passing after the delimiter changed
+        because the syntax table happens to contain ``### Like this``.
+        """
         readme = CONTENT_ROOT / "README.md"
         assert readme.is_file()
         text = readme.read_text(encoding="utf-8")
-        assert "##" in text and "pull request" in text
+        assert "pull request" in text
+        assert _BLOCK.search(text), (
+            "the editing guide does not show a line the parser would read as a block "
+            "marker, so it is describing a format that no longer exists"
+        )
 
 
 class TestBlocksSuitTheSlotsTheyFill:

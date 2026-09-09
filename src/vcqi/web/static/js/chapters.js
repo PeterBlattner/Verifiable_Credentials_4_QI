@@ -137,15 +137,12 @@ const ISSUE_MODES = [
 ];
 
 async function chapterKeys(context) {
+  // Prose: web/content/chapters/02-keys.md
+  const t = context.text('keys');
   const fragment = document.createDocumentFragment();
   const state = { key: null };
 
-  fragment.append(
-    prose([
-      'The previous chapter said a credential is a document signed with a key that its issuer publishes. That sentence carries the whole idea, and it is worth slowing down on, because everything after it depends on what a key actually is.',
-      'A <strong>private key</strong> is a number. Not a file, not a password: a number, about 78 digits long. A <strong>public key</strong> is a second value computed from the first. The computation goes one way only, which is the entire trick and the reason the second one can be published.',
-    ])
-  );
+  fragment.append(t.prose('what-a-key-is'));
 
   // ---- 1. make a keypair ------------------------------------------------------
   const keyOutput = el('div', {});
@@ -167,22 +164,19 @@ async function chapterKeys(context) {
         ? el('div', { class: 'verdict verdict--pass' }, [
             el('div', { class: 'verdict__mark', text: '=' }),
             el('div', { class: 'verdict__text' }, [
-              el('strong', { text: 'Exactly the same key came back' }),
-              el('span', {
-                text:
-                  'Which is the whole problem with deriving a key from words. Nothing about this key is unpredictable: anyone who tries the same passphrase gets the same private key, and it is the private key that is supposed to be the secret. Change a character, or ask for a random one, and watch it move.',
-              }),
+              el('strong', { text: t.text('same-key.title') }),
+              el('span', { text: t.text('same-key.body') }),
             ]),
           ])
         : null,
       el('div', { class: 'callout' }, el('p', { text: data.note })),
-      el('h3', { text: 'Your private key' }),
+      el('h3', { text: t.text('private-key.title') }),
       el('pre', { class: 'code', text: wrap(data.privateScalarHex, 64) }),
       el('p', {
         class: 'muted',
         text: `That is the whole secret: one number, 32 bytes, ${data.privateScalarDecimalDigits} digits in decimal. Anyone who has it can sign anything at all in your name.`,
       }),
-      el('h3', { text: 'The public key, computed from it' }),
+      el('h3', { text: t.text('public-key.title') }),
       el('pre', {
         class: 'code',
         text:
@@ -193,12 +187,10 @@ async function chapterKeys(context) {
           `  x = 0x${data.publicPoint.x.slice(0, 24)}…\n` +
           `  y = 0x${data.publicPoint.y.slice(0, 24)}…`,
       }),
-      prose([
-        `That multiplication is a few hundred point additions on the ${data.curve.name} curve and takes well under a millisecond. Going the other way — recovering <em>d</em> from the point — is the elliptic curve discrete logarithm problem, and after forty years of trying, nobody knows how to do it. That asymmetry is the only reason the right-hand value can be published at all.`,
-      ]),
+      t.proseFill('one-way', { curve: data.curve.name }),
       panel(
-        'From a point to publicKeyMultibase',
-        'four ordinary encodings stacked up, none of them cryptography',
+        t.text('encoding.title'),
+        t.text('encoding.hint'),
         table(
           ['Step', 'Value', 'What it adds'],
           data.encodingLayers.map((layer) => [
@@ -218,14 +210,12 @@ async function chapterKeys(context) {
           },
         })],
       ]),
-      prose([
-        'Notice what that identifier is. A <code>did:key</code> <em>contains</em> the public key, so a verifier needs to fetch nothing at all to check a signature made with it. Compare <code>did:web:metas.example</code>, which has to be resolved to a document before you learn anything. The trade is that a <code>did:key</code> can never rotate its key, cannot carry a name or a website, and cannot be the subject of a recognition credential — you would be recognising a key rather than an organisation.',
-      ])
+      t.prose('did-key')
     );
   }
 
   fragment.append(
-    panel('Make a keypair', 'nothing here is secret; see the warning below', [
+    panel(t.text('keypair.title'), t.text('keypair.hint'), [
       el('div', { class: 'controls' }, [
         el('label', { class: 'field' }, [el('span', { text: 'Passphrase' }), passphrase]),
         el('button', {
@@ -241,18 +231,13 @@ async function chapterKeys(context) {
       ]),
       keyOutput,
     ]),
-    callout([
-      'Press <strong>Derive</strong> twice with the same words and you get the same key every time. Press <strong>random</strong> twice and you get two different keys. That contrast is the point: a real private key is chosen at random from about 2<sup>256</sup> possibilities, and one derived from words you can remember is one an attacker can guess.',
-      'And to be explicit about what you are looking at: this page shows you a private key and sends it back and forth over HTTP. Every key in this demonstration comes from a seed published in the source and protects nothing. A real private key is generated on the device that will use it and never leaves it.',
-    ])
+    t.callout('randomness')
   );
 
   // ---- 2. which half does what ------------------------------------------------
   fragment.append(
-    el('h3', { text: 'Which half does what' }),
-    prose([
-      'This is where most of the confusion lives, and it comes from encryption. In encryption the <em>public</em> key encrypts and the <em>private</em> key decrypts, so people reasonably assume signing works the same way round. It does not.',
-    ]),
+    el('h3', { text: t.text('halves.title') }),
+    t.prose('halves'),
     table(
       ['', 'Signing — what credentials use', 'Encryption — a different job'],
       [
@@ -263,9 +248,7 @@ async function chapterKeys(context) {
         ['who can read the document', el('strong', { text: 'anyone' }), 'only the holder of the private key'],
       ]
     ),
-    callout([
-      'So a verifiable credential is <strong>not secret</strong>. A calibration certificate signed this way is as readable as one on paper. The signature does not hide anything; it says who wrote it and that nobody has changed it since. If you also need it kept confidential, that is a separate mechanism on top.',
-    ])
+    t.callout('not-secret')
   );
 
   // ---- 3. sign, then break it -------------------------------------------------
@@ -274,7 +257,7 @@ async function chapterKeys(context) {
 
   async function signAndBreak() {
     if (!state.key) {
-      clear(signOutput).append(el('p', { class: 'muted', text: 'Make a keypair above first.' }));
+      clear(signOutput).append(el('p', { class: 'muted', text: t.text('make-a-key-first') }));
       return;
     }
     clear(signOutput).append(el('p', { class: 'spinner', text: 'Signing…' }));
@@ -314,7 +297,7 @@ async function chapterKeys(context) {
   }
 
   fragment.append(
-    panel('Sign something, then break it four ways', 'a signature is never valid on its own, only for one message and one key', [
+    panel(t.text('sign.title'), t.text('sign.hint'), [
       el('div', { class: 'controls' }, [
         el('label', { class: 'field' }, [el('span', { text: 'Message' }), message]),
         el('button', { class: 'action action--primary', text: 'Sign it, then try to break it', onclick: signAndBreak }),
@@ -328,7 +311,7 @@ async function chapterKeys(context) {
 
   async function attempt(mode) {
     if (!state.key) {
-      clear(issueOutput).append(el('p', { class: 'muted', text: 'Make a keypair above first.' }));
+      clear(issueOutput).append(el('p', { class: 'muted', text: t.text('make-a-key-first') }));
       return;
     }
     clear(issueOutput).append(el('p', { class: 'spinner', text: 'Signing a certificate and verifying it…' }));
@@ -342,19 +325,16 @@ async function chapterKeys(context) {
         stat(data.report.outcome, 'overall'),
       ]),
       verdictBanner(data.report),
-      panel('Every check the verifier ran', 'the same pipeline every other chapter uses', stepTree(data.report.steps, 0)),
-      panel('The credential you just signed', null, jsonView(data.credential, context.inspect, { tall: true }))
+      panel(t.text('checks.title'), t.text('checks.hint'), stepTree(data.report.steps, 0)),
+      panel(t.text('signed.title'), null, jsonView(data.credential, context.inspect, { tall: true }))
     );
     issueOutput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   fragment.append(
-    el('h3', { text: 'Anyone can sign. That is the point, and the problem.' }),
-    prose([
-      'Nothing stopped you making that key, and nothing stops you signing a calibration certificate with it right now. The mathematics does not know or care who you are. So try it: take the real METAS certificate from this demonstration, sign it with your own key, and put it through the same verification pipeline every other chapter uses.',
-      'Three ways to try, and all three fail — for three <em>different</em> reasons, which is what makes this worth doing rather than reading.',
-    ]),
-    panel('Sign a real calibration certificate with your key', null, [
+    el('h3', { text: t.text('anyone.title') }),
+    t.prose('anyone'),
+    panel(t.text('try.title'), null, [
       el(
         'div',
         { class: 'chips' },
@@ -364,10 +344,7 @@ async function chapterKeys(context) {
       ),
       issueOutput,
     ]),
-    callout([
-      'The second attempt is the one to think about. Claiming to be METAS while naming your own key <strong>passes</strong> the recognition check, because recognition asks whether the issuer the credential <em>names</em> is recognised — and METAS genuinely is. Only the proof check binds that claim to a key, and only then does the forgery come apart.',
-      'Two checks, two different questions. A forgery would sail straight through either one on its own, which is why the pipeline runs both and why a valid signature, by itself, settles almost nothing.',
-    ])
+    t.callout('second-attempt')
   );
 
   // ---- 5. where the key lives, and what it may do -----------------------------
@@ -392,17 +369,14 @@ async function chapterKeys(context) {
           ['decode it', '33 bytes: the compressed point, exactly as above'],
         ]
       ),
-      prose([
-        'And crucially, the verifier takes the key from <strong>the controller the credential names</strong>, never from the credential itself. A document that carried its own public key would prove only that whoever wrote it owned a key — which is precisely the second attempt above.',
-        'The document also says what each key may be <em>used</em> for. A key listed under <code>authentication</code> is for proving you are present, logging in; one listed under <code>assertionMethod</code> is for making statements that outlive the conversation. The pipeline refuses a credential signed with a key its controller published only for authentication, and that is not pedantry: a key used to log in is exposed far more often than one kept for issuing.',
-      ]),
+      t.prose('controller'),
       jsonView(actor.didDocument, context.inspect)
     );
   }
 
   fragment.append(
-    el('h3', { text: 'How the verifier gets the right key' }),
-    panel('Follow it from the proof back to the published key', null, [
+    el('h3', { text: t.text('how.title') }),
+    panel(t.text('follow.title'), null, [
       el('button', { class: 'action', text: 'Follow the chain for METAS-2026-0417', onclick: followChain }),
       chainOutput,
     ])
@@ -410,16 +384,9 @@ async function chapterKeys(context) {
 
   // ---- and what happens when it leaks -----------------------------------------
   fragment.append(
-    el('h3', { text: 'And the day it leaks' }),
-    prose([
-      'If a private key gets out, everything it ever signed becomes questionable, because there is no longer any way to tell what the holder signed from what the thief signed. Anyone can issue in that name, backdated, indefinitely.',
-      'That is what revocation lists, key rotation and validity periods are really for, and why an identifier that can publish a <em>new</em> key without becoming a different party matters more than it first appears. It is also why <code>ARCHITECTURE.md</code> lists key management and long-term validation among the things a real deployment would have to solve that this demonstration does not.',
-    ]),
-    el('p', {
-      class: 'footnote',
-      text:
-        'Every key here is derived from a seed published in this repository, including the one you just made. They exist to be looked at, not to protect anything.',
-    })
+    el('h3', { text: t.text('leaks.title') }),
+    t.prose('leaks'),
+    el('p', { class: 'footnote', text: t.text('footnote') })
   );
 
   await derive({ passphrase: passphrase.value });
@@ -435,17 +402,12 @@ function flipLast(value) {
 // ---------------------------------------------------------------- chapter 2
 
 async function chapterGraph(context) {
+  // Prose: web/content/chapters/03-graph.md
+  const t = context.text('graph');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'Thirteen organisations, and two supply chains running through them. A national metrology institute calibrates a laboratory&rsquo;s transfer standard; the laboratory calibrates a testing laboratory&rsquo;s multimeter; the testing laboratory measures a kettle; a certification body certifies the kettle; the manufacturer presents that certificate at a border. The same testing laboratory also evaluates a type of electricity meter against an OIML Recommendation, and an Issuing Authority certifies the type on the strength of that evaluation.',
-      'The three organisations at the top are the roots of trust: one for metrology, one for accreditation, one for legal metrology. All three are inventions, like everything else here. <strong>Global ACI</strong> stands in for whichever body holds the accreditation role, and nothing in the demonstration rests on that name &mdash; a verifier reaches an anchor by following identifiers upward from the document in front of it, not by knowing who occupies the position.',
-      'The three arrangements are separate, and the interesting part is where they are not. <strong>Helvetia Testing</strong> is accredited by SAS under ISO/IEC 17025 <em>and</em> recognised by OIML to perform type evaluation &mdash; one laboratory, one identifier, two arrangements above it, and neither of them aware the other exists. Filter to one arrangement to see its shape; the rest dims rather than disappearing, because a document resting on two of them at once is the thing worth looking at.',
-      'Click any organisation to see the identifier it signs with and what it has issued. Click any edge to read the credential behind it.',
-    ])
-  );
+  fragment.append(t.prose('the-world'));
 
-  const detail = panel('Select an organisation or an edge', 'Everything below is fetched from the running server', el('p', { class: 'muted', text: 'Nothing selected yet.' }));
+  const detail = panel(t.text('detail.title'), t.text('detail.hint'), el('p', { class: 'muted', text: t.text('nothing-selected') }));
   const graphHolder = el('div', {});
   const filterHolder = el('div', { class: 'controls' });
   const filterNote = el('p', { class: 'muted' });
@@ -526,12 +488,12 @@ async function chapterGraph(context) {
               ],
               ['Public key', el('span', { class: 'hash', text: data.actor.publicKeyMultibase })],
             ]),
-            el('h3', { text: 'DID document' }),
-            el('p', { class: 'muted', text: 'This is all an identifier resolves to: a key, what the key may be used for, and where to ask about the holder.' }),
+            el('h3', { text: t.text('did.title') }),
+            el('p', { class: 'muted', text: t.text('did-resolves') }),
             jsonView(data.didDocument, context.inspect),
             data.issued.length
               ? el('div', {}, [
-                  el('h3', { text: 'Credentials it has issued' }),
+                  el('h3', { text: t.text('issued.title') }),
                   el(
                     'div',
                     { class: 'chips' },
@@ -575,13 +537,10 @@ async function chapterGraph(context) {
 // ---------------------------------------------------------------- chapter 3
 
 async function chapterIssuing(context) {
+  // Prose: web/content/chapters/04-issuing.md
+  const t = context.text('issuing');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'A signature is made over bytes, and a JSON document does not have a single set of bytes: the same certificate can be written with different spacing, different member order, or different ways of writing the same number. So before anything is hashed, the document is put into a <strong>canonical form</strong>, and that is what gets signed. This is why a certificate can be reformatted on its way to a verifier without breaking.',
-      'Two things are hashed separately and signed together: the document without its proof, and the proof configuration without its signature. Hashing the configuration too is what stops anyone editing the stated purpose, the key or the time after the fact.',
-    ])
-  );
+  fragment.append(t.prose('canonicalization'));
 
   const holder = el('div', {});
   const picker = el(
@@ -606,26 +565,26 @@ async function chapterIssuing(context) {
     const data = await api.credential(name);
     const trace = data.trace;
     clear(holder).append(
-      panel('1. The claims, before anything cryptographic happens', 'The document as its issuer assembled it', jsonView(
+      panel(`1. ${t.text('claims.title')}`, t.text('claims.hint'), jsonView(
         Object.fromEntries(Object.entries(data.credential).filter(([key]) => key !== 'proof')),
         context.inspect,
         { tall: true }
       )),
       panel(
-        '2. The canonical form',
-        'RFC 8785: members sorted, no whitespace, numbers written one way only',
+        `2. ${t.text('canonical.title')}`,
+        t.text('canonical.hint'),
         el('pre', { class: 'code', text: wrap(trace.canonicalDocument, 110) })
       ),
-      panel('3. What is hashed and signed', 'Two SHA-256 digests, concatenated, then signed with ECDSA over P-256', [
+      panel(`3. ${t.text('hashing.title')}`, t.text('hashing.hint'), [
         keyValues([
           ['Digest of the document', el('span', { class: 'hash', text: trace.documentHash })],
           ['Digest of the proof configuration', el('span', { class: 'hash', text: trace.proofConfigHash })],
           ['The 64 bytes actually signed', el('span', { class: 'hash', text: trace.signingInput })],
           ['Resulting signature', el('span', { class: 'hash', text: trace.proofValue })],
         ]),
-        el('p', { class: 'muted', style: 'margin-top: 12px;', text: 'Signing here is deterministic, per RFC 6979. Identical input always produces an identical signature, so any change in the signature is caused by a change in the document rather than by a fresh random number.' }),
+        el('p', { class: 'muted', style: 'margin-top: 12px;', text: t.text('deterministic') }),
       ]),
-      panel('4. The finished credential', 'The proof configuration, plus the signature it covers', jsonView(data.credential.proof, context.inspect))
+      panel(`4. ${t.text('finished.title')}`, t.text('finished.hint'), jsonView(data.credential.proof, context.inspect))
     );
   }
 
@@ -643,13 +602,10 @@ function wrap(text, width) {
 // ---------------------------------------------------------------- chapter 4
 
 async function chapterVerification(context) {
+  // Prose: web/content/chapters/05-verification.md
+  const t = context.text('verification');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'This is the demonstration proper. A market surveillance authority in an importing country receives a certificate of conformity. It has no relationship with the certification body, the testing laboratory, the calibration laboratory or the institute. It trusts two identifiers in the world: the BIPM and Global ACI.',
-      'It runs eleven checks. Four are generic, one walks the recognition chain, and six are about whether the metrology holds up. Expand any step to see what it decided.',
-    ])
-  );
+  fragment.append(t.prose('the-scenario'));
 
   const state = { name: 'cab-conformity', when: context.world.demoNow.slice(0, 10), staple: false, maxDepth: 5, trustBoth: true };
   const output = el('div', {});
@@ -731,12 +687,10 @@ async function chapterVerification(context) {
       retrievalSummary(report.fetches),
       el('p', {
         class: 'muted',
-        text: state.staple
-          ? 'The holder bundled the recognition credentials with the presentation, so the verifier read them from the presentation instead of going out for them. In a real deployment that is the difference between a border check that needs connectivity and one that does not.'
-          : 'The verifier fetched everything itself. Toggle stapling above to see the same chain served from the presentation.',
+        text: state.staple ? t.text('stapled') : t.text('unstapled'),
       }),
-      panel('What the verifier checked', 'Steps that passed are collapsed; open one to see inside', stepTree(report.steps, 0)),
-      panel('What the verifier had to fetch', 'In the order it asked for them', el(
+      panel(t.text('steps.title'), t.text('steps.hint'), stepTree(report.steps, 0)),
+      panel(t.text('fetches.title'), t.text('fetches.hint'), el(
         'div',
         { class: 'json' },
         report.fetches
@@ -754,16 +708,10 @@ async function chapterVerification(context) {
 // ---------------------------------------------------------------- chapter 5
 
 async function chapterScope(context) {
+  // Prose: web/content/chapters/06-scope.md
+  const t = context.text('scope');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'A national metrology institute may put the CIPM MRA logo on a calibration certificate only when the calibration falls inside a capability it has published in the key comparison database. The published entry gives a measurand, a range, the conditions, and the <strong>smallest</strong> Expanded Uncertainty the institute can achieve.',
-      'That last one is the part that catches people out. The capability is a floor, not a ceiling. A certificate claiming a <em>larger</em> uncertainty is comfortably inside scope. A certificate claiming a <em>smaller</em> one is claiming to have done better than the institute has ever demonstrated, and is outside it.',
-      'Move the sliders. The verdict, and with it the legitimacy of the logo, is decided from the published entry rather than from anybody&rsquo;s judgement.',
-      'The same machinery bounds the legal-metrology branch, and there the bound is a better one. An OIML Issuing Authority may certify a type only against a Recommendation it has been approved for, and a Recommendation is a numbered, edition-controlled document published by somebody else &mdash; not a declaration the organisation wrote about itself. Try <em>Certify a type against a Recommendation nobody approved</em> in chapter 8: the certificate is signed by a genuinely recognised body and rejected anyway, twice over, because the recognition names both the Recommendation and a schema built from it.',
-      'What is still missing is that the schema is this project&rsquo;s reading of R 46 rather than R 46 speaking for itself. The OIML is working towards machine-readable Recommendations; until then, the bound is only as good as whoever transcribed it. That is the last item in chapter 11.',
-    ])
-  );
+  fragment.append(t.prose('the-floor'));
 
   const state = { value: 1.0e4, relative: 1.131e-7 };
   const readout = el('div', {});
@@ -807,12 +755,8 @@ async function chapterScope(context) {
       el('div', { class: `verdict verdict--${inScope ? 'pass' : 'fail'}` }, [
         el('div', { class: 'verdict__mark', text: inScope ? '✓' : '✗' }),
         el('div', { class: 'verdict__text' }, [
-          el('strong', { text: inScope ? 'Inside CMC CH-EM-0042 — the CIPM MRA logo is justified' : 'Outside CMC CH-EM-0042 — the CIPM MRA logo may not be used' }),
-          el('span', {
-            text: inScope
-              ? 'The calibration is covered by a published, peer-reviewed capability, so its international recognition follows.'
-              : 'The calibration may still be perfectly sound. What is not supported is the claim of international recognition that the logo makes.',
-          }),
+          el('strong', { text: inScope ? t.text('inside.title') : t.text('outside.title') }),
+          el('span', { text: inScope ? t.text('inside.body') : t.text('outside.body') }),
         ]),
       ]),
       keyValues([
@@ -835,12 +779,10 @@ async function chapterScope(context) {
 
   fragment.append(
     el('div', { class: 'split split--wide' }, [
-      el('div', {}, [panel('Adjust the claim', 'Both axes are logarithmic', [valueSlider, uncertaintySlider]), readout]),
-      panel('The published entry', 'Served from the registry, exactly as the verifier fetched it', jsonView(entry, context.inspect, { tall: true })),
+      el('div', {}, [panel(t.text('adjust.title'), t.text('adjust.hint'), [valueSlider, uncertaintySlider]), readout]),
+      panel(t.text('entry.title'), t.text('entry.hint'), jsonView(entry, context.inspect, { tall: true })),
     ]),
-    callout([
-      'The schema attached to the recognition can express the measurand, the unit and the range, because those are constants. It cannot express this uncertainty floor, which varies with the measured level. So the schema catches gross errors offline and the signed registry entry decides the rest. Both checks appear in the pipeline, and watching the schema pass while the registry check fails is the clearest way to see why one does not replace the other.',
-    ])
+    t.callout('schema-vs-registry')
   );
 
   await update();
@@ -851,18 +793,17 @@ async function chapterScope(context) {
 
 /** Render the PTB/DKD DCC tab: the document, and what it does that the others do not. */
 function dccTab(body, representations, context) {
+  // Prose: web/content/chapters/07-traceability.md, which is the only chapter that
+  // reaches this helper.
+  const t = context.text('traceability');
   const dcc = representations.find((item) => item.format === 'PTB-DKD-DCC-XML');
   if (!dcc) {
-    body.append(el('p', { class: 'muted', text: 'This certificate carries no PTB/DKD DCC.' }));
+    body.append(el('p', { class: 'muted', text: t.text('no-dcc') }));
     return;
   }
 
   body.append(
-    prose([
-      'The <strong>PTB/DKD DCC</strong> is doing something different from the other three, and the difference is worth pausing on. Note the name, too: several things are called a PTB/DKD DCC, and this is the one the PTB and the DKD define.',
-      'Classical, UncLib and GTC all describe a <em>result</em> — how good a number is, and what it rests on. A PTB/DKD DCC describes a <em>document</em>: who calibrated what, for whom, when, under which conditions, with which equipment, and what came out. It is a calibration certificate in a schema, not an uncertainty in a format.',
-      `Inside it the quantity is written in <strong>D-SI</strong>, which is where the two levels meet. And D-SI's <code>si:expandedUnc</code> carries a value, an uncertainty, a coverage factor and a probability — that is the classical statement exactly, and it is not the dependency structure. So the two do not compete: a certificate wanting a standardised document <em>and</em> transmissible dependencies carries a PTB/DKD DCC and an UncLib block together, which is what this one does.`,
-    ]),
+    t.prose('dcc'),
     keyValues([
       ['Schema', `PTB/DKD DCC ${dcc.schemaVersion}, namespace https://ptb.de/dcc`],
       ['Quantities', `${dcc.quantityFormat}, namespace https://ptb.de/si`],
@@ -870,8 +811,8 @@ function dccTab(body, representations, context) {
       ['Digest', el('span', { class: 'hash', text: dcc.digestMultibase })],
     ]),
     panel(
-      'How this certificate maps onto the schema',
-      'our field on the left, the element it becomes on the right',
+      t.text('mapping.title'),
+      t.text('mapping.hint'),
       table(
         ['This demonstration', 'PTB/DKD DCC'],
         [
@@ -887,10 +828,8 @@ function dccTab(body, representations, context) {
         ]
       )
     ),
-    callout([
-      'One detail worth having been careful about: D-SI writes units the way siunitx does, as English names each preceded by a backslash. Ohm is <code>\\ohm</code>. Kilogram is <code>\\kilo\\gram</code> and <em>not</em> <code>\\kilogram</code>, because the prefix is a token of its own. The generator here refuses to emit a unit it has no mapping for, rather than guessing — a certificate that quietly states the wrong unit is worse than one that fails to be produced.',
-    ]),
-    el('h3', { text: 'The document' }),
+    t.callout('siunitx'),
+    el('h3', { text: t.text('document.title') }),
     el('pre', { class: 'code json json--tall', text: dcc.content || `published separately at ${dcc.id}` }),
     callout([dcc.signatureNote])
   );
@@ -898,6 +837,8 @@ function dccTab(body, representations, context) {
 
 /** Show every fact the credential and the PTB/DKD DCC both state, and whether they agree. */
 async function duplicationPanel(context, certificateName) {
+  // Prose: web/content/chapters/07-traceability.md
+  const t = context.text('traceability');
   const data = await api.credential(certificateName);
   const report = await api.verify({ name: certificateName });
 
@@ -927,22 +868,20 @@ async function duplicationPanel(context, certificateName) {
   });
 
   return panel(
-    'What is now said twice',
-    'the cost of putting one standardised document inside another',
+    t.text('duplication.title'),
+    t.text('duplication.hint'),
     [
-      prose([
-        'Wrapping a PTB/DKD DCC in a credential duplicates most of the certificate. That is not a flaw in either format — each was built to stand alone — but putting one inside the other makes the overlap unavoidable, and <strong>duplication permits disagreement</strong>. The signature stops anyone editing either copy after issue. It does nothing at all about an issuer writing them inconsistent in the first place.',
-      ]),
+      t.prose('duplication'),
       rows.length
         ? table(['', 'Fact', 'The credential says', 'The PTB/DKD DCC says'], rows)
-        : el('p', { class: 'muted', text: 'No duplicated facts were compared.' }),
+        : el('p', { class: 'muted', text: t.text('no-duplicates') }),
       agreement
         ? el('p', {
             class: 'muted',
             text: `And the measurement itself: ${agreement.detail}`,
           })
         : null,
-      el('h3', { text: 'Including the signature' }),
+      el('h3', { text: t.text('signature.title') }),
       table(
         ['', 'The credential proof', 'ds:Signature in a PTB/DKD DCC'],
         [
@@ -952,10 +891,7 @@ async function duplicationPanel(context, certificateName) {
           ['what it covers', 'the credential, including a digest of the PTB/DKD DCC', 'the PTB/DKD DCC alone'],
         ]
       ),
-      callout([
-        'A document carrying both can verify under one mechanism and fail under the other, and there is no natural rule for which wins. So this demonstration <strong>signs once</strong>: the credential proof covers the credential, the credential carries a digest of the PTB/DKD DCC bytes, and the <code>ds:Signature</code> slot stays empty. One trust path. That is a choice rather than an obligation.',
-        'There are three honest ways to live with the rest of the redundancy, and only the first is built here. <strong>Duplicate and check</strong>, so every repeated fact becomes somewhere a mistake gets caught. <strong>Do not duplicate</strong>, by making the PTB/DKD DCC the credential subject and letting <code>issuer</code> and <code>validFrom</code> be views of it — cleanest, and probably what a real deployment settles on. Or <strong>declare precedence</strong>, saying which copy governs, which works and needs governance and is never read at the moment it is needed.',
-      ]),
+      t.callout('sign-once'),
     ]
   );
 }
@@ -969,6 +905,8 @@ async function duplicationPanel(context, certificateName) {
  * one measurement, and only the last two let the recipient do anything further with it.
  */
 async function representationPanel(context, certificateName) {
+  // Prose: web/content/chapters/07-traceability.md
+  const t = context.text('traceability');
   const data = await api.credential(certificateName);
   const result = data.credential.credentialSubject.calibration.results[0];
   const representations = result.uncertaintyRepresentations || [];
@@ -1006,10 +944,7 @@ async function representationPanel(context, certificateName) {
       const classical = representations.find((item) => item.type === 'ClassicalStatement');
       body.append(
         el('div', { class: 'stat__value', text: result.reported }),
-        prose([
-          'This is the whole of what a calibration certificate has stated for as long as calibration certificates have existed, and for most purposes it is enough. It tells you how good the number is.',
-          'What it cannot tell you is anything about <em>where</em> the uncertainty came from. Two certificates reported this way are, as far as any recipient can determine, unrelated — even when both rest on the same reference standard in the same laboratory.',
-        ]),
+        t.prose('classical'),
         classical ? keyValues([
           ['Value', `${classical.value} ${classical.unit}`],
           ['Standard Uncertainty u', classical.standardUncertainty],
@@ -1024,14 +959,11 @@ async function representationPanel(context, certificateName) {
       const xml = representations.find((item) => item.format === 'METAS-UncLib-XML');
       const binary = representations.find((item) => item.format === 'METAS-UncLib-binary');
       if (!xml) {
-        body.append(el('p', { class: 'muted', text: 'This certificate carries no dependency representation.' }));
+        body.append(el('p', { class: 'muted', text: t.text('no-dependencies') }));
         return;
       }
       body.append(
-        prose([
-          `The same result, transmitted with everything it depends on: ${xml.inputQuantityCount} input quantities, each with its own identifier, its distribution, and the sensitivity of the result to it.`,
-          'The identifiers are what matter. They travel with the number, so an influence stays recognisable wherever it turns up again, and a recipient combining two results can tell that part of their uncertainty is one and the same thing.',
-        ]),
+        t.proseFill('unclib', { inputs: xml.inputQuantityCount }),
         table(
           ['Identifier', 'Influence'],
           xml.inputQuantities.map((influence) => [
@@ -1039,14 +971,14 @@ async function representationPanel(context, certificateName) {
             influence.description,
           ])
         ),
-        el('h3', { text: 'As transmitted' }),
+        el('h3', { text: t.text('as-transmitted.title') }),
         el('pre', { class: 'code json', text: xml.content || `published separately at ${xml.id}` }),
         binary
           ? panel(
-              'The same thing, in binary',
+              t.text('binary.title'),
               `${binary.byteCount} bytes against ${(xml.content || '').length} characters of XML`,
               [
-                el('p', { class: 'muted', text: 'Published separately and referenced by digest, which is what the binary form is for: a result depending on thousands of influences, as an ordinary scattering-parameter measurement does, is not something to write out as XML.' }),
+                el('p', { class: 'muted', text: t.text('binary.hint') }),
                 el('button', {
                   class: 'action',
                   text: 'Fetch it as a customer would',
@@ -1076,10 +1008,7 @@ async function representationPanel(context, certificateName) {
 
     const archive = representations.find((item) => item.format === 'GTC-archive-JSON');
     body.append(
-      prose([
-        'The <strong>GUM Tree Calculator</strong>, from the Measurement Standards Laboratory of New Zealand, arrives at the same design independently: elementary uncertain numbers carry UUID-based identifiers, and an archive of them serialises to JSON or XML against a published schema.',
-        'Two implementations reaching the same conclusion is a better argument for the idea than one, and it is why the credential names a <em>format</em> rather than assuming a library. A certificate can carry either, or both, and a recipient uses whichever it can read.',
-      ])
+      t.prose('gtc')
     );
     if (archive) {
       body.append(
@@ -1089,14 +1018,14 @@ async function representationPanel(context, certificateName) {
     } else {
       body.append(
         el('div', { class: 'callout' }, el('p', { text: gtc.note })),
-        el('p', { class: 'muted', text: 'Everything else in this chapter works either way. The credential simply carries one dependency representation instead of two.' })
+        el('p', { class: 'muted', text: t.text('gtc-either-way') })
       );
     }
   }
 
   show('classical');
   return panel(
-    'One measurement, four ways of handing it over',
+    t.text('representations.title'),
     certificateName === 'metas-calibration' ? 'Certificate METAS-2026-0417' : certificateName,
     [bar, body]
   );
@@ -1104,13 +1033,10 @@ async function representationPanel(context, certificateName) {
 
 
 async function chapterTraceability(context) {
+  // Prose: web/content/chapters/07-traceability.md
+  const t = context.text('traceability');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'Metrological traceability is an unbroken chain of calibrations back to a realisation of the unit, each with a stated uncertainty. The credential chain has exactly the same shape, and each certificate inherits its parent&rsquo;s result as the first line of its own budget.',
-      'Because the budget travels inside the credential, a recipient can check two things no signature could tell it: that the stated uncertainty really is the quadrature sum of the contributions offered for it, and that the inherited line matches what the parent certificate actually reports.',
-    ])
-  );
+  fragment.append(t.prose('the-chain'));
 
   const [metas, callab] = await Promise.all([api.credential('metas-calibration'), api.credential('callab-calibration')]);
 
@@ -1124,8 +1050,8 @@ async function chapterTraceability(context) {
 
   fragment.append(
     panel(
-      'Expanded uncertainty down the chain',
-      'Relative U at k = 2. Each step inherits everything above it and can only add',
+      t.text('chain.title'),
+      t.text('chain.hint'),
       table(
         ['Level', 'Relative U (k = 2)', '', 'As reported'],
         levels.map((level) => [
@@ -1204,7 +1130,7 @@ async function chapterTraceability(context) {
   }
 
   fragment.append(
-    panel('Recompute the laboratory budget', 'Propagated with metas_unclib, which keeps track of where each uncertainty came from', [
+    panel(t.text('recompute.title'), t.text('recompute.hint'), [
       sliderRow({
         label: 'U inherited from the institute',
         min: -5,
@@ -1243,9 +1169,7 @@ async function chapterTraceability(context) {
       }),
       live,
     ]),
-    callout([
-      'Try dragging the inherited uncertainty far down. The budget still adds up, the certificate would still be validly signed, and the laboratory would still be genuinely accredited — but the result becomes better than its accreditation allows, and the inherited line stops matching the certificate it names. Those are the last two checks in the pipeline, and they are the only things that would notice.',
-    ])
+    t.callout('try-dragging')
   );
 
   await recompute();
@@ -1261,14 +1185,11 @@ const OPERATIONS = [
 ];
 
 async function chapterDependencies(context) {
+  // Prose: web/content/chapters/08-dependencies.md
+  const t = context.text('dependencies');
   const fragment = document.createDocumentFragment();
 
-  fragment.append(
-    prose([
-      'One institute, one national standard, two certificates. Both check standards were compared against the same 10 kΩ national standard, so a large part of what is uncertain about each result is <em>the same thing</em> being uncertain twice.',
-      'A customer who combines the two ought to get the benefit of that. Whether they can depends entirely on what the institute transmitted, and the choice was made when the certificate was written, not when the customer opened it.',
-    ])
-  );
+  fragment.append(t.prose('shared-standard'));
 
   const output = el('div', {});
   const state = { operation: 'difference' };
@@ -1300,11 +1221,11 @@ async function chapterDependencies(context) {
     const understates = data.direction === 'understates';
     clear(output).append(
       el('div', { class: 'split' }, [
-        panel('With the dependencies transmitted', 'the shared influence is recognised and cancels correctly', [
+        panel(t.text('tracked.title'), t.text('tracked.hint'), [
           el('div', { class: 'stat__value', text: data.tracked.reported }),
           el('p', { class: 'muted', text: data.tracked.basis }),
         ]),
-        panel('From the printed value and U alone', 'the shared influence is invisible, so it is counted twice', [
+        panel(t.text('naive.title'), t.text('naive.hint'), [
           el('div', { class: 'stat__value', text: data.naive.reported }),
           el('p', { class: 'muted', text: data.naive.basis }),
         ]),
@@ -1317,14 +1238,14 @@ async function chapterDependencies(context) {
           }),
           el('span', {
             text: understates
-              ? 'Note the direction. For a mean, positive correlation makes the result less certain, not more, so ignoring it is optimistic rather than cautious. Classical reporting is not conservative; it is simply wrong by an amount nobody can compute.'
+              ? t.text('optimistic')
               : `The two results are correlated at r = ${data.correlation.toFixed(3)} because they share ${data.sharedInfluences.length} input quantities. That correlation is recoverable from the dependency representations and from nothing else.`,
           }),
         ]),
       ]),
       panel(
-        'The influences the two certificates have in common',
-        'matched by identifier, not by name — two laboratories using the same wording are still different influences',
+        t.text('shared.title'),
+        t.text('shared.hint'),
         table(
           ['Identifier', 'Influence'],
           data.sharedInfluences.map((influence) => [
@@ -1333,7 +1254,7 @@ async function chapterDependencies(context) {
           ])
         )
       ),
-      panel('The two certificates', null, table(
+      panel(t.text('inputs.title'), null, table(
         ['Certificate', 'As reported'],
         data.inputs.map((input) => [
           el('button', {
@@ -1348,12 +1269,9 @@ async function chapterDependencies(context) {
   }
 
   fragment.append(
-    panel('What would you like to compute from the two certificates?', null, picker),
+    panel(t.text('question.title'), null, picker),
     output,
-    callout([
-      'It is worth being clear about what the customer did wrong in the right-hand column: <strong>nothing</strong>. Combining in quadrature is the correct thing to do with two numbers that you have no reason to believe are related. The information that they were related existed, at the laboratory, and was not sent.',
-      'This is also the honest cost of the idea. A dependency representation exposes the structure of an uncertainty budget, and many laboratories regard that as commercially confidential. Selective disclosure is where that tension would be addressed, and it is not implemented here.',
-    ])
+    t.callout('the-cost')
   );
 
   await run();
@@ -1362,39 +1280,33 @@ async function chapterDependencies(context) {
 
 // ---------------------------------------------------------------- chapter 8
 
-const GROUP_LABELS = {
-  forgery: 'Forgery — the cryptography catches these',
-  standing: 'Standing — the organisation was not entitled to issue it',
-  metrological: 'Metrology — everything verifies and the claim is still wrong',
-};
-
-const GROUP_NOTES = {
-  forgery: 'Any Verifiable Credentials library would reject all of these. They are the easy half.',
-  standing:
-    'Signatures say nothing about whether an accreditation has lapsed, been suspended, or never covered this activity. Recognition chains and status lists do.',
-  metrological:
-    'Every signature verifies, every organisation is in good standing, and the document is still wrong. A system that checked only the cryptography would accept every one of these.',
-};
-
 async function chapterBreakIt(context) {
+  // Prose: web/content/chapters/09-break.md
+  const t = context.text('break');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'A demonstration where everything always passes teaches very little. Each case below is a specific thing that can go wrong, and each names in advance the single check that is supposed to notice it.',
-      'The third group is the one worth dwelling on. In every case there, the signature is valid, the issuer is genuinely recognised, and the document is inside its validity period.',
-    ])
-  );
+  fragment.append(t.prose('why-break-it'));
+
+  // The three group headings and their notes used to be two module-level maps keyed by
+  // group name. They are read by literal key instead, because a computed key is
+  // invisible to the test that checks every key a chapter asks for exists -- and that
+  // one test is what makes the others able to see anything at all.
+  const GROUPS = [
+    { key: 'forgery', label: t.text('forgery.title'), note: t.text('forgery.hint') },
+    { key: 'standing', label: t.text('standing.title'), note: t.text('standing.hint') },
+    { key: 'metrological', label: t.text('metrological.title'), note: t.text('metrological.hint') },
+  ];
+  const labelFor = (key) => (GROUPS.find((group) => group.key === key) || {}).label;
 
   const output = el('div', {});
 
-  for (const group of ['forgery', 'standing', 'metrological']) {
-    const cases = context.world.tamperCases.filter((item) => item.group === group);
+  for (const group of GROUPS) {
+    const cases = context.world.tamperCases.filter((item) => item.group === group.key);
     fragment.append(
       panel(
-        GROUP_LABELS[group],
+        group.label,
         null,
         [
-          el('p', { class: 'muted', style: 'margin-top:-4px', text: GROUP_NOTES[group] }),
+          el('p', { class: 'muted', style: 'margin-top:-4px', text: group.note }),
           el(
             'div',
             { class: 'chips' },
@@ -1416,7 +1328,7 @@ async function chapterBreakIt(context) {
     const result = await api.tamper(key);
     const caught = result.caughtByExpectedStep;
     clear(output).append(
-      panel(result.case.title, GROUP_LABELS[result.case.group], [
+      panel(result.case.title, labelFor(result.case.group), [
         prose([result.case.description]),
         keyValues([
           ['Expected to be caught by', el('code', { text: result.case.expectedStep })],
@@ -1437,49 +1349,18 @@ async function chapterBreakIt(context) {
 
 // ---------------------------------------------------------------- chapter 9
 
-async function chapterImplications() {
+async function chapterImplications(context) {
+  // Prose: web/content/chapters/10-implications.md
+  const t = context.text('implications');
   const fragment = document.createDocumentFragment();
 
-  fragment.append(
-    prose([
-      'The demonstration is a prototype and proves nothing about deployability. But it does make some things concrete enough to argue about, which is what it was for.',
-    ])
-  );
-
-  fragment.append(
-    panel('What actually becomes different', null, prose([
-      '<strong>The recipient checks, not the issuer.</strong> Today a laboratory receiving a certificate that carries the CIPM MRA logo either takes the logo on trust or opens the KCDB and compares by eye. Here the comparison is made by whoever received the document, at the moment they received it, from the signed registry entry.',
-      '<strong>Scope becomes enforceable rather than declaratory.</strong> An accreditation scope and a CMC both already state exactly what is covered. Making them machine-readable turns them from something published into something checked.',
-      '<strong>Suspension takes effect immediately, everywhere.</strong> When an accreditation is suspended, every certificate already issued under it becomes unverifiable at the next check, without any of them being recalled or reissued.',
-      '<strong>Traceability stops being an assertion.</strong> A test report that says its equipment was calibrated can be made to prove it, by content digest, all the way down to a national standard.',
-      '<strong>Border clearance without correspondence.</strong> This is the case the Recognized Entities specification puts in section 2.4, and it works here: an authority holding two trusted identifiers reaches a verdict on a document from an organisation it has never dealt with.',
-    ]))
-  );
-
-  fragment.append(
-    panel('What a real deployment would need, and does not have yet', null, prose([
-      '<strong>Governance of the identifiers.</strong> Someone has to decide what the BIPM&rsquo;s identifier is, who controls it, how it is rotated, and what happens when a key is compromised. This is a governance problem wearing a technical costume, and it is the hard part.',
-      '<strong>The KCDB as a signed registry.</strong> The CMC data already exists and is already peer reviewed. What is missing is publication in a form that carries a signature and a stable content digest.',
-      '<strong>Long-term validation.</strong> Calibration certificates are kept for decades and signatures do not age well. Anything real needs timestamping and an archival strategy from the start, not added later.',
-      '<strong>Alignment with the PTB/DKD DCC.</strong> Every calibration certificate here now carries one, in the real namespaces with the quantity in D-SI, so the same calibration appears both as a readable subject and as a standardised document. What is still missing is the part that matters most for a deployment: it is a subset rather than a conformant document, it is not validated against the published XSD, the <code>ds:Signature</code> slot is unused, and the credential subject is still the readable shape rather than the PTB/DKD DCC itself. D-SI also does not model dependency structure, so an UncLib or GTC block still has to ride alongside it.',
-      '<strong>And what the redundancy taught, which generalises.</strong> Wrapping an existing standardised document inside a credential duplicates most of it, including its integrity mechanism. Who calibrated, for whom, when, under which number — all said twice, in two vocabularies, with nothing keeping them together. A real deployment has to choose deliberately between duplicating and checking, not duplicating at all, or declaring which copy governs. This demonstration duplicates and checks, because that is the cheapest thing to show and it turns every repeated fact into somewhere a mistake gets caught. The version worth building is probably the second: make the document the subject, and derive the rest from it.',
-      '<strong>Selective disclosure.</strong> A calibration certificate names a customer and an instrument. A testing laboratory may need to prove its equipment is traceable and in scope without disclosing the certificate. That is what SD-JWT or BBS signatures are for, and none of it is implemented here.',
-      '<strong>Relationship to eIDAS 2.0 and the EU Digital Identity Wallet.</strong> Organisational credentials are arriving in European regulation on their own schedule. Whatever the quality infrastructure does should meet that rather than run beside it.',
-    ]))
-  );
-
-  fragment.append(
-    panel('Honest open questions', null, prose([
-      'Is a decentralised recognition chain actually better than each MRA simply publishing one signed list? For a hierarchy this shallow, possibly not, and the answer should be argued rather than assumed.',
-      'Who verifies, in practice? The value depends entirely on the checking happening somewhere it does not happen today. If nobody runs the verifier, nothing has been gained.',
-      'What does a failed check mean institutionally? The pipeline can say a certificate is outside a published CMC. It cannot say whether that is an error, a typo, or a capability that was updated last week and not yet published.',
-      'How do these credentials relate to the certificates that remain legally authoritative? For a long time both will exist, and which one governs is a legal question, not a technical one.',
-    ]))
-  );
+  fragment.append(t.prose('prototype'));
+  fragment.append(panel(t.text('different.title'), null, t.prose('different')));
+  fragment.append(panel(t.text('needed.title'), null, t.prose('needed')));
+  fragment.append(panel(t.text('questions.title'), null, t.prose('questions')));
 
   return fragment;
 }
-
 // ---------------------------------------------------------------- chapter 10
 
 // Blue for the anchor, amber for a key an organisation has to hold itself, green for
@@ -1500,23 +1381,18 @@ const ONLINE_KIND_LABELS = {
 };
 
 async function chapterInfrastructure(context) {
+  // Prose: web/content/chapters/11-infrastructure.md
+  const t = context.text('infrastructure');
   const fragment = document.createDocumentFragment();
   const data = await api.infrastructure();
 
-  fragment.append(
-    prose([
-      'Two properties of the design settle most of this question, and neither of them is about capacity.',
-      '<strong>Verification is a computation, not a conversation.</strong> A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier&rsquo;s behalf, and nothing here grows with the number of people who check. That is a claim about <em>checking</em> a credential, and it is true because a credential here travels as a signed file. Chapter 12 measures how far that goes, what a verifier still cannot be handed second-hand, and what it costs to <em>ask</em> for a document instead of being given one.',
-      '<strong>A credential travels with whoever holds it.</strong> The certificate arrives from the customer, not from the laboratory that wrote it. What an issuer must keep online is therefore only what describes the issuer itself — its key, and which of its credentials it has since withdrawn. The certificates need not be hosted at all.',
-      'Everything below is computed from what this demonstration actually published, so the figures move if the world does.',
-    ])
-  );
+  fragment.append(t.prose('two-properties'));
 
   const trace = data.verifierTrace;
   const uncached = trace.documents - trace.distinct;
 
   fragment.append(
-    panel('What a verifier actually goes and fetches', `verifying ${trace.title}, the deepest chain here`, [
+    panel(t.text('fetches.title'), `verifying ${trace.title}, the deepest chain here`, [
       el('div', { class: 'stat-row' }, [
         stat(trace.distinct, 'distinct documents'),
         stat(trace.hostCount, 'hosts contacted'),
@@ -1530,11 +1406,7 @@ async function chapterInfrastructure(context) {
     ])
   );
 
-  fragment.append(
-    prose([
-      'The burden is then very unevenly spread. Pick a role to see what it would have to stand up, and — usually the larger half — what it already runs today.',
-    ])
-  );
+  fragment.append(t.prose('unevenly-spread'));
 
   const output = el('div', {});
   const state = { did: data.roles[0].actor.id };
@@ -1585,14 +1457,14 @@ async function chapterInfrastructure(context) {
           class: 'muted',
           text:
             role.issuedCount === 0
-              ? 'A pure verifier publishes nothing. The single document counted here is a DID document that exists only because every organisation in this demonstration was given one; nothing in the system needs it.'
-              : 'Note that the first figure does not grow with the second. An institute issuing ten times as many certificates keeps exactly the same documents online.',
+              ? t.text('pure-verifier')
+              : t.text('does-not-grow'),
         }),
       ]),
 
       panel(
-        'Everything it must keep reachable',
-        'click any of them — all of it is public, and this is precisely what a verifier retrieves',
+        t.text('reachable.title'),
+        t.text('reachable.hint'),
         hosting.online.map((group) =>
           el('div', {}, [
             el('p', { class: 'muted', text: ONLINE_KIND_LABELS[group.kind] || group.kind }),
@@ -1611,42 +1483,34 @@ async function chapterInfrastructure(context) {
         )
       ),
 
-      panel('The signing key', null, [
+      panel(t.text('key.title'), null, [
         el('div', { style: 'margin-bottom:10px' }, [badge(tone, custodyLabel)]),
         prose([profile.custody]),
       ]),
 
       el('div', { class: 'split' }, [
-        panel('Already runs today', 'reused, not replaced', [checklist('has', profile.alreadyRuns)]),
-        panel('Would genuinely have to be added', null, [checklist('needs', profile.mustAdd)]),
+        panel(t.text('already.title'), t.text('already.hint'), [checklist('has', profile.alreadyRuns)]),
+        panel(t.text('must-add.title'), null, [checklist('needs', profile.mustAdd)]),
       ]),
 
-      panel('Availability and scale', null, [
+      panel(t.text('availability.title'), null, [
         keyValues([
           ['If it is unreachable', profile.availability],
           ['Volume', profile.scale],
         ]),
       ]),
 
-      callout([`<strong>The part that would actually take the effort.</strong> ${profile.hardestPart}`])
+      el('div', { class: 'callout', html: t.fill('hardest', { part: profile.hardestPart }) })
     );
   }
 
-  fragment.append(panel('Whose infrastructure?', null, picker), output);
+  fragment.append(panel(t.text('whose.title'), null, picker), output);
 
   fragment.append(
-    panel('What is genuinely new, across all of them', null, prose([
-      '<strong>Key custody is the whole problem.</strong> Every role above reduces to a question about who holds a key and what happens when it is lost. None of that is answered by buying hardware, and the hardware is where the attention usually goes.',
-      '<strong>Long-term validation is the second problem, and it is the one with a deadline.</strong> Signatures have to be timestamped at the moment of issue. A certificate signed today and archived without a timestamp cannot be given one in 2040, when the question of whether P-256 still means anything will be a live one. Almost everything else here can be retrofitted. This cannot.',
-      '<strong>And there is a new way to fail.</strong> A paper certificate keeps working when a web server does not. These do not: an unreachable DID document means an unverifiable certificate, and for a trust anchor that is a global outage. Static files behind a long cache lifetime make that a manageable risk rather than an unlikely one — but it is a dependency the present arrangement simply does not have, and it belongs on the other side of the ledger from the benefits in the previous chapter.',
-    ]))
+    panel(t.text('new.title'), null, t.prose('new'))
   );
 
-  fragment.append(
-    prose([
-      'All of that is what a single organisation would have to run. It says nothing about what they would have to agree with each other, which is the harder half and the next chapter.',
-    ])
-  );
+  fragment.append(t.prose('next-chapter'));
 
   render();
   return fragment;
@@ -1681,6 +1545,8 @@ const HARMONISATION_STATUS = {
 };
 
 async function chapterHarmonisation(context) {
+  // Prose: web/content/chapters/12-harmonisation.md
+  const t = context.text('harmonisation');
   const fragment = document.createDocumentFragment();
   const data = await api.harmonisation();
   const titleOf = {};
@@ -1688,18 +1554,13 @@ async function chapterHarmonisation(context) {
     for (const item of tier.items) titleOf[item.key] = item.title;
   }
 
-  fragment.append(
-    prose([
-      'The previous chapter asked what one organisation would have to run. This asks the harder question: what would they all have to agree with each other, so that a certificate written in one country means the same thing in another. That is the problem the quality infrastructure exists to solve, and signatures do not touch it.',
-      'Start with something this demonstration gets wrong, because it is the clearest case on the page.',
-    ])
-  );
+  fragment.append(t.prose('the-harder-question'));
 
   const cmc = (context.world.cmcEntries || []).find((entry) => entry.measurand === 'dc.resistance');
   const scope = (context.world.accreditations || []).find((entry) => entry.measurand === 'dc.resistance');
 
   fragment.append(
-    panel('Two organisations, one string', 'fetch both — the BIPM publishes one, the accreditation body the other', [
+    panel(t.text('one-string.title'), t.text('one-string.hint'), [
       el('div', { class: 'chips' }, [
         cmc
           ? el('button', {
@@ -1716,18 +1577,11 @@ async function chapterHarmonisation(context) {
             })
           : null,
       ]),
-      callout([
-        'Both say <code>dc.resistance</code>, and chapter 5 decides whether a calibration may carry the CIPM MRA logo by comparing those two strings for equality. They match because one author wrote both files. Two organisations that had never spoken would not have produced the same string, and the comparison would fail — not because the laboratory was outside its scope, but because nobody had agreed a name for resistance.',
-        'The instinct is to conclude that the metrology vocabularies are missing and would have to be invented. That is wrong, and worth correcting carefully: the BIPM already publishes permanent digital identifiers for every SI unit through the <a href="https://si-digital-framework.org/SI?lang=en">SI Digital Framework</a>, resolvable CMC identifiers already exist through the <a href="https://si-digital-framework.org/kcdb-cmc/">KCDB-CMC service</a>, and identifiers for measurands are being worked on at ISO and IEC. The finding is not that no vocabulary exists. It is that one exists and this demonstration did not use it.',
-      ]),
+      t.callout('one-string.body'),
     ])
   );
 
-  fragment.append(
-    prose([
-      'What follows is sorted by one test, and anything failing it was left out: <strong>two conforming implementations that differ here cannot interoperate.</strong> That is what separates a harmonisation need from a deployment gap, and chapter 9 has the deployment gaps already. The tiers are meant to be read in order, because the order is the argument.',
-    ])
-  );
+  fragment.append(t.prose('one-test'));
 
   // Counted from the items rather than written into the prose. An earlier draft of this
   // chapter left the impression that most of the list was a blank page, and it was the
@@ -1738,18 +1592,17 @@ async function chapterHarmonisation(context) {
   const share = Math.round((openCount / items.length) * 100);
 
   fragment.append(
-    panel('How much of this is actually open', 'counted from the items below, not asserted', [
+    panel(t.text('open.title'), t.text('open.hint'), [
       el('div', { class: 'chips' }, [
         badge('pass', `${count('available')} already exist`),
         badge('warn', `${count('partial')} answered in part`),
         badge('skip', `${count('emerging')} being built`),
         badge('anchor', `${openCount} genuinely open`),
       ]),
-      callout([
-        `Of ${items.length} items, <strong>${openCount}</strong> — about ${share}% — have nothing to read yet. The rest have a specification, a register or a deployed mechanism behind them, and the work is adoption or a choice rather than invention.`,
-        'That balance is a correction. The first version of this page filed seven items under <em>nothing exists yet</em>, and a reviewer who works on these specifications pointed out that five of them had answers — some published while this was being written, some still moving through as pull requests. The items below now open by saying what the earlier draft got wrong, which is left visible on purpose: a page about unsolved problems goes stale by overstating them, and one shown correction is a cheap warning that there are probably others.',
-        'What is left, once the answered items are set aside, is a short list and it is not a technical one: what a document authorises as distinct from what it attests, how three arrangements compose when no two of them share a technical body, which copy of a certificate governs, and whether anyone can undertake that an identifier still means the same organisation in thirty years. The last of those cannot be settled by evidence until something has been running for thirty years. Theories are available. Data is not.',
-      ]),
+      el('div', {
+        class: 'callout',
+        html: t.fill('open.body', { total: items.length, open: openCount, share }),
+      }),
     ])
   );
 
@@ -1784,11 +1637,7 @@ async function chapterHarmonisation(context) {
     }
   }
 
-  fragment.append(
-    prose([
-      'The steps below are dependency structure rather than advice. Each rung is possible without the ones above it, and none of the upper rungs delivers anything without the lower ones — so whoever turns out to act, this is the order the blocking relationships force.',
-    ])
-  );
+  fragment.append(t.prose('the-ladder'));
 
   for (const step of data.nextSteps) {
     fragment.append(
@@ -1808,12 +1657,7 @@ async function chapterHarmonisation(context) {
     );
   }
 
-  fragment.append(
-    callout([
-      'Notice where the ladder stops. Every rung up to the fourth needs nobody’s permission, and the fifth needs one organisation to decide something about data it already owns. The sixth requires two arrangements to agree — and it is the one item here with no existing forum to agree it in, because the CIPM MRA and the Global ACI arrangement have no standing joint technical body. Creating somewhere for the conversation to happen is the real first step, and it is institutional rather than technical, which is usually the finding nobody wants.',
-      'The seventh rung is the newest and the odd one out. Legal metrology raised two questions the other two pillars never had to ask — what a document authorises as distinct from what it attests, and what identifies a design rather than one instrument — and both sit in the first tier, because getting either wrong is not a missing feature but a wrong answer. It is also the only rung whose forum plainly exists: the OIML has a standing structure for this conversation, which is more than the sixth rung can say.',
-    ])
-  );
+  fragment.append(t.callout('where-it-stops'));
 
   fragment.append(
     el('p', {
@@ -1847,15 +1691,12 @@ function exchangeMessage(number, direction, title, hint, body, context) {
 }
 
 async function chapterMoving(context) {
+  // Prose: web/content/chapters/13-exchange.md
+  const t = context.text('exchange');
   const fragment = document.createDocumentFragment();
   const data = await api.workflows();
 
-  fragment.append(
-    prose([
-      'Every verifier you have met so far already had the document in hand. That is a comfortable place to start a chapter and nobody arrives there by accident: somebody asked, somebody answered, and both steps happened before the page opened.',
-      'There are two ways to answer the question, and they disagree about almost everything. One says the document should travel — signed, self-contained, by whatever means is to hand — and that no protocol is needed for most of it. The other says the parties should talk, over an agreed protocol, so that each can ask for exactly what it needs. This world can do both, and the rest of the chapter is what each one costs.',
-    ])
-  );
+  fragment.append(t.prose('two-ways'));
 
   const stage = el('div');
   let selected = data.workflows[0];
@@ -1884,33 +1725,33 @@ async function chapterMoving(context) {
   );
 
   fragment.append(
-    el('h3', { text: 'One: the credential is a file' }),
-    prose([
-      'UN/CEFACT put the argument for this most sharply, and it is an argument from failure rather than from elegance. Fifty years of electronic data interchange digitised something like a tenth of cross-border trade, because a network of hubs and pipes only ever reaches the parties who joined it, and a commercial invoice is needed by the exporter, the importer, two customs authorities, banks, insurers, brokers and freight forwarders. The network never reaches all of them. So <a href="https://unvtd.unece.org/architecture/portable-credentials/">stop building the network</a>: sign the document, and let it travel with the consignment by email, file transfer, a USB drive or a QR code.',
-      '<strong>This demonstration was already built that way and had not noticed.</strong> Every credential here is a signed file that verifies wherever it is found; the world dumps to 76 documents on disk and they verify from there. Chapter 10 computes the same property from the other end — the institute keeps three documents online while six of its credentials travel unhosted — and calls it a hosting burden rather than an architecture.',
-      'Metrology has the oldest instance of the idea in existence, and it is not digital. <strong>A calibration certificate already travels with the instrument.</strong> The paper in the box is a portable credential: self-contained, checkable by whoever opens the box, and dependent on no service being reachable. What the cryptography adds is not the idea. It is that the copy in the box can now be checked.',
-    ])
+    el('h3', { text: t.text('one.title') }),
+    t.prose('one')
   );
   const portability = await api.portability();
   const travelling = portability.split.find((row) => row.key === 'travels') || { count: 0 };
   const signed = portability.ifRegistriesWereSigned;
 
   fragment.append(
-    el('h3', { text: 'Two: what can travel, and what cannot' }),
-    prose([
-      'The interesting question is not whether the portable model works. It is where it stops, and that is measurable rather than arguable. Below, the same certificate of conformity is verified twice: once with the verifier given nothing, and once with the verifier handed every document a holder is allowed to bring. The difference is read out of the resolver&rsquo;s own retrieval log.',
-    ]),
-    panel('The same verification, twice', `${portability.title}`, [
+    el('h3', { text: t.text('two.title') }),
+    t.prose('two'),
+    panel(t.text('twice.title'), `${portability.title}`, [
       el('div', { class: 'stat-row' }, [
         stat(portability.baseline.distinct, 'documents, nothing supplied'),
         stat(travelling.count, 'a holder may bring'),
         stat(portability.stapled.stillFetched, 'still fetched'),
         stat(signed.stillFetched, 'if registries were signed'),
       ]),
-      callout([
-        `Both runs reach <strong>${portability.stapled.outcome}</strong>. Handing the verifier everything it is allowed to accept second-hand removes ${travelling.count} of the ${portability.baseline.distinct} retrievals and changes no verdict, which is the portable-credential claim holding up under measurement rather than in principle.`,
-        `What is left is the part that is not portable. And if the registries were signed — the one removable reason below — the residue would be ${signed.stillFetched} documents of exactly two kinds: <strong>${signed.kinds.join(' and ')}</strong>. That is each organisation&rsquo;s key and its revocation list, and nothing else. It is also, to the document, the hosting burden chapter 10 computed from the opposite direction. Neither chapter knew it was describing the same quantity.`,
-      ]),
+      el('div', {
+        class: 'callout',
+        html: t.fill('twice.body', {
+          outcome: portability.stapled.outcome,
+          travelling: travelling.count,
+          baseline: portability.baseline.distinct,
+          residue: signed.stillFetched,
+          kinds: signed.kinds.join(' and '),
+        }),
+      }),
     ])
   );
 
@@ -1927,21 +1768,13 @@ async function chapterMoving(context) {
     );
   }
 
-  fragment.append(
-    callout([
-      'The forgery in the second class is not hypothetical, and it is worth being plain that this demonstration had it. A holder could staple a DID document claiming a trust anchor&rsquo;s identifier, sign a credential in that anchor&rsquo;s name with its own key, and the pipeline reported <em>verified</em> — every check passing, because the verifier was reading the attacker&rsquo;s own account of whose key was whose. <code>vc/resolver.py</code> now refuses to take any of these kinds second-hand, and the exploit is kept as a regression test.',
-    ])
-  );
+  fragment.append(t.callout('the-forgery'));
 
   fragment.append(
-    el('h3', { text: 'Three: when somebody has to ask' }),
-    prose([
-      'Portable credentials answer distribution and say nothing about the case where the verifier does not have the document and wants it — an authority at a border, an issuing authority that needs to see evidence before it certifies anything. For that the parties do have to talk, and what follows is W3C&rsquo;s <a href="https://www.w3.org/TR/vcalm-1.0/">VCALM</a> exchange, implemented against this same world. Two properties of it do all the work.',
-      '<strong>One endpoint, used twice.</strong> The holder POSTs to an exchange and is answered with a request for a presentation. It POSTs the presentation to the same URL and is answered with a result. Not two services with two protocols — one conversation with two turns.',
-      '<strong>The holder starts it.</strong> There is no way for an issuer or a verifier to reach into a wallet. Every flow begins with the party holding the credentials, which is why even this arrangement survives a fifteen-person laboratory sitting behind a firewall with no inbound port.',
-    ])
+    el('h3', { text: t.text('three.title') }),
+    t.prose('three')
   );
-  fragment.append(panel('Three exchanges this world can hold', 'pick one, then run it', [chips, stage]));
+  fragment.append(panel(t.text('exchanges.title'), t.text('exchanges.hint'), [chips, stage]));
 
   async function run(replay) {
     const log = el('div');
@@ -1953,7 +1786,7 @@ async function chapterMoving(context) {
         exchangeMessage(
           1,
           'up',
-          'The holder opens an exchange',
+          t.text('step1.title'),
           `POST /workflows/${selected.id}/exchanges`,
           { workflowId: opened.workflowId, exchangeId: opened.exchangeId, url: opened.url },
           context
@@ -1965,8 +1798,8 @@ async function chapterMoving(context) {
         exchangeMessage(
           2,
           'down',
-          'The coordinator asks for a presentation',
-          'the same URL, answered with a request',
+          t.text('step2.title'),
+          t.text('step2.hint'),
           request.verifiablePresentationRequest,
           context
         ),
@@ -1979,16 +1812,14 @@ async function chapterMoving(context) {
         exchangeMessage(
           3,
           'up',
-          'The holder answers',
+          t.text('step3.title'),
           selected.presents.length
-            ? `signed with ${selected.holderName}&rsquo;s key, carrying ${selected.presents.length} credential${selected.presents.length === 1 ? '' : 's'}`
-            : `signed with ${selected.holderName}&rsquo;s key, carrying no credential at all`,
+            ? `signed with ${selected.holderName}’s key, carrying ${selected.presents.length} credential${selected.presents.length === 1 ? '' : 's'}`
+            : `signed with ${selected.holderName}’s key, carrying no credential at all`,
           presentation,
           context
         ),
-        callout([
-          `Look at the proof. Its <code>proofPurpose</code> is <code>authentication</code> rather than <code>assertionMethod</code> — the holder is not asserting the contents, which the issuers already signed, but proving it is the party that was asked. And it carries the <code>challenge</code> from the request and the <code>domain</code> of the coordinator, both signed in. That is what makes this presentation an answer to <em>this</em> exchange and no other, and it is why it could not have been prepared in advance: the challenge did not exist until step 1.`,
-        ])
+        t.callout('authentication')
       );
 
       let target = opened.exchangeId;
@@ -1997,9 +1828,7 @@ async function chapterMoving(context) {
         await api.exchangeTurn(selected.id, second.exchangeId, {});
         target = second.exchangeId;
         log.append(
-          callout([
-            `Now a second exchange has been opened, with its own challenge, and the presentation from the first one is about to be posted into it — which is precisely what an attacker who intercepted a presentation would try.`,
-          ])
+          t.callout('replay')
         );
       }
 
@@ -2011,7 +1840,7 @@ async function chapterMoving(context) {
       log.append(
         panel(
           `4. The coordinator ${outcome.state === 'complete' ? 'answers' : 'refuses'}`,
-          outcome.state === 'complete' ? 'verified, and issued where there is something to issue' : 'and nothing is issued',
+          outcome.state === 'complete' ? t.text('step4.ok') : t.text('step4.no'),
           [
             el('div', { style: 'margin-bottom:12px' }, [
               badge(outcome.state === 'complete' ? 'pass' : 'fail', outcome.state),
@@ -2019,10 +1848,12 @@ async function chapterMoving(context) {
                 badge(report.outcome === 'verified' ? 'pass' : 'fail', `presented: ${report.outcome}`)
               ),
             ]),
-            outcome.refused ? callout([`<strong>Refused.</strong> ${outcome.refused}`]) : null,
+            outcome.refused
+              ? el('div', { class: 'callout', html: t.fill('refused', { reason: outcome.refused }) })
+              : null,
             result.verifiablePresentation
               ? jsonView(result.verifiablePresentation, context.inspect, { tall: true })
-              : el('p', { class: 'muted', text: 'Empty body — the exchange is finished and there is nothing further to send.' }),
+              : el('p', { class: 'muted', text: t.text('empty-body') }),
             callout([outcome.explains]),
           ].filter(Boolean)
         )
@@ -2031,8 +1862,8 @@ async function chapterMoving(context) {
       if ((outcome.reports || []).length) {
         log.append(
           panel(
-            'What the coordinator checked before answering',
-            'the same pipeline every other chapter uses, run over what the holder sent',
+            t.text('checked.title'),
+            t.text('checked.hint'),
             outcome.reports.map((report) => stepTree(report.steps, 0))
           )
         );
@@ -2051,8 +1882,8 @@ async function chapterMoving(context) {
       keyValues([
         ['Holder, who starts it', `${selected.holderName} (${selected.holder})`],
         ['Coordinator, who answers', `${selected.coordinatorName} (${selected.coordinator})`],
-        ['What is asked for', selected.asksFor.length ? selected.asksFor.join(', ') : 'Only proof that the holder controls its identifier'],
-        ['What comes back', selected.issues ? selected.issues : 'Nothing — this coordinator is checking, not issuing'],
+        ['What is asked for', selected.asksFor.length ? selected.asksFor.join(', ') : t.text('asks-nothing')],
+        ['What comes back', selected.issues ? selected.issues : t.text('issues-nothing')],
       ]),
       callout([selected.lesson]),
       el('div', { class: 'chips' }, [
@@ -2069,7 +1900,7 @@ async function chapterMoving(context) {
   show();
 
   fragment.append(
-    panel('What each one buys', 'and what it charges for it', [
+    panel(t.text('buys.title'), t.text('buys.hint'), [
       table(
         ['', 'The document travels', 'The parties talk'],
         [
@@ -2081,17 +1912,15 @@ async function chapterMoving(context) {
           ['Lets the verifier ask for something', 'No.', 'Yes, which is the entire point.'],
         ]
       ),
-      callout([
-        'The fourth row is where the two models genuinely need each other, and it is the honest limit of the portable one. A signed file proves who issued it and says nothing about who is holding it out, so <strong>anyone with a copy can present it</strong>. For a calibration certificate that is usually harmless — it is a public attestation about an instrument, and a copy is as true as the original. For a laboratory claiming its own accreditation in order to win work, a copy is enough to impersonate it. UNECE&rsquo;s own business-wallet page does not discuss holder binding, a nonce or replay at all, and that gap is exactly what the challenge in the exchange above closes.',
-        `And the exchange charges for it. State means a service, a store, an expiry policy and something to attack: this is the only thing in the whole demonstration that the server has to remember between requests, and it holds at most ${data.maxExchanges} exchanges for ${Math.round(data.ttlSeconds / 60)} minutes each, evicting the oldest when it runs out of room.`,
-      ]),
+      el('div', {
+        class: 'callout',
+        html: t.fill('buys.body', {
+          max: data.maxExchanges,
+          minutes: Math.round(data.ttlSeconds / 60),
+        }),
+      }),
     ]),
-    panel('Chapter 10’s claim, stated properly', 'it was right, and for a reason it did not give', [
-      prose([
-        'Chapter 10 says a verifier operates nothing, and an earlier version of this chapter called that an overstatement. It is not one — it is a claim about the portable model, and under that model it is true. Checking a credential you already hold is free and works on a laptop at a border post with an intermittent connection.',
-        'What is true alongside it is that <em>asking</em> for a credential is not free. So the cost is a property of the architecture chosen, not of credentials: choose the portable model and a verifier really does operate nothing, at the price of never being able to ask; choose the exchange and it can ask, at the price of running something. The measurement above is what that choice actually costs in this world, and the residue — a key and a revocation list per organisation — is what neither model can avoid.',
-      ]),
-    ])
+    panel(t.text('claim.title'), t.text('claim.hint'), [t.prose('claim')])
   );
 
   fragment.append(
@@ -2128,80 +1957,58 @@ export const CHAPTERS = [
     render: chapterOrientation,
   },
   {
+    // Heading text comes from web/content/chapters/02-keys.md
     id: 'keys',
-    title: 'Keys: what a signature actually proves',
-    eyebrow: 'The idea underneath',
-    lede: 'A private key is a number, a public key is computed from it, and the computation goes one way only. Make a keypair, sign something, and watch what a signature does and does not settle.',
     render: chapterKeys,
   },
   {
+    // Heading text comes from web/content/chapters/03-graph.md
     id: 'graph',
-    title: 'The quality infrastructure as a trust graph',
-    eyebrow: 'The world',
-    lede: 'Ten organisations, two international anchors, and one supply chain running from a national standard to a kettle at a border.',
     render: chapterGraph,
   },
   {
+    // Heading text comes from web/content/chapters/04-issuing.md
     id: 'issuing',
-    title: 'Issuing a certificate',
-    eyebrow: 'How signing works',
-    lede: 'From the claims an institute wants to make, through canonicalization and hashing, to the signature itself. Every intermediate value shown.',
     render: chapterIssuing,
   },
   {
+    // Heading text comes from web/content/chapters/05-verification.md
     id: 'verification',
-    title: 'Verification and recognition discovery',
-    eyebrow: 'What a recipient checks',
-    lede: 'A market surveillance authority that trusts two identifiers, meeting a certificate from an organisation it has never heard of.',
     render: chapterVerification,
   },
   {
+    // Heading text comes from web/content/chapters/06-scope.md
     id: 'scope',
-    title: 'The CMC decides the logo',
-    eyebrow: 'Scope enforcement',
-    lede: 'Whether a calibration may carry the CIPM MRA logo, adjudicated from the published capability rather than taken on trust.',
     render: chapterScope,
   },
   {
+    // Heading text comes from web/content/chapters/07-traceability.md
     id: 'traceability',
-    title: 'Traceability and uncertainty',
-    eyebrow: 'Where the numbers come from',
-    lede: 'The credential chain and the traceability chain are the same chain. The uncertainty grows measurably along it.',
     render: chapterTraceability,
   },
   {
+    // Heading text comes from web/content/chapters/08-dependencies.md
     id: 'dependencies',
-    title: 'Why the dependencies matter',
-    eyebrow: 'The argument for transmitting them',
-    lede: 'Two certificates from one institute, resting on one national standard. What a customer can do with them depends on what was sent.',
     render: chapterDependencies,
   },
   {
+    // Heading text comes from web/content/chapters/09-break.md
     id: 'break',
-    title: 'Break it',
-    eyebrow: 'Failure modes',
-    lede: 'Eighteen ways this can go wrong, and the check that catches each. The interesting ones pass every cryptographic test.',
     render: chapterBreakIt,
   },
   {
+    // Heading text comes from web/content/chapters/10-implications.md
     id: 'implications',
-    title: 'What this would mean in practice',
-    eyebrow: 'The argument',
-    lede: 'What genuinely changes, what a real deployment would need, and what remains an open question.',
     render: chapterImplications,
   },
   {
+    // Heading text comes from web/content/chapters/11-infrastructure.md
     id: 'infrastructure',
-    title: 'What it would take to run',
-    eyebrow: 'Deployment',
-    lede: 'The hosting requirement, computed rather than asserted, and why it is so unevenly spread between a trust anchor, a national institute, a fifteen-person laboratory and a verifier.',
     render: chapterInfrastructure,
   },
   {
+    // Heading text comes from web/content/chapters/12-harmonisation.md
     id: 'harmonisation',
-    title: 'What would have to be agreed',
-    eyebrow: 'Harmonisation',
-    lede: 'The minimum that has to be common for any of this to cross a border, what cannot be decided later however convenient that would be, and what a deployment can do without.',
     render: chapterHarmonisation,
   },
   {
@@ -2209,10 +2016,9 @@ export const CHAPTERS = [
     // every chapter from 9 upward, and two dozen references to a chapter by number --
     // several of them editorial fields in actors/harmonisation.py served to the reader
     // -- would quietly become wrong. ARCHITECTURE.md records the rule.
+    //
+    // Heading text comes from web/content/chapters/13-exchange.md
     id: 'exchange',
-    title: 'How a credential moves',
-    eyebrow: 'Distribution',
-    lede: 'Two architectures answer the same question and disagree about almost everything: let the document travel, or make the parties talk. Both are built here, and the cost of each is measured rather than argued.',
     render: chapterMoving,
   },
 ];
