@@ -708,16 +708,10 @@ async function chapterVerification(context) {
 // ---------------------------------------------------------------- chapter 5
 
 async function chapterScope(context) {
+  // Prose: web/content/chapters/06-scope.md
+  const t = context.text('scope');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'A national metrology institute may put the CIPM MRA logo on a calibration certificate only when the calibration falls inside a capability it has published in the key comparison database. The published entry gives a measurand, a range, the conditions, and the <strong>smallest</strong> Expanded Uncertainty the institute can achieve.',
-      'That last one is the part that catches people out. The capability is a floor, not a ceiling. A certificate claiming a <em>larger</em> uncertainty is comfortably inside scope. A certificate claiming a <em>smaller</em> one is claiming to have done better than the institute has ever demonstrated, and is outside it.',
-      'Move the sliders. The verdict, and with it the legitimacy of the logo, is decided from the published entry rather than from anybody&rsquo;s judgement.',
-      'The same machinery bounds the legal-metrology branch, and there the bound is a better one. An OIML Issuing Authority may certify a type only against a Recommendation it has been approved for, and a Recommendation is a numbered, edition-controlled document published by somebody else &mdash; not a declaration the organisation wrote about itself. Try <em>Certify a type against a Recommendation nobody approved</em> in chapter 8: the certificate is signed by a genuinely recognised body and rejected anyway, twice over, because the recognition names both the Recommendation and a schema built from it.',
-      'What is still missing is that the schema is this project&rsquo;s reading of R 46 rather than R 46 speaking for itself. The OIML is working towards machine-readable Recommendations; until then, the bound is only as good as whoever transcribed it. That is the last item in chapter 11.',
-    ])
-  );
+  fragment.append(t.prose('the-floor'));
 
   const state = { value: 1.0e4, relative: 1.131e-7 };
   const readout = el('div', {});
@@ -761,12 +755,8 @@ async function chapterScope(context) {
       el('div', { class: `verdict verdict--${inScope ? 'pass' : 'fail'}` }, [
         el('div', { class: 'verdict__mark', text: inScope ? '✓' : '✗' }),
         el('div', { class: 'verdict__text' }, [
-          el('strong', { text: inScope ? 'Inside CMC CH-EM-0042 — the CIPM MRA logo is justified' : 'Outside CMC CH-EM-0042 — the CIPM MRA logo may not be used' }),
-          el('span', {
-            text: inScope
-              ? 'The calibration is covered by a published, peer-reviewed capability, so its international recognition follows.'
-              : 'The calibration may still be perfectly sound. What is not supported is the claim of international recognition that the logo makes.',
-          }),
+          el('strong', { text: inScope ? t.text('inside.title') : t.text('outside.title') }),
+          el('span', { text: inScope ? t.text('inside.body') : t.text('outside.body') }),
         ]),
       ]),
       keyValues([
@@ -789,12 +779,10 @@ async function chapterScope(context) {
 
   fragment.append(
     el('div', { class: 'split split--wide' }, [
-      el('div', {}, [panel('Adjust the claim', 'Both axes are logarithmic', [valueSlider, uncertaintySlider]), readout]),
-      panel('The published entry', 'Served from the registry, exactly as the verifier fetched it', jsonView(entry, context.inspect, { tall: true })),
+      el('div', {}, [panel(t.text('adjust.title'), t.text('adjust.hint'), [valueSlider, uncertaintySlider]), readout]),
+      panel(t.text('entry.title'), t.text('entry.hint'), jsonView(entry, context.inspect, { tall: true })),
     ]),
-    callout([
-      'The schema attached to the recognition can express the measurand, the unit and the range, because those are constants. It cannot express this uncertainty floor, which varies with the measured level. So the schema catches gross errors offline and the signed registry entry decides the rest. Both checks appear in the pipeline, and watching the schema pass while the registry check fails is the clearest way to see why one does not replace the other.',
-    ])
+    t.callout('schema-vs-registry')
   );
 
   await update();
@@ -2002,10 +1990,8 @@ export const CHAPTERS = [
     render: chapterVerification,
   },
   {
+    // Heading text comes from web/content/chapters/06-scope.md
     id: 'scope',
-    title: 'The CMC decides the logo',
-    eyebrow: 'Scope enforcement',
-    lede: 'Whether a calibration may carry the CIPM MRA logo, adjudicated from the published capability rather than taken on trust.',
     render: chapterScope,
   },
   {
