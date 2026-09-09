@@ -793,18 +793,17 @@ async function chapterScope(context) {
 
 /** Render the PTB/DKD DCC tab: the document, and what it does that the others do not. */
 function dccTab(body, representations, context) {
+  // Prose: web/content/chapters/07-traceability.md, which is the only chapter that
+  // reaches this helper.
+  const t = context.text('traceability');
   const dcc = representations.find((item) => item.format === 'PTB-DKD-DCC-XML');
   if (!dcc) {
-    body.append(el('p', { class: 'muted', text: 'This certificate carries no PTB/DKD DCC.' }));
+    body.append(el('p', { class: 'muted', text: t.text('no-dcc') }));
     return;
   }
 
   body.append(
-    prose([
-      'The <strong>PTB/DKD DCC</strong> is doing something different from the other three, and the difference is worth pausing on. Note the name, too: several things are called a PTB/DKD DCC, and this is the one the PTB and the DKD define.',
-      'Classical, UncLib and GTC all describe a <em>result</em> — how good a number is, and what it rests on. A PTB/DKD DCC describes a <em>document</em>: who calibrated what, for whom, when, under which conditions, with which equipment, and what came out. It is a calibration certificate in a schema, not an uncertainty in a format.',
-      `Inside it the quantity is written in <strong>D-SI</strong>, which is where the two levels meet. And D-SI's <code>si:expandedUnc</code> carries a value, an uncertainty, a coverage factor and a probability — that is the classical statement exactly, and it is not the dependency structure. So the two do not compete: a certificate wanting a standardised document <em>and</em> transmissible dependencies carries a PTB/DKD DCC and an UncLib block together, which is what this one does.`,
-    ]),
+    t.prose('dcc'),
     keyValues([
       ['Schema', `PTB/DKD DCC ${dcc.schemaVersion}, namespace https://ptb.de/dcc`],
       ['Quantities', `${dcc.quantityFormat}, namespace https://ptb.de/si`],
@@ -812,8 +811,8 @@ function dccTab(body, representations, context) {
       ['Digest', el('span', { class: 'hash', text: dcc.digestMultibase })],
     ]),
     panel(
-      'How this certificate maps onto the schema',
-      'our field on the left, the element it becomes on the right',
+      t.text('mapping.title'),
+      t.text('mapping.hint'),
       table(
         ['This demonstration', 'PTB/DKD DCC'],
         [
@@ -829,10 +828,8 @@ function dccTab(body, representations, context) {
         ]
       )
     ),
-    callout([
-      'One detail worth having been careful about: D-SI writes units the way siunitx does, as English names each preceded by a backslash. Ohm is <code>\\ohm</code>. Kilogram is <code>\\kilo\\gram</code> and <em>not</em> <code>\\kilogram</code>, because the prefix is a token of its own. The generator here refuses to emit a unit it has no mapping for, rather than guessing — a certificate that quietly states the wrong unit is worse than one that fails to be produced.',
-    ]),
-    el('h3', { text: 'The document' }),
+    t.callout('siunitx'),
+    el('h3', { text: t.text('document.title') }),
     el('pre', { class: 'code json json--tall', text: dcc.content || `published separately at ${dcc.id}` }),
     callout([dcc.signatureNote])
   );
@@ -840,6 +837,8 @@ function dccTab(body, representations, context) {
 
 /** Show every fact the credential and the PTB/DKD DCC both state, and whether they agree. */
 async function duplicationPanel(context, certificateName) {
+  // Prose: web/content/chapters/07-traceability.md
+  const t = context.text('traceability');
   const data = await api.credential(certificateName);
   const report = await api.verify({ name: certificateName });
 
@@ -869,22 +868,20 @@ async function duplicationPanel(context, certificateName) {
   });
 
   return panel(
-    'What is now said twice',
-    'the cost of putting one standardised document inside another',
+    t.text('duplication.title'),
+    t.text('duplication.hint'),
     [
-      prose([
-        'Wrapping a PTB/DKD DCC in a credential duplicates most of the certificate. That is not a flaw in either format — each was built to stand alone — but putting one inside the other makes the overlap unavoidable, and <strong>duplication permits disagreement</strong>. The signature stops anyone editing either copy after issue. It does nothing at all about an issuer writing them inconsistent in the first place.',
-      ]),
+      t.prose('duplication'),
       rows.length
         ? table(['', 'Fact', 'The credential says', 'The PTB/DKD DCC says'], rows)
-        : el('p', { class: 'muted', text: 'No duplicated facts were compared.' }),
+        : el('p', { class: 'muted', text: t.text('no-duplicates') }),
       agreement
         ? el('p', {
             class: 'muted',
             text: `And the measurement itself: ${agreement.detail}`,
           })
         : null,
-      el('h3', { text: 'Including the signature' }),
+      el('h3', { text: t.text('signature.title') }),
       table(
         ['', 'The credential proof', 'ds:Signature in a PTB/DKD DCC'],
         [
@@ -894,10 +891,7 @@ async function duplicationPanel(context, certificateName) {
           ['what it covers', 'the credential, including a digest of the PTB/DKD DCC', 'the PTB/DKD DCC alone'],
         ]
       ),
-      callout([
-        'A document carrying both can verify under one mechanism and fail under the other, and there is no natural rule for which wins. So this demonstration <strong>signs once</strong>: the credential proof covers the credential, the credential carries a digest of the PTB/DKD DCC bytes, and the <code>ds:Signature</code> slot stays empty. One trust path. That is a choice rather than an obligation.',
-        'There are three honest ways to live with the rest of the redundancy, and only the first is built here. <strong>Duplicate and check</strong>, so every repeated fact becomes somewhere a mistake gets caught. <strong>Do not duplicate</strong>, by making the PTB/DKD DCC the credential subject and letting <code>issuer</code> and <code>validFrom</code> be views of it — cleanest, and probably what a real deployment settles on. Or <strong>declare precedence</strong>, saying which copy governs, which works and needs governance and is never read at the moment it is needed.',
-      ]),
+      t.callout('sign-once'),
     ]
   );
 }
@@ -911,6 +905,8 @@ async function duplicationPanel(context, certificateName) {
  * one measurement, and only the last two let the recipient do anything further with it.
  */
 async function representationPanel(context, certificateName) {
+  // Prose: web/content/chapters/07-traceability.md
+  const t = context.text('traceability');
   const data = await api.credential(certificateName);
   const result = data.credential.credentialSubject.calibration.results[0];
   const representations = result.uncertaintyRepresentations || [];
@@ -948,10 +944,7 @@ async function representationPanel(context, certificateName) {
       const classical = representations.find((item) => item.type === 'ClassicalStatement');
       body.append(
         el('div', { class: 'stat__value', text: result.reported }),
-        prose([
-          'This is the whole of what a calibration certificate has stated for as long as calibration certificates have existed, and for most purposes it is enough. It tells you how good the number is.',
-          'What it cannot tell you is anything about <em>where</em> the uncertainty came from. Two certificates reported this way are, as far as any recipient can determine, unrelated — even when both rest on the same reference standard in the same laboratory.',
-        ]),
+        t.prose('classical'),
         classical ? keyValues([
           ['Value', `${classical.value} ${classical.unit}`],
           ['Standard Uncertainty u', classical.standardUncertainty],
@@ -966,14 +959,11 @@ async function representationPanel(context, certificateName) {
       const xml = representations.find((item) => item.format === 'METAS-UncLib-XML');
       const binary = representations.find((item) => item.format === 'METAS-UncLib-binary');
       if (!xml) {
-        body.append(el('p', { class: 'muted', text: 'This certificate carries no dependency representation.' }));
+        body.append(el('p', { class: 'muted', text: t.text('no-dependencies') }));
         return;
       }
       body.append(
-        prose([
-          `The same result, transmitted with everything it depends on: ${xml.inputQuantityCount} input quantities, each with its own identifier, its distribution, and the sensitivity of the result to it.`,
-          'The identifiers are what matter. They travel with the number, so an influence stays recognisable wherever it turns up again, and a recipient combining two results can tell that part of their uncertainty is one and the same thing.',
-        ]),
+        t.proseFill('unclib', { inputs: xml.inputQuantityCount }),
         table(
           ['Identifier', 'Influence'],
           xml.inputQuantities.map((influence) => [
@@ -981,14 +971,14 @@ async function representationPanel(context, certificateName) {
             influence.description,
           ])
         ),
-        el('h3', { text: 'As transmitted' }),
+        el('h3', { text: t.text('as-transmitted.title') }),
         el('pre', { class: 'code json', text: xml.content || `published separately at ${xml.id}` }),
         binary
           ? panel(
-              'The same thing, in binary',
+              t.text('binary.title'),
               `${binary.byteCount} bytes against ${(xml.content || '').length} characters of XML`,
               [
-                el('p', { class: 'muted', text: 'Published separately and referenced by digest, which is what the binary form is for: a result depending on thousands of influences, as an ordinary scattering-parameter measurement does, is not something to write out as XML.' }),
+                el('p', { class: 'muted', text: t.text('binary.hint') }),
                 el('button', {
                   class: 'action',
                   text: 'Fetch it as a customer would',
@@ -1018,10 +1008,7 @@ async function representationPanel(context, certificateName) {
 
     const archive = representations.find((item) => item.format === 'GTC-archive-JSON');
     body.append(
-      prose([
-        'The <strong>GUM Tree Calculator</strong>, from the Measurement Standards Laboratory of New Zealand, arrives at the same design independently: elementary uncertain numbers carry UUID-based identifiers, and an archive of them serialises to JSON or XML against a published schema.',
-        'Two implementations reaching the same conclusion is a better argument for the idea than one, and it is why the credential names a <em>format</em> rather than assuming a library. A certificate can carry either, or both, and a recipient uses whichever it can read.',
-      ])
+      t.prose('gtc')
     );
     if (archive) {
       body.append(
@@ -1031,14 +1018,14 @@ async function representationPanel(context, certificateName) {
     } else {
       body.append(
         el('div', { class: 'callout' }, el('p', { text: gtc.note })),
-        el('p', { class: 'muted', text: 'Everything else in this chapter works either way. The credential simply carries one dependency representation instead of two.' })
+        el('p', { class: 'muted', text: t.text('gtc-either-way') })
       );
     }
   }
 
   show('classical');
   return panel(
-    'One measurement, four ways of handing it over',
+    t.text('representations.title'),
     certificateName === 'metas-calibration' ? 'Certificate METAS-2026-0417' : certificateName,
     [bar, body]
   );
