@@ -21,7 +21,7 @@ The world
 
 <!-- block: lede -->
 
-Ten organisations, two international anchors, and one supply chain running from a national standard to a kettle at a border.
+Thirteen organisations, three international anchors, and two supply chains — one running from a national standard to a kettle at a border, the other to a type-approved electricity meter.
 
 <!-- block: the-world -->
 
