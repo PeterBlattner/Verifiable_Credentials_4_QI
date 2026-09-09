@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from vcqi.actors.tamper import TAMPER_CASES
 from vcqi.web.app import STATIC_ROOT, app
+from vcqi.web.content import blocks_for, content_payload
 
 
 @pytest.fixture(scope="module")
@@ -290,22 +291,59 @@ def test_every_chapter_in_the_rail_has_a_render_function() -> None:
         assert f"async function {name}(" in source
 
 
-def test_no_panel_title_carries_an_html_entity() -> None:
-    """`panel()` sets textContent, so an entity in a title reaches the reader raw.
+#: A block whose name is one of these, or ends with one, is rendered as a plain string
+#: rather than as markup -- `panel()` sets its title and hint with textContent, and
+#: app.js sets the chapter heading the same way. Kept in step with test_content.py, which
+#: asserts the same set carries no markup.
+TEXT_ONLY_KEYS = ("title", "eyebrow", "lede")
+TEXT_ONLY_SUFFIXES = (".title", ".hint")
+
+ENTITY = re.compile(r"&[a-zA-Z]+;|&#\d+;")
+
+
+def _text_only_slots():
+    """Yield every ``(chapter, key, text)`` the interface renders as a plain string."""
+    for chapter_id, blocks in content_payload()["chapters"].items():
+        for key, block in blocks.items():
+            if key in TEXT_ONLY_KEYS or key.endswith(TEXT_ONLY_SUFFIXES):
+                yield chapter_id, key, block["text"]
+
+
+def test_no_text_only_slot_carries_an_html_entity() -> None:
+    """A text-only slot shows an entity to the reader spelled out.
 
     Written after exactly that happened: a panel headed ``Chapter 10&rsquo;s claim``
     rendered the ampersand, the r, the s and so on. Nothing failed, no console error, and
     the page simply looked like a mistake -- which is the failure mode this file exists
-    for. `prose` and `callout` set `html:` and may use entities freely; titles, hints,
-    `stat` labels and `badge` labels may not.
+    for. Prose and callouts reach `innerHTML` and may use entities freely; titles, hints
+    and ledes may not.
+
+    These slots used to be string literals in chapters.js and this read them from there.
+    They are content blocks now, so it reads them from what the server serves -- and the
+    renderer escapes an ampersand, so ``&rsquo;`` in a content file arrives here intact
+    rather than as the character it was meant to be.
+    """
+    slots = list(_text_only_slots())
+    assert slots, "no text-only slots found -- the content layer has moved"
+    offenders = [
+        f"{chapter_id}/{key}: {text}"
+        for chapter_id, key, text in slots
+        if ENTITY.search(text)
+    ]
+    assert not offenders, "HTML entity in a text-only slot: " + ", ".join(offenders)
+
+
+def test_a_literal_panel_title_carries_no_entity_either() -> None:
+    """The other half: a title still written in the code rather than in a content file.
+
+    Every chapter reads its headings from markdown now, so this finds nothing today. It
+    is kept because the next panel someone adds may well be titled in place, and that is
+    exactly the mistake above waiting to happen again.
     """
     source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
-    # Single-quoted first arguments only. A template literal or a variable cannot be
-    # checked this way, and the ones that exist are computed from server data.
     titles = re.findall(r"panel\(\s*'([^']*)'", source)
-    assert titles, "no panel titles found -- the pattern has stopped matching"
-    offenders = [title for title in titles if re.search(r"&[a-zA-Z]+;|&#\d+;", title)]
-    assert not offenders, "HTML entity in a text-only slot: " + ", ".join(offenders)
+    offenders = [title for title in titles if ENTITY.search(title)]
+    assert not offenders, "HTML entity in a panel title: " + ", ".join(offenders)
 
 
 class TestTheCautionsCannotBeRemovedQuietly:
@@ -465,9 +503,9 @@ def test_the_failure_chapter_counts_its_own_cases() -> None:
     next to a list that grows is a small thing that is always slightly untrue, so this
     compares the two.
     """
-    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
-    match = re.search(r"lede: '([A-Za-z]+) ways this can go wrong", source)
-    assert match, "could not find the break-it lede in chapters.js"
+    lede = blocks_for("break")["lede"]["text"]
+    match = re.search(r"([A-Za-z]+) ways this can go wrong", lede)
+    assert match, f"could not find the count in the break-it lede: {lede!r}"
     written = WORD_FOR_NUMBER.get(match.group(1).lower())
     assert written is not None, f"unrecognised number word {match.group(1)!r}"
     assert written == len(TAMPER_CASES), (
@@ -475,12 +513,35 @@ def test_the_failure_chapter_counts_its_own_cases() -> None:
     )
 
 
-def test_the_graph_chapter_counts_its_own_organisations(client: TestClient) -> None:
-    """The same problem, on the chapter whose first sentence names the number."""
-    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
-    match = re.search(r"'([A-Za-z]+) organisations, and", source)
-    assert match, "could not find the organisation count in chapters.js"
+@pytest.mark.parametrize("key", ["the-world", "lede"])
+def test_the_graph_chapter_counts_its_own_organisations(
+    client: TestClient, key: str
+) -> None:
+    """The same problem, on the chapter that names the number twice.
+
+    Both places are checked now. While this read chapters.js it matched whichever came
+    first in the file, which was the opening paragraph -- so the lede went unchecked and
+    said ten organisations and two anchors for as long as there were thirteen and three.
+    """
+    text = blocks_for("graph")[key]["text"]
+    match = re.search(r"([A-Za-z]+) organisations", text)
+    assert match, f"could not find the organisation count in graph/{key}: {text!r}"
     written = WORD_FOR_NUMBER.get(match.group(1).lower())
     assert written is not None, f"unrecognised number word {match.group(1)!r}"
     served = len(client.get("/api/world").json()["graph"]["nodes"])
-    assert written == served, f"the prose says {match.group(1)}, the world serves {served}"
+    assert written == served, (
+        f"graph/{key} says {match.group(1)} organisations, the world serves {served}"
+    )
+
+
+def test_the_graph_lede_counts_the_trust_anchors(client: TestClient) -> None:
+    """And the anchors, which drifted the same way when the third one was added."""
+    lede = blocks_for("graph")["lede"]["text"]
+    match = re.search(r"([A-Za-z]+) international anchors", lede)
+    assert match, f"could not find the anchor count in the graph lede: {lede!r}"
+    written = WORD_FOR_NUMBER.get(match.group(1).lower())
+    assert written is not None, f"unrecognised number word {match.group(1)!r}"
+    served = len(client.get("/api/world").json()["graph"]["trustAnchors"])
+    assert written == served, (
+        f"the lede says {match.group(1)} anchors, the world serves {served}"
+    )

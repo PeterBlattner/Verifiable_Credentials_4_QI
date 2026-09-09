@@ -24,9 +24,15 @@ temp
 tools/node_modules
 tools/package*.json
 
-# Not part of the running application. PLAN.md is a build journal and firstPrompt.md is
-# the prompt that started the project; ARCHITECTURE.md is left in because a later change
-# set serves it from the site.
+# Not part of the running application. The Dockerfile copies pyproject.toml, uv.lock,
+# README.md and src and nothing else, so none of these reach the image in any case;
+# excluding them keeps the build context honest about that rather than sending the
+# journal and the design record to the daemon on every build. PLAN.md is a build
+# journal, firstPrompt.md is the prompt that started the project, and ARCHITECTURE.md is
+# a design record -- no route serves any of them, and an earlier note here said a later
+# change set would serve ARCHITECTURE.md from the site, which never happened. README.md
+# stays: pyproject.toml declares it as the project readme, so the build reads it.
+ARCHITECTURE.md
 PLAN.md
 firstPrompt.md
 Dockerfile
