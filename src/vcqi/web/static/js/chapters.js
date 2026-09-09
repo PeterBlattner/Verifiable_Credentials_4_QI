@@ -1424,49 +1424,18 @@ async function chapterBreakIt(context) {
 
 // ---------------------------------------------------------------- chapter 9
 
-async function chapterImplications() {
+async function chapterImplications(context) {
+  // Prose: web/content/chapters/10-implications.md
+  const t = context.text('implications');
   const fragment = document.createDocumentFragment();
 
-  fragment.append(
-    prose([
-      'The demonstration is a prototype and proves nothing about deployability. But it does make some things concrete enough to argue about, which is what it was for.',
-    ])
-  );
-
-  fragment.append(
-    panel('What actually becomes different', null, prose([
-      '<strong>The recipient checks, not the issuer.</strong> Today a laboratory receiving a certificate that carries the CIPM MRA logo either takes the logo on trust or opens the KCDB and compares by eye. Here the comparison is made by whoever received the document, at the moment they received it, from the signed registry entry.',
-      '<strong>Scope becomes enforceable rather than declaratory.</strong> An accreditation scope and a CMC both already state exactly what is covered. Making them machine-readable turns them from something published into something checked.',
-      '<strong>Suspension takes effect immediately, everywhere.</strong> When an accreditation is suspended, every certificate already issued under it becomes unverifiable at the next check, without any of them being recalled or reissued.',
-      '<strong>Traceability stops being an assertion.</strong> A test report that says its equipment was calibrated can be made to prove it, by content digest, all the way down to a national standard.',
-      '<strong>Border clearance without correspondence.</strong> This is the case the Recognized Entities specification puts in section 2.4, and it works here: an authority holding two trusted identifiers reaches a verdict on a document from an organisation it has never dealt with.',
-    ]))
-  );
-
-  fragment.append(
-    panel('What a real deployment would need, and does not have yet', null, prose([
-      '<strong>Governance of the identifiers.</strong> Someone has to decide what the BIPM&rsquo;s identifier is, who controls it, how it is rotated, and what happens when a key is compromised. This is a governance problem wearing a technical costume, and it is the hard part.',
-      '<strong>The KCDB as a signed registry.</strong> The CMC data already exists and is already peer reviewed. What is missing is publication in a form that carries a signature and a stable content digest.',
-      '<strong>Long-term validation.</strong> Calibration certificates are kept for decades and signatures do not age well. Anything real needs timestamping and an archival strategy from the start, not added later.',
-      '<strong>Alignment with the PTB/DKD DCC.</strong> Every calibration certificate here now carries one, in the real namespaces with the quantity in D-SI, so the same calibration appears both as a readable subject and as a standardised document. What is still missing is the part that matters most for a deployment: it is a subset rather than a conformant document, it is not validated against the published XSD, the <code>ds:Signature</code> slot is unused, and the credential subject is still the readable shape rather than the PTB/DKD DCC itself. D-SI also does not model dependency structure, so an UncLib or GTC block still has to ride alongside it.',
-      '<strong>And what the redundancy taught, which generalises.</strong> Wrapping an existing standardised document inside a credential duplicates most of it, including its integrity mechanism. Who calibrated, for whom, when, under which number — all said twice, in two vocabularies, with nothing keeping them together. A real deployment has to choose deliberately between duplicating and checking, not duplicating at all, or declaring which copy governs. This demonstration duplicates and checks, because that is the cheapest thing to show and it turns every repeated fact into somewhere a mistake gets caught. The version worth building is probably the second: make the document the subject, and derive the rest from it.',
-      '<strong>Selective disclosure.</strong> A calibration certificate names a customer and an instrument. A testing laboratory may need to prove its equipment is traceable and in scope without disclosing the certificate. That is what SD-JWT or BBS signatures are for, and none of it is implemented here.',
-      '<strong>Relationship to eIDAS 2.0 and the EU Digital Identity Wallet.</strong> Organisational credentials are arriving in European regulation on their own schedule. Whatever the quality infrastructure does should meet that rather than run beside it.',
-    ]))
-  );
-
-  fragment.append(
-    panel('Honest open questions', null, prose([
-      'Is a decentralised recognition chain actually better than each MRA simply publishing one signed list? For a hierarchy this shallow, possibly not, and the answer should be argued rather than assumed.',
-      'Who verifies, in practice? The value depends entirely on the checking happening somewhere it does not happen today. If nobody runs the verifier, nothing has been gained.',
-      'What does a failed check mean institutionally? The pipeline can say a certificate is outside a published CMC. It cannot say whether that is an error, a typo, or a capability that was updated last week and not yet published.',
-      'How do these credentials relate to the certificates that remain legally authoritative? For a long time both will exist, and which one governs is a legal question, not a technical one.',
-    ]))
-  );
+  fragment.append(t.prose('prototype'));
+  fragment.append(panel(t.text('different.title'), null, t.prose('different')));
+  fragment.append(panel(t.text('needed.title'), null, t.prose('needed')));
+  fragment.append(panel(t.text('questions.title'), null, t.prose('questions')));
 
   return fragment;
 }
-
 // ---------------------------------------------------------------- chapter 10
 
 // Blue for the anchor, amber for a key an organisation has to hold itself, green for
@@ -2165,10 +2134,8 @@ export const CHAPTERS = [
     render: chapterBreakIt,
   },
   {
+    // Heading text comes from web/content/chapters/10-implications.md
     id: 'implications',
-    title: 'What this would mean in practice',
-    eyebrow: 'The argument',
-    lede: 'What genuinely changes, what a real deployment would need, and what remains an open question.',
     render: chapterImplications,
   },
   {
