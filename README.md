@@ -22,15 +22,6 @@ why the following warnings matter.
 workflows are illustrative sketches, not reference implementations. Nothing here has been
 tested in an interoperable deployment or checked line by line against the specifications.
 
-One reviewer who works on these specifications has since spent about half an hour on it,
-over the data structures and the harmonisation chapter. Their reading was that most of the
-data structures hold up as a first draft, and that the harmonisation chapter overstated the
-problem: several things it listed as unsolved already have answers, some of them published
-while this was being written. Those corrections are in chapter 11, which now counts its
-open questions rather than asserting them. That is one reader's opinion after thirty
-minutes, and it is the only review this work has had. It is not validation, and it changes
-nothing about the warnings here.
-
 Every organisation, identifier, certificate, capability and signing key is invented: the
 identifiers use the `.example` domain reserved by RFC 2606 and the keys are derived from a
 seed published in this repository, so they protect nothing. Nothing produced by this
