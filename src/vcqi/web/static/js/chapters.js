@@ -1406,23 +1406,18 @@ const ONLINE_KIND_LABELS = {
 };
 
 async function chapterInfrastructure(context) {
+  // Prose: web/content/chapters/11-infrastructure.md
+  const t = context.text('infrastructure');
   const fragment = document.createDocumentFragment();
   const data = await api.infrastructure();
 
-  fragment.append(
-    prose([
-      'Two properties of the design settle most of this question, and neither of them is about capacity.',
-      '<strong>Verification is a computation, not a conversation.</strong> A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier&rsquo;s behalf, and nothing here grows with the number of people who check. That is a claim about <em>checking</em> a credential, and it is true because a credential here travels as a signed file. Chapter 12 measures how far that goes, what a verifier still cannot be handed second-hand, and what it costs to <em>ask</em> for a document instead of being given one.',
-      '<strong>A credential travels with whoever holds it.</strong> The certificate arrives from the customer, not from the laboratory that wrote it. What an issuer must keep online is therefore only what describes the issuer itself — its key, and which of its credentials it has since withdrawn. The certificates need not be hosted at all.',
-      'Everything below is computed from what this demonstration actually published, so the figures move if the world does.',
-    ])
-  );
+  fragment.append(t.prose('two-properties'));
 
   const trace = data.verifierTrace;
   const uncached = trace.documents - trace.distinct;
 
   fragment.append(
-    panel('What a verifier actually goes and fetches', `verifying ${trace.title}, the deepest chain here`, [
+    panel(t.text('fetches.title'), `verifying ${trace.title}, the deepest chain here`, [
       el('div', { class: 'stat-row' }, [
         stat(trace.distinct, 'distinct documents'),
         stat(trace.hostCount, 'hosts contacted'),
@@ -1436,11 +1431,7 @@ async function chapterInfrastructure(context) {
     ])
   );
 
-  fragment.append(
-    prose([
-      'The burden is then very unevenly spread. Pick a role to see what it would have to stand up, and — usually the larger half — what it already runs today.',
-    ])
-  );
+  fragment.append(t.prose('unevenly-spread'));
 
   const output = el('div', {});
   const state = { did: data.roles[0].actor.id };
@@ -1491,14 +1482,14 @@ async function chapterInfrastructure(context) {
           class: 'muted',
           text:
             role.issuedCount === 0
-              ? 'A pure verifier publishes nothing. The single document counted here is a DID document that exists only because every organisation in this demonstration was given one; nothing in the system needs it.'
-              : 'Note that the first figure does not grow with the second. An institute issuing ten times as many certificates keeps exactly the same documents online.',
+              ? t.text('pure-verifier')
+              : t.text('does-not-grow'),
         }),
       ]),
 
       panel(
-        'Everything it must keep reachable',
-        'click any of them — all of it is public, and this is precisely what a verifier retrieves',
+        t.text('reachable.title'),
+        t.text('reachable.hint'),
         hosting.online.map((group) =>
           el('div', {}, [
             el('p', { class: 'muted', text: ONLINE_KIND_LABELS[group.kind] || group.kind }),
@@ -1517,42 +1508,34 @@ async function chapterInfrastructure(context) {
         )
       ),
 
-      panel('The signing key', null, [
+      panel(t.text('key.title'), null, [
         el('div', { style: 'margin-bottom:10px' }, [badge(tone, custodyLabel)]),
         prose([profile.custody]),
       ]),
 
       el('div', { class: 'split' }, [
-        panel('Already runs today', 'reused, not replaced', [checklist('has', profile.alreadyRuns)]),
-        panel('Would genuinely have to be added', null, [checklist('needs', profile.mustAdd)]),
+        panel(t.text('already.title'), t.text('already.hint'), [checklist('has', profile.alreadyRuns)]),
+        panel(t.text('must-add.title'), null, [checklist('needs', profile.mustAdd)]),
       ]),
 
-      panel('Availability and scale', null, [
+      panel(t.text('availability.title'), null, [
         keyValues([
           ['If it is unreachable', profile.availability],
           ['Volume', profile.scale],
         ]),
       ]),
 
-      callout([`<strong>The part that would actually take the effort.</strong> ${profile.hardestPart}`])
+      el('div', { class: 'callout', html: t.fill('hardest', { part: profile.hardestPart }) })
     );
   }
 
-  fragment.append(panel('Whose infrastructure?', null, picker), output);
+  fragment.append(panel(t.text('whose.title'), null, picker), output);
 
   fragment.append(
-    panel('What is genuinely new, across all of them', null, prose([
-      '<strong>Key custody is the whole problem.</strong> Every role above reduces to a question about who holds a key and what happens when it is lost. None of that is answered by buying hardware, and the hardware is where the attention usually goes.',
-      '<strong>Long-term validation is the second problem, and it is the one with a deadline.</strong> Signatures have to be timestamped at the moment of issue. A certificate signed today and archived without a timestamp cannot be given one in 2040, when the question of whether P-256 still means anything will be a live one. Almost everything else here can be retrofitted. This cannot.',
-      '<strong>And there is a new way to fail.</strong> A paper certificate keeps working when a web server does not. These do not: an unreachable DID document means an unverifiable certificate, and for a trust anchor that is a global outage. Static files behind a long cache lifetime make that a manageable risk rather than an unlikely one — but it is a dependency the present arrangement simply does not have, and it belongs on the other side of the ledger from the benefits in the previous chapter.',
-    ]))
+    panel(t.text('new.title'), null, t.prose('new'))
   );
 
-  fragment.append(
-    prose([
-      'All of that is what a single organisation would have to run. It says nothing about what they would have to agree with each other, which is the harder half and the next chapter.',
-    ])
-  );
+  fragment.append(t.prose('next-chapter'));
 
   render();
   return fragment;
@@ -2081,10 +2064,8 @@ export const CHAPTERS = [
     render: chapterImplications,
   },
   {
+    // Heading text comes from web/content/chapters/11-infrastructure.md
     id: 'infrastructure',
-    title: 'What it would take to run',
-    eyebrow: 'Deployment',
-    lede: 'The hosting requirement, computed rather than asserted, and why it is so unevenly spread between a trust anchor, a national institute, a fifteen-person laboratory and a verifier.',
     render: chapterInfrastructure,
   },
   {
