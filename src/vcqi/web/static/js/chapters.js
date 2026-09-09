@@ -575,13 +575,10 @@ async function chapterGraph(context) {
 // ---------------------------------------------------------------- chapter 3
 
 async function chapterIssuing(context) {
+  // Prose: web/content/chapters/04-issuing.md
+  const t = context.text('issuing');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'A signature is made over bytes, and a JSON document does not have a single set of bytes: the same certificate can be written with different spacing, different member order, or different ways of writing the same number. So before anything is hashed, the document is put into a <strong>canonical form</strong>, and that is what gets signed. This is why a certificate can be reformatted on its way to a verifier without breaking.',
-      'Two things are hashed separately and signed together: the document without its proof, and the proof configuration without its signature. Hashing the configuration too is what stops anyone editing the stated purpose, the key or the time after the fact.',
-    ])
-  );
+  fragment.append(t.prose('canonicalization'));
 
   const holder = el('div', {});
   const picker = el(
@@ -606,26 +603,26 @@ async function chapterIssuing(context) {
     const data = await api.credential(name);
     const trace = data.trace;
     clear(holder).append(
-      panel('1. The claims, before anything cryptographic happens', 'The document as its issuer assembled it', jsonView(
+      panel(`1. ${t.text('claims.title')}`, t.text('claims.hint'), jsonView(
         Object.fromEntries(Object.entries(data.credential).filter(([key]) => key !== 'proof')),
         context.inspect,
         { tall: true }
       )),
       panel(
-        '2. The canonical form',
-        'RFC 8785: members sorted, no whitespace, numbers written one way only',
+        `2. ${t.text('canonical.title')}`,
+        t.text('canonical.hint'),
         el('pre', { class: 'code', text: wrap(trace.canonicalDocument, 110) })
       ),
-      panel('3. What is hashed and signed', 'Two SHA-256 digests, concatenated, then signed with ECDSA over P-256', [
+      panel(`3. ${t.text('hashing.title')}`, t.text('hashing.hint'), [
         keyValues([
           ['Digest of the document', el('span', { class: 'hash', text: trace.documentHash })],
           ['Digest of the proof configuration', el('span', { class: 'hash', text: trace.proofConfigHash })],
           ['The 64 bytes actually signed', el('span', { class: 'hash', text: trace.signingInput })],
           ['Resulting signature', el('span', { class: 'hash', text: trace.proofValue })],
         ]),
-        el('p', { class: 'muted', style: 'margin-top: 12px;', text: 'Signing here is deterministic, per RFC 6979. Identical input always produces an identical signature, so any change in the signature is caused by a change in the document rather than by a fresh random number.' }),
+        el('p', { class: 'muted', style: 'margin-top: 12px;', text: t.text('deterministic') }),
       ]),
-      panel('4. The finished credential', 'The proof configuration, plus the signature it covers', jsonView(data.credential.proof, context.inspect))
+      panel(`4. ${t.text('finished.title')}`, t.text('finished.hint'), jsonView(data.credential.proof, context.inspect))
     );
   }
 
@@ -2142,10 +2139,8 @@ export const CHAPTERS = [
     render: chapterGraph,
   },
   {
+    // Heading text comes from web/content/chapters/04-issuing.md
     id: 'issuing',
-    title: 'Issuing a certificate',
-    eyebrow: 'How signing works',
-    lede: 'From the claims an institute wants to make, through canonicalization and hashing, to the signature itself. Every intermediate value shown.',
     render: chapterIssuing,
   },
   {
