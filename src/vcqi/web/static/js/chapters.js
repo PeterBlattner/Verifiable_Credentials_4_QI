@@ -640,13 +640,10 @@ function wrap(text, width) {
 // ---------------------------------------------------------------- chapter 4
 
 async function chapterVerification(context) {
+  // Prose: web/content/chapters/05-verification.md
+  const t = context.text('verification');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'This is the demonstration proper. A market surveillance authority in an importing country receives a certificate of conformity. It has no relationship with the certification body, the testing laboratory, the calibration laboratory or the institute. It trusts two identifiers in the world: the BIPM and Global ACI.',
-      'It runs eleven checks. Four are generic, one walks the recognition chain, and six are about whether the metrology holds up. Expand any step to see what it decided.',
-    ])
-  );
+  fragment.append(t.prose('the-scenario'));
 
   const state = { name: 'cab-conformity', when: context.world.demoNow.slice(0, 10), staple: false, maxDepth: 5, trustBoth: true };
   const output = el('div', {});
@@ -728,12 +725,10 @@ async function chapterVerification(context) {
       retrievalSummary(report.fetches),
       el('p', {
         class: 'muted',
-        text: state.staple
-          ? 'The holder bundled the recognition credentials with the presentation, so the verifier read them from the presentation instead of going out for them. In a real deployment that is the difference between a border check that needs connectivity and one that does not.'
-          : 'The verifier fetched everything itself. Toggle stapling above to see the same chain served from the presentation.',
+        text: state.staple ? t.text('stapled') : t.text('unstapled'),
       }),
-      panel('What the verifier checked', 'Steps that passed are collapsed; open one to see inside', stepTree(report.steps, 0)),
-      panel('What the verifier had to fetch', 'In the order it asked for them', el(
+      panel(t.text('steps.title'), t.text('steps.hint'), stepTree(report.steps, 0)),
+      panel(t.text('fetches.title'), t.text('fetches.hint'), el(
         'div',
         { class: 'json' },
         report.fetches
@@ -2144,10 +2139,8 @@ export const CHAPTERS = [
     render: chapterIssuing,
   },
   {
+    // Heading text comes from web/content/chapters/05-verification.md
     id: 'verification',
-    title: 'Verification and recognition discovery',
-    eyebrow: 'What a recipient checks',
-    lede: 'A market surveillance authority that trusts two identifiers, meeting a certificate from an organisation it has never heard of.',
     render: chapterVerification,
   },
   {
