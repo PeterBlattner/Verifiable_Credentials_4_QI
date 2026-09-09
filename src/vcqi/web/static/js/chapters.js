@@ -1248,14 +1248,11 @@ const OPERATIONS = [
 ];
 
 async function chapterDependencies(context) {
+  // Prose: web/content/chapters/08-dependencies.md
+  const t = context.text('dependencies');
   const fragment = document.createDocumentFragment();
 
-  fragment.append(
-    prose([
-      'One institute, one national standard, two certificates. Both check standards were compared against the same 10 kΩ national standard, so a large part of what is uncertain about each result is <em>the same thing</em> being uncertain twice.',
-      'A customer who combines the two ought to get the benefit of that. Whether they can depends entirely on what the institute transmitted, and the choice was made when the certificate was written, not when the customer opened it.',
-    ])
-  );
+  fragment.append(t.prose('shared-standard'));
 
   const output = el('div', {});
   const state = { operation: 'difference' };
@@ -1287,11 +1284,11 @@ async function chapterDependencies(context) {
     const understates = data.direction === 'understates';
     clear(output).append(
       el('div', { class: 'split' }, [
-        panel('With the dependencies transmitted', 'the shared influence is recognised and cancels correctly', [
+        panel(t.text('tracked.title'), t.text('tracked.hint'), [
           el('div', { class: 'stat__value', text: data.tracked.reported }),
           el('p', { class: 'muted', text: data.tracked.basis }),
         ]),
-        panel('From the printed value and U alone', 'the shared influence is invisible, so it is counted twice', [
+        panel(t.text('naive.title'), t.text('naive.hint'), [
           el('div', { class: 'stat__value', text: data.naive.reported }),
           el('p', { class: 'muted', text: data.naive.basis }),
         ]),
@@ -1304,14 +1301,14 @@ async function chapterDependencies(context) {
           }),
           el('span', {
             text: understates
-              ? 'Note the direction. For a mean, positive correlation makes the result less certain, not more, so ignoring it is optimistic rather than cautious. Classical reporting is not conservative; it is simply wrong by an amount nobody can compute.'
+              ? t.text('optimistic')
               : `The two results are correlated at r = ${data.correlation.toFixed(3)} because they share ${data.sharedInfluences.length} input quantities. That correlation is recoverable from the dependency representations and from nothing else.`,
           }),
         ]),
       ]),
       panel(
-        'The influences the two certificates have in common',
-        'matched by identifier, not by name — two laboratories using the same wording are still different influences',
+        t.text('shared.title'),
+        t.text('shared.hint'),
         table(
           ['Identifier', 'Influence'],
           data.sharedInfluences.map((influence) => [
@@ -1320,7 +1317,7 @@ async function chapterDependencies(context) {
           ])
         )
       ),
-      panel('The two certificates', null, table(
+      panel(t.text('inputs.title'), null, table(
         ['Certificate', 'As reported'],
         data.inputs.map((input) => [
           el('button', {
@@ -1335,12 +1332,9 @@ async function chapterDependencies(context) {
   }
 
   fragment.append(
-    panel('What would you like to compute from the two certificates?', null, picker),
+    panel(t.text('question.title'), null, picker),
     output,
-    callout([
-      'It is worth being clear about what the customer did wrong in the right-hand column: <strong>nothing</strong>. Combining in quadrature is the correct thing to do with two numbers that you have no reason to believe are related. The information that they were related existed, at the laboratory, and was not sent.',
-      'This is also the honest cost of the idea. A dependency representation exposes the structure of an uncertainty budget, and many laboratories regard that as commercially confidential. Selective disclosure is where that tension would be addressed, and it is not implemented here.',
-    ])
+    t.callout('the-cost')
   );
 
   await run();
@@ -2120,10 +2114,8 @@ export const CHAPTERS = [
     render: chapterTraceability,
   },
   {
+    // Heading text comes from web/content/chapters/08-dependencies.md
     id: 'dependencies',
-    title: 'Why the dependencies matter',
-    eyebrow: 'The argument for transmitting them',
-    lede: 'Two certificates from one institute, resting on one national standard. What a customer can do with them depends on what was sent.',
     render: chapterDependencies,
   },
   {
