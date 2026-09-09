@@ -1096,13 +1096,10 @@ async function representationPanel(context, certificateName) {
 
 
 async function chapterTraceability(context) {
+  // Prose: web/content/chapters/07-traceability.md
+  const t = context.text('traceability');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'Metrological traceability is an unbroken chain of calibrations back to a realisation of the unit, each with a stated uncertainty. The credential chain has exactly the same shape, and each certificate inherits its parent&rsquo;s result as the first line of its own budget.',
-      'Because the budget travels inside the credential, a recipient can check two things no signature could tell it: that the stated uncertainty really is the quadrature sum of the contributions offered for it, and that the inherited line matches what the parent certificate actually reports.',
-    ])
-  );
+  fragment.append(t.prose('the-chain'));
 
   const [metas, callab] = await Promise.all([api.credential('metas-calibration'), api.credential('callab-calibration')]);
 
@@ -1116,8 +1113,8 @@ async function chapterTraceability(context) {
 
   fragment.append(
     panel(
-      'Expanded uncertainty down the chain',
-      'Relative U at k = 2. Each step inherits everything above it and can only add',
+      t.text('chain.title'),
+      t.text('chain.hint'),
       table(
         ['Level', 'Relative U (k = 2)', '', 'As reported'],
         levels.map((level) => [
@@ -1196,7 +1193,7 @@ async function chapterTraceability(context) {
   }
 
   fragment.append(
-    panel('Recompute the laboratory budget', 'Propagated with metas_unclib, which keeps track of where each uncertainty came from', [
+    panel(t.text('recompute.title'), t.text('recompute.hint'), [
       sliderRow({
         label: 'U inherited from the institute',
         min: -5,
@@ -1235,9 +1232,7 @@ async function chapterTraceability(context) {
       }),
       live,
     ]),
-    callout([
-      'Try dragging the inherited uncertainty far down. The budget still adds up, the certificate would still be validly signed, and the laboratory would still be genuinely accredited — but the result becomes better than its accreditation allows, and the inherited line stops matching the certificate it names. Those are the last two checks in the pipeline, and they are the only things that would notice.',
-    ])
+    t.callout('try-dragging')
   );
 
   await recompute();
@@ -2151,10 +2146,8 @@ export const CHAPTERS = [
     render: chapterScope,
   },
   {
+    // Heading text comes from web/content/chapters/07-traceability.md
     id: 'traceability',
-    title: 'Traceability and uncertainty',
-    eyebrow: 'Where the numbers come from',
-    lede: 'The credential chain and the traceability chain are the same chain. The uncertainty grows measurably along it.',
     render: chapterTraceability,
   },
   {
