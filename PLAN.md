@@ -2276,3 +2276,234 @@ Branch `feature/portable-credentials`, from `develop`. Nothing pushed without as
   travel. Signing them is the BIPM's to do, the demonstration can say what it would buy
   without pretending to have done it, and inventing a signature over a KCDB entry would
   have been this project asserting a decision nobody has taken.
+
+# Change set 13 - finish the content layer, and question the format first
+
+## Context
+
+Change set 7 built the content layer and moved two chapters into it. Twelve were left
+carrying their prose as string literals in `chapters.js`, and `CONTENT.md` listed only the
+two that were done -- so for the other twelve it answered "where do I edit this sentence?"
+by omission, and an editor had to read 2218 lines of interactive JavaScript to find out
+whether the words were reachable at all.
+
+The half-finished state was supported by design and honestly so: `blocks_for` returns an
+empty mapping for an unmigrated chapter deliberately. What was not defensible was the map
+of it.
+
+## The format, questioned before it was finished
+
+The first thing asked was not "finish it" but "wouldn't HTML be better?" -- the page is
+HTML in the end, so a markdown hop looks like indirection. That was the right question to
+ask before migrating twelve more chapters into a format, and the answer is worth keeping
+because it is not the one `ARCHITECTURE.md` gave.
+
+`ARCHITECTURE.md` justified markdown by an editor working in the GitHub web UI. Asked
+directly, the only people who edit this prose are the author and developers, so that
+argument does not hold and could not be leaned on.
+
+What holds instead, measured rather than asserted:
+
+- `to_text()` tokenises with `<[^>]+>`, which is a valid tokeniser *only* because no
+  attribute in the renderer's output can contain `>`. It feeds every panel title.
+- `_kind()` classifies a block with a bare `startswith("<table")`. A leading newline or a
+  comment -- which `_parse` explicitly permits at the top of a file -- would make a real
+  table classify as prose.
+- `_safe_url` rewrites `javascript:`, `data:` and `vbscript:` targets to `#`, and every
+  link gets `rel="noopener"`. Nothing would do either for a hand-typed `<a>`.
+- `content.js`'s `fill()` escapes three characters and substitutes into the HTML string.
+  Today a `{placeholder}` can only land in prose; in author-written HTML it could land
+  inside an attribute, where escaping three characters is not enough.
+- `TestMarkdown` is 7 tests and 27 collected cases, 57% of the cases in that file, and
+  deletes wholesale under HTML. Eight further tests change shape rather than pass.
+
+And the one argument that would have favoured HTML did not survive measurement. The appeal
+was that the twelve chapters already held HTML in their literals, so migration would be
+cut-and-paste with byte-identical snapshots. `chapters.js` contained **102 inline tags in
+total**: 48 `<strong>`, 25 `<em>`, 22 `<code>`, 4 `<a>`, 2 `<p>`, 1 `<sup>`. All but the
+last are five mechanical substitutions. HTML would have saved almost nothing.
+
+So markdown stayed, and the recorded reason was corrected to the one that is true.
+
+## The delimiter, and a claim that had to be withdrawn
+
+`## some-key` became `<!-- block: some-key -->`.
+
+`ARCHITECTURE.md` presented `##` as settled: chosen over YAML front matter so that
+GitHub's own preview of the file stays a usable preview of the prose. Sound, but it never
+considered a delimiter invisible to the preview. A comment gets the same property and
+better -- the keys stop appearing in the preview as headings the real page never renders --
+and it removes a trap, since `## some-name` mid-paragraph used to be swallowed as a marker.
+
+The claim first written into `content.py` was that this frees every `#` level for a
+heading. That is false and was withdrawn in the same change set. `markdown.py` emits `h3`
+to `h6`, so `## foo` renders with its hashes showing, and `app.css` has no `h2` rule.
+`##` is free of the *delimiter*; it is still not a heading. All three documents now say
+that instead of implying an `h2` an editor cannot have.
+
+## Three defects this turned up
+
+**Chapter 2's lede counted an older world.** It promised "Ten organisations, two
+international anchors, and one supply chain". The world serves thirteen nodes and three
+trust anchors, and the chapter's own first paragraph says two supply chains. Every number
+had been left behind when the legal-metrology branch and its OIML anchor arrived.
+
+The test that guards exactly this read `chapters.js` with a regex and matched whichever
+count came first in the file -- the paragraph, which was right. The lede sat two lines
+above it and was never read. This is the same shape as the `must-resolve` zero in change
+set 12: the number that mattered was the one nothing was looking at.
+
+**Chapter 12 showed an HTML entity to a reader.** The step-3 hint built the holder's name
+with `&rsquo;` and reaches the page through `panel()`, which sets a hint with
+`textContent`, so anyone pressing "Run the exchange" saw `Verifica&rsquo;s key` spelled
+out. It renders only after a click, which is why the snapshot harness never saw it. Every
+other entity in the file went to an `html:` slot and was fine.
+
+**A test was guarding nothing.** `test_there_is_a_readme_for_whoever_edits_these` asserted
+`"##" in text` against the editing guide, and went on passing after the delimiter changed
+because the guide's syntax table happens to contain `### Like this`. It now requires the
+guide to contain a line the parser itself would accept, so the two cannot drift silently.
+
+## And the cautions had drifted between the two copies
+
+Change set 8's statement exists twice, on the site and in `README.md`, and three documents
+say to change both. A paragraph about a reviewer was removed from `00-cautions.md` and left
+standing in the README, so the repository claimed a review the site no longer mentioned.
+
+Removed from the README too. What survives says the same thing in both places -- the site's
+`correction` block and the README's closing paragraphs are now word for word identical, and
+both record that a correction happened once without detailing it, which was the
+load-bearing part.
+
+A test for this was considered and rejected on evidence. Comparing each caution body,
+whitespace collapsed and emphasis stripped: `spec-moving` and `no-warranty` are identical,
+`no-institution` differs deliberately ("Nothing on these pages" against "Nothing here"),
+`no-permanence` carries README-only navigation prose, and `nothing-validated` is 474
+characters on the site against 1297 in the README. `test_the_repository_says_the_same_thing`
+is right to compare headings and to say in its docstring that the words deliberately are
+not. Neither subset direction catches what happened, because the README saying *more* is
+normally correct. This one needed a person.
+
+## What moved, and what did not
+
+236 blocks across 14 files, 67 737 bytes of prose. `chapters.js` went from 2218 lines to
+2024 -- a net 194, which is the honest figure: the interaction code all stays and gains
+accessor calls, and what left was about a hundred and twenty paragraphs of literal prose.
+
+Kept in code, by the rule already recorded -- move it if a reader reads it as a sentence or
+a heading, leave it if it is a label, a unit, an option name or a value:
+
+- Button, slider, field and badge labels.
+- The records in `actors/` -- the eighteen failure cases, the deployment profiles, the
+  harmonisation items, the portability classes. The verifier reads the same records.
+- Sentences built around a value the server has just computed, where a plain-text slot
+  cannot take a substitution. Where the slot accepts markup they did move, as interpolated
+  blocks: `{curve}`, `{part}`, `{total}`, `{open}`, `{share}`, `{inputs}`, `{max}`,
+  `{minutes}`, `{reason}`, `{outcome}`, `{travelling}`, `{baseline}`, `{residue}`,
+  `{kinds}`.
+- Three comparison tables -- signing-versus-encryption in chapter 1, the two signature
+  comparisons in chapter 6 -- assembled as table elements. Dropping them in from a content
+  file would wrap each in a div: a change in markup for no gain in editability.
+- The two closing footnotes, which render straight into a `p.footnote`. Every accessor that
+  returns markup wraps a block in a paragraph of its own, which would nest one inside the
+  other.
+- Chapter 8's group headings could not simply be read by key, because a content key has to
+  be a literal at the call site and a test enforces it -- a computed key is invisible to
+  the check that every key exists, and that check is what lets the others see anything. The
+  two maps became a small array read by literal key.
+
+## Two things a reader sees differently
+
+Everything else is byte-identical. These are the whole cost:
+
+1. `2<sup>256</sup>` became `2^256` in chapter 1. The subset has no superscript and no raw
+   HTML; extending the renderer for one exponent was the alternative and was not worth it.
+   One differing region in 9504 characters.
+2. Four links gained `rel="noopener"` -- two in chapter 11, two in chapter 12 -- because
+   the renderer adds it to every link. An improvement, and no words changed.
+
+## Files
+
+```
+src/vcqi/web/content.py                     _BLOCK is a comment; docstring corrected
+src/vcqi/web/content/chapters/*.md          12 new files; the 2 existing ones converted
+src/vcqi/web/content/README.md              the editing guide, rewritten
+src/vcqi/web/static/js/chapters.js          -194 lines; every chapter reads its prose
+tests/test_web.py                           3 scraping tests repointed at the content layer
+tests/test_content.py                       the guide test checks against the parser
+CONTENT.md                                  all 14 chapters; the filename trap recorded
+ARCHITECTURE.md                             the format rationale, corrected
+README.md                                   the reviewer paragraph; the live URL
+render.yaml                                 the hostname does not follow from `name:`
+.dockerignore                               ARCHITECTURE.md excluded; stale note removed
+```
+
+`markdown.py` is untouched.
+
+## Verification
+
+- `uv run pytest` -- 440 passed, 46 skipped. Was 437 before; three tests were repointed and
+  three added.
+- `tools/chapter-snapshot.mjs` per chapter, before and after, compared with the
+  100-character wrapping undone. A change of length re-aligns every following line, so a
+  plain `diff` reports the whole tail and buries the one thing worth seeing; `temp/realdiff.py`
+  unwraps both sides and reports only the differing regions.
+- `node tools/ui-clicks.mjs` -- every control on all fourteen chapters responds. This is
+  what covers the exchange log and the representation tabs, which render only after a click
+  and which the snapshot harness therefore never sees.
+- Against the deployed service: `/healthz` reporting the merged commit, CSP, `x-robots-tag`,
+  `no-cache` on the modules and `no-store` on `/api/content`, `/docs` 404, and `/api/content`
+  serving fourteen chapters with no entity in a text-only slot and no empty block.
+
+## Git
+
+Branches `refactor/content-block-delimiter`, `fix/readme-cautions-drift`,
+`fix/record-the-live-url`, each from `develop`, each deleted after merge. PRs #32, #33, #35.
+
+One conflict, worth recording. PR #31 landed on `develop` mid-change and added a
+`CONTENT.md` table pointing at `chapters.js` line ranges for the twelve unmigrated
+chapters -- accurate when written and wrong by the time it merged. Git auto-merged inside
+the paragraphs and produced a hybrid opening "The words in the demonstration are moving
+into markdown files. For a chapter that has one..." directly above the new delimiter: two
+states of the world in one sentence. The file was taken from the branch wholesale after
+checking that nothing unique was lost.
+
+## Change set 13 - build order
+
+- [x] **P1 - Question the format.** Audit what depends on markdown rather than HTML;
+      measure the 102 inline tags; keep markdown for reasons that are true.
+- [x] **P2 - The delimiter.** `<!-- block: name -->`, two files converted, byte-identical.
+- [x] **P3 - Twelve chapters.** One per commit, each against a snapshot baseline.
+- [x] **P4 - The helpers.** `representationPanel`, `dccTab`, `duplicationPanel` -- about
+      twenty paragraphs the first chapter 6 commit had claimed and not moved.
+- [x] **P5 - The three broken guards.** Repointed at the content layer; the graph one
+      parametrized over both places the number appears.
+- [x] **P6 - The lede.** Thirteen organisations, three anchors, two supply chains.
+- [x] **P7 - Docs.** `CONTENT.md`, the editing guide, `ARCHITECTURE.md`, `content.py`.
+- [x] **P8 - The cautions.** The README copy brought back into agreement.
+- [x] **P9 - The live URL,** which nothing in the repository recorded.
+
+## Change set 13 - progress log
+
+440 tests pass, 46 skipped. Fourteen chapters render, every control responds, and the
+deployed service reports the merged commit.
+
+- **Three tests broke loudly and that is the whole reason this was caught.** All three
+  scraped `chapters.js` for literals that had moved, and each asserted its own pattern
+  still matched rather than passing on an empty match. A test that quietly finds nothing is
+  worse than no test, and the one that did behave that way -- `"##" in text` -- is exactly
+  the one that had been guarding nothing for a whole change set.
+- **The over-claim is the most useful thing to have written down.** Freeing `##` from the
+  delimiter felt like it should enable an `h2`, it was written into a docstring as though
+  it did, and it does not. The renderer was never asked. Checking took one call to
+  `render('## Like this')`.
+- Migrating out of order was fine and the file names allow it, but nothing said the prefix
+  is the array position rather than the chapter number -- so `01-orientation.md` being
+  chapter 0 was a trap sitting in plain sight. `CONTENT.md` says it now.
+- The half-finished state was defensible for one change set and stopped being so once
+  `CONTENT.md` described only half of it. The lesson is not "finish migrations" but
+  "a map that covers half the territory is worse than none, because it looks complete".
+- One thing not done deliberately: `markdown.py` still emits `h3` and upward. Making `##`
+  a heading needs an `h2` rule in `app.css` as well, and an `h2` inside a chapter body
+  would sit oddly beside the page's own `h1`. The restriction on writing one stands even
+  though the reason for it changed.
