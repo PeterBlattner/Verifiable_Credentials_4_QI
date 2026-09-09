@@ -10,6 +10,13 @@
 
 services:
   - type: web
+    # The running service answers at verifiable-credentials-4-qi.onrender.com, which does
+    # not follow from this name. Render derives a blueprint service's hostname from it, so
+    # the deployed service was created from the repository rather than from this file.
+    #
+    # Do not reconcile the two by editing this line: renaming is what would move the
+    # public URL. Anyone applying this blueprint fresh gets a second service at
+    # vcqi-demo.onrender.com, which is the thing to watch for.
     name: vcqi-demo
     runtime: docker
     dockerfilePath: ./Dockerfile

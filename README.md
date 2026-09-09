@@ -9,6 +9,11 @@ scopes and the Global ACI MRA, test reports and certificates of conformity.
 > exploring what W3C Verifiable Credentials might mean for the Quality Infrastructure. No
 > institution named here has reviewed or endorsed any of it.
 
+It runs at <https://verifiable-credentials-4-qi.onrender.com>, deployed from `main`. The
+instance is on Render's free plan, so it spins down after about fifteen minutes idle and
+the first request then takes the better part of a minute — worth knowing before opening
+the link live in a meeting. Everything below runs it locally instead.
+
 ## About these pages, and what they are not
 
 This started as curiosity. A friend pointed me to the W3C Recognized Entities
@@ -121,9 +126,14 @@ browser.
    in the log — that the interface reached the wheel, and that `metas_unclib` is *not*
    in the image — and then `/healthz` going green. First build is a few minutes; later
    ones reuse cached layers.
-3. **Check the health endpoint** at `https://<service>.onrender.com/healthz`. It reports
+3. **Check the health endpoint** at `https://<service>.onrender.com/healthz` — for this
+   deployment, <https://verifiable-credentials-4-qi.onrender.com/healthz>. It reports
    `"engine": "linprop"`, which is the confirmation that the deployment is computing
-   with the engine it is licensed to ship, and the commit it is running.
+   with the engine it is licensed to ship, and the commit it is running. Compare that
+   commit against `main`: a green dashboard says a build succeeded, not that the build
+   was the one just merged. The endpoint answers only after the lifespan warm-up has
+   built and signed the world, so a 200 means the process can serve rather than that a
+   port opened.
 4. **Settings → Custom Domains**, add the hostname, then create the DNS records below.
    Certificates are issued and renewed automatically, and HTTP is redirected to HTTPS.
 
