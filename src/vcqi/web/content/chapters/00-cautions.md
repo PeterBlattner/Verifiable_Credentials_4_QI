@@ -35,8 +35,6 @@ Nothing here has been validated
 
 The concepts, data models, credential examples and workflows are illustrative sketches, not reference implementations. Nothing here has been tested in an interoperable deployment or checked line by line against the specifications.
 
-One reviewer who works on these specifications has since spent about half an hour on it, over the data structures and the harmonisation chapter. Their reading was that most of the data structures hold up as a first draft, and that the harmonisation chapter overstated the problem: several things it listed as unsolved already have answers, some of them published while this was being written. Those corrections are now in chapter 11, which counts its open questions rather than asserting them. That is one reader's opinion after thirty minutes, and it is the only review this work has had. It is not validation, and it changes nothing about the warnings below.
-
 Any DIDs, keys, signatures or credentials shown are fabricated for demonstration. The identifiers use the `.example` domain reserved by RFC 2606, and the signing keys are derived from a seed published in the source tree, so they protect nothing.
 
 <!-- block: no-institution.title -->
