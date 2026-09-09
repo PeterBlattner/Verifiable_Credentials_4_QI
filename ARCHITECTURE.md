@@ -193,13 +193,21 @@ is. Two facts about the existing code made that a small change rather than a rew
 `el('p', {html})`, so rendered markdown is a drop-in; and `panel()` sets its title with
 `text:`, so every block is served in both an HTML and a plain-text form.
 
-**The format is one rule.** A line matching `## some-key` starts a block; everything
-until the next one is that block's markdown. No front matter, no second syntax —
-`title`, `eyebrow` and `lede` are blocks like any other. That was chosen over YAML front
-matter for a reason that settles it: **GitHub's own preview of the file is a usable
-preview of the prose**, so an editor working in the web UI sees their paragraphs
-rendered. The cost is that `##` is reserved, so a heading inside a block must be `###`,
-and no chapter's prose contains a heading.
+**The format is one rule.** A line matching `<!-- block: some-key -->` starts a block;
+everything until the next one is that block's markdown. No front matter, no second syntax
+— `title`, `eyebrow` and `lede` are blocks like any other. The property that decides the
+format is that **GitHub's own preview of the file is a usable preview of the prose**, so
+an editor working in the web UI sees their paragraphs rendered, and never has to think
+about quoting a colon in a title.
+
+This began as `## some-key`, which got the preview but spent a heading level to do it and
+put a trap in the middle of it: `## some-name` in a paragraph was silently swallowed as a
+marker. A comment gets the same preview — better, since the keys no longer show up in it
+as headings the real page never renders — and costs nothing. It does not, however, make
+`##` a heading: the renderer emits `h3` to `h6`, so a sub-heading in a block is still
+`###` or smaller. Emitting `h2` would need a style for it in `app.css` and would sit
+oddly beside the page's own `h1`, so the restriction on writing one stands even though
+the reason for it has changed.
 
 **Rendering happens on the server**, at first request, cached against file modification
 times. That keeps the page loading zero external resources, which is what lets its

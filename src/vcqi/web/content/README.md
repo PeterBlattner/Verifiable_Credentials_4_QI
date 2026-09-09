@@ -1,7 +1,8 @@
 # Editing the text
 
-The words in this demonstration live in `chapters/*.md`. You can change them without
-touching any code, and you do not need to install anything or run anything.
+The words in this demonstration live in `chapters/*.md`, one file per chapter. You can
+change them without touching any code, and you do not need to install anything or run
+anything.
 
 ## How to change a sentence
 
@@ -16,20 +17,24 @@ what, in plain terms, and nothing reaches the site until it is fixed.
 
 ## What a file looks like
 
-A line beginning with `##` starts a **block**. Everything under it, until the next `##`,
-is that block's text. The page asks for blocks by name.
+A line reading `<!-- block: some-name -->` starts a **block**. Everything under it, until
+the next such line, is that block's text. The page asks for blocks by name.
 
 ```markdown
-## lede
+<!-- block: lede -->
 
 Written for someone who has not met verifiable credentials before.
 
-## what-it-is
+<!-- block: what-it-is -->
 
 A **verifiable credential** is a document with a digital signature over it.
 
 Blank lines separate paragraphs. This is a second one.
 ```
+
+The marker is an HTML comment, which is deliberate: GitHub does not show it when it
+renders the file, so the preview on the file's page looks like the prose a reader gets
+rather than like the prose with block names scattered through it as headings.
 
 **Do not rename or delete a block.** The page asks for it by that name, so renaming it
 means changing the code as well; a rename on its own will make the page show a red
@@ -63,20 +68,32 @@ Tables are written with pipes. The second line, with the dashes, is required:
 | Root of trust | BIPM under the CIPM MRA |
 ```
 
-Two things to know. `##` is reserved for starting a block, so a heading inside your text
-must be `###` or smaller. And HTML is ignored rather than rendered — if you write
-`<strong>x</strong>` the reader will see those angle brackets, so use `**x**`.
+Three things to know.
+
+A heading has to be `###` or smaller. `##` is not a heading here — it would appear to a
+reader with its hashes showing.
+
+HTML is ignored rather than rendered. If you write `<strong>x</strong>` the reader will
+see those angle brackets, so use `**x**`.
+
+The same goes for HTML entities: write the character itself. `’` and `—` are fine in
+these files, while `&rsquo;` and `&mdash;` would reach a reader spelled out. A test
+checks the headings and ledes for this, because it has happened.
 
 ## Previewing
 
 GitHub renders these files, so the preview on the file's page is a fair preview of the
-words. It shows the block names as small headings, which the real page does not, but the
-paragraphs, emphasis, lists and tables will look right.
+words. The block markers are invisible in it. Paragraphs, emphasis, lists and tables
+will look right.
 
 Some blocks are used as short headings rather than as paragraphs — anything ending
 `.title` or `.hint`, and `title`, `eyebrow` and `lede`. Those are shown as plain text, so
 **bold** or a link in one of them would appear as literal asterisks or brackets. A test
 checks for that and will tell you.
+
+A few blocks contain a name in braces, like `{curve}` or `{total}`. The page fills those
+in with a number it has just computed. Leave the braces alone; the words around them are
+yours.
 
 ## What is *not* here
 
@@ -87,8 +104,14 @@ you are not left hunting:
   reads them.
 - **The names and descriptions of the organisations, certificates and failure cases.**
   Those are data rather than prose; they live in `src/vcqi/actors/`.
-- **The deployment and harmonisation tables** in the last two chapters, for the same
-  reason — they are records with many fields, which a markdown file expresses badly.
+- **The deployment, harmonisation and portability tables** behind chapters 10, 11 and 12,
+  for the same reason — they are records with many fields, which a markdown file
+  expresses badly.
+- **A sentence built around a number the page has just worked out**, where the number is
+  not a simple substitution. Those stay next to the calculation.
+- **Three comparison tables** — the signing-versus-encryption one in chapter 1, and the
+  two signature comparisons in chapter 6. They are assembled as table elements rather
+  than as words.
 - **The repository's own documents**, `README.md` and `ARCHITECTURE.md`, which are edited
   where they are.
 - **The caution banner at the top of every page.** That one is in

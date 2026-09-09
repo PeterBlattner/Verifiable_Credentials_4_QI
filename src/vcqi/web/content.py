@@ -13,9 +13,15 @@ second syntax -- ``title``, ``eyebrow`` and ``lede`` are blocks like any other.
 A comment was chosen over YAML front matter, and over the ``## some-key`` heading this
 used to use, for one reason: **GitHub's own preview of the file stays a usable preview of
 the prose**. A comment is invisible there, so the paragraphs render as they will read,
-and nobody has to think about quoting a colon in a title. Against a heading delimiter it
-has the further advantage of costing nothing: every level of ``#`` stays free for a
-heading inside a block, which ``##`` being reserved did not allow.
+and nobody has to think about quoting a colon in a title.
+
+Against the heading it also removes a trap. ``## some-name`` written in the middle of a
+paragraph used to be swallowed as a marker, silently splitting the block; it is now
+simply text. What the change does *not* do is make ``##`` a heading:
+:mod:`vcqi.web.markdown` emits ``h3`` to ``h6``, so a sub-heading inside a block is still
+``###`` or smaller and ``##`` renders with its hashes showing. Emitting ``h2`` would want
+a style for it in `app.css`, which there is none of, and would sit oddly beside the
+page's own ``h1``.
 
 Rendering happens here rather than in the browser. That keeps the page loading zero
 external resources, which is what makes its Content-Security-Policy reach
