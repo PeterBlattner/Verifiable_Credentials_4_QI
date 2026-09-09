@@ -1716,15 +1716,12 @@ function exchangeMessage(number, direction, title, hint, body, context) {
 }
 
 async function chapterMoving(context) {
+  // Prose: web/content/chapters/13-exchange.md
+  const t = context.text('exchange');
   const fragment = document.createDocumentFragment();
   const data = await api.workflows();
 
-  fragment.append(
-    prose([
-      'Every verifier you have met so far already had the document in hand. That is a comfortable place to start a chapter and nobody arrives there by accident: somebody asked, somebody answered, and both steps happened before the page opened.',
-      'There are two ways to answer the question, and they disagree about almost everything. One says the document should travel — signed, self-contained, by whatever means is to hand — and that no protocol is needed for most of it. The other says the parties should talk, over an agreed protocol, so that each can ask for exactly what it needs. This world can do both, and the rest of the chapter is what each one costs.',
-    ])
-  );
+  fragment.append(t.prose('two-ways'));
 
   const stage = el('div');
   let selected = data.workflows[0];
@@ -1753,33 +1750,33 @@ async function chapterMoving(context) {
   );
 
   fragment.append(
-    el('h3', { text: 'One: the credential is a file' }),
-    prose([
-      'UN/CEFACT put the argument for this most sharply, and it is an argument from failure rather than from elegance. Fifty years of electronic data interchange digitised something like a tenth of cross-border trade, because a network of hubs and pipes only ever reaches the parties who joined it, and a commercial invoice is needed by the exporter, the importer, two customs authorities, banks, insurers, brokers and freight forwarders. The network never reaches all of them. So <a href="https://unvtd.unece.org/architecture/portable-credentials/">stop building the network</a>: sign the document, and let it travel with the consignment by email, file transfer, a USB drive or a QR code.',
-      '<strong>This demonstration was already built that way and had not noticed.</strong> Every credential here is a signed file that verifies wherever it is found; the world dumps to 76 documents on disk and they verify from there. Chapter 10 computes the same property from the other end — the institute keeps three documents online while six of its credentials travel unhosted — and calls it a hosting burden rather than an architecture.',
-      'Metrology has the oldest instance of the idea in existence, and it is not digital. <strong>A calibration certificate already travels with the instrument.</strong> The paper in the box is a portable credential: self-contained, checkable by whoever opens the box, and dependent on no service being reachable. What the cryptography adds is not the idea. It is that the copy in the box can now be checked.',
-    ])
+    el('h3', { text: t.text('one.title') }),
+    t.prose('one')
   );
   const portability = await api.portability();
   const travelling = portability.split.find((row) => row.key === 'travels') || { count: 0 };
   const signed = portability.ifRegistriesWereSigned;
 
   fragment.append(
-    el('h3', { text: 'Two: what can travel, and what cannot' }),
-    prose([
-      'The interesting question is not whether the portable model works. It is where it stops, and that is measurable rather than arguable. Below, the same certificate of conformity is verified twice: once with the verifier given nothing, and once with the verifier handed every document a holder is allowed to bring. The difference is read out of the resolver&rsquo;s own retrieval log.',
-    ]),
-    panel('The same verification, twice', `${portability.title}`, [
+    el('h3', { text: t.text('two.title') }),
+    t.prose('two'),
+    panel(t.text('twice.title'), `${portability.title}`, [
       el('div', { class: 'stat-row' }, [
         stat(portability.baseline.distinct, 'documents, nothing supplied'),
         stat(travelling.count, 'a holder may bring'),
         stat(portability.stapled.stillFetched, 'still fetched'),
         stat(signed.stillFetched, 'if registries were signed'),
       ]),
-      callout([
-        `Both runs reach <strong>${portability.stapled.outcome}</strong>. Handing the verifier everything it is allowed to accept second-hand removes ${travelling.count} of the ${portability.baseline.distinct} retrievals and changes no verdict, which is the portable-credential claim holding up under measurement rather than in principle.`,
-        `What is left is the part that is not portable. And if the registries were signed — the one removable reason below — the residue would be ${signed.stillFetched} documents of exactly two kinds: <strong>${signed.kinds.join(' and ')}</strong>. That is each organisation&rsquo;s key and its revocation list, and nothing else. It is also, to the document, the hosting burden chapter 10 computed from the opposite direction. Neither chapter knew it was describing the same quantity.`,
-      ]),
+      el('div', {
+        class: 'callout',
+        html: t.fill('twice.body', {
+          outcome: portability.stapled.outcome,
+          travelling: travelling.count,
+          baseline: portability.baseline.distinct,
+          residue: signed.stillFetched,
+          kinds: signed.kinds.join(' and '),
+        }),
+      }),
     ])
   );
 
@@ -1796,21 +1793,13 @@ async function chapterMoving(context) {
     );
   }
 
-  fragment.append(
-    callout([
-      'The forgery in the second class is not hypothetical, and it is worth being plain that this demonstration had it. A holder could staple a DID document claiming a trust anchor&rsquo;s identifier, sign a credential in that anchor&rsquo;s name with its own key, and the pipeline reported <em>verified</em> — every check passing, because the verifier was reading the attacker&rsquo;s own account of whose key was whose. <code>vc/resolver.py</code> now refuses to take any of these kinds second-hand, and the exploit is kept as a regression test.',
-    ])
-  );
+  fragment.append(t.callout('the-forgery'));
 
   fragment.append(
-    el('h3', { text: 'Three: when somebody has to ask' }),
-    prose([
-      'Portable credentials answer distribution and say nothing about the case where the verifier does not have the document and wants it — an authority at a border, an issuing authority that needs to see evidence before it certifies anything. For that the parties do have to talk, and what follows is W3C&rsquo;s <a href="https://www.w3.org/TR/vcalm-1.0/">VCALM</a> exchange, implemented against this same world. Two properties of it do all the work.',
-      '<strong>One endpoint, used twice.</strong> The holder POSTs to an exchange and is answered with a request for a presentation. It POSTs the presentation to the same URL and is answered with a result. Not two services with two protocols — one conversation with two turns.',
-      '<strong>The holder starts it.</strong> There is no way for an issuer or a verifier to reach into a wallet. Every flow begins with the party holding the credentials, which is why even this arrangement survives a fifteen-person laboratory sitting behind a firewall with no inbound port.',
-    ])
+    el('h3', { text: t.text('three.title') }),
+    t.prose('three')
   );
-  fragment.append(panel('Three exchanges this world can hold', 'pick one, then run it', [chips, stage]));
+  fragment.append(panel(t.text('exchanges.title'), t.text('exchanges.hint'), [chips, stage]));
 
   async function run(replay) {
     const log = el('div');
@@ -1822,7 +1811,7 @@ async function chapterMoving(context) {
         exchangeMessage(
           1,
           'up',
-          'The holder opens an exchange',
+          t.text('step1.title'),
           `POST /workflows/${selected.id}/exchanges`,
           { workflowId: opened.workflowId, exchangeId: opened.exchangeId, url: opened.url },
           context
@@ -1834,8 +1823,8 @@ async function chapterMoving(context) {
         exchangeMessage(
           2,
           'down',
-          'The coordinator asks for a presentation',
-          'the same URL, answered with a request',
+          t.text('step2.title'),
+          t.text('step2.hint'),
           request.verifiablePresentationRequest,
           context
         ),
@@ -1848,16 +1837,14 @@ async function chapterMoving(context) {
         exchangeMessage(
           3,
           'up',
-          'The holder answers',
+          t.text('step3.title'),
           selected.presents.length
-            ? `signed with ${selected.holderName}&rsquo;s key, carrying ${selected.presents.length} credential${selected.presents.length === 1 ? '' : 's'}`
-            : `signed with ${selected.holderName}&rsquo;s key, carrying no credential at all`,
+            ? `signed with ${selected.holderName}’s key, carrying ${selected.presents.length} credential${selected.presents.length === 1 ? '' : 's'}`
+            : `signed with ${selected.holderName}’s key, carrying no credential at all`,
           presentation,
           context
         ),
-        callout([
-          `Look at the proof. Its <code>proofPurpose</code> is <code>authentication</code> rather than <code>assertionMethod</code> — the holder is not asserting the contents, which the issuers already signed, but proving it is the party that was asked. And it carries the <code>challenge</code> from the request and the <code>domain</code> of the coordinator, both signed in. That is what makes this presentation an answer to <em>this</em> exchange and no other, and it is why it could not have been prepared in advance: the challenge did not exist until step 1.`,
-        ])
+        t.callout('authentication')
       );
 
       let target = opened.exchangeId;
@@ -1866,9 +1853,7 @@ async function chapterMoving(context) {
         await api.exchangeTurn(selected.id, second.exchangeId, {});
         target = second.exchangeId;
         log.append(
-          callout([
-            `Now a second exchange has been opened, with its own challenge, and the presentation from the first one is about to be posted into it — which is precisely what an attacker who intercepted a presentation would try.`,
-          ])
+          t.callout('replay')
         );
       }
 
@@ -1880,7 +1865,7 @@ async function chapterMoving(context) {
       log.append(
         panel(
           `4. The coordinator ${outcome.state === 'complete' ? 'answers' : 'refuses'}`,
-          outcome.state === 'complete' ? 'verified, and issued where there is something to issue' : 'and nothing is issued',
+          outcome.state === 'complete' ? t.text('step4.ok') : t.text('step4.no'),
           [
             el('div', { style: 'margin-bottom:12px' }, [
               badge(outcome.state === 'complete' ? 'pass' : 'fail', outcome.state),
@@ -1888,10 +1873,12 @@ async function chapterMoving(context) {
                 badge(report.outcome === 'verified' ? 'pass' : 'fail', `presented: ${report.outcome}`)
               ),
             ]),
-            outcome.refused ? callout([`<strong>Refused.</strong> ${outcome.refused}`]) : null,
+            outcome.refused
+              ? el('div', { class: 'callout', html: t.fill('refused', { reason: outcome.refused }) })
+              : null,
             result.verifiablePresentation
               ? jsonView(result.verifiablePresentation, context.inspect, { tall: true })
-              : el('p', { class: 'muted', text: 'Empty body — the exchange is finished and there is nothing further to send.' }),
+              : el('p', { class: 'muted', text: t.text('empty-body') }),
             callout([outcome.explains]),
           ].filter(Boolean)
         )
@@ -1900,8 +1887,8 @@ async function chapterMoving(context) {
       if ((outcome.reports || []).length) {
         log.append(
           panel(
-            'What the coordinator checked before answering',
-            'the same pipeline every other chapter uses, run over what the holder sent',
+            t.text('checked.title'),
+            t.text('checked.hint'),
             outcome.reports.map((report) => stepTree(report.steps, 0))
           )
         );
@@ -1920,8 +1907,8 @@ async function chapterMoving(context) {
       keyValues([
         ['Holder, who starts it', `${selected.holderName} (${selected.holder})`],
         ['Coordinator, who answers', `${selected.coordinatorName} (${selected.coordinator})`],
-        ['What is asked for', selected.asksFor.length ? selected.asksFor.join(', ') : 'Only proof that the holder controls its identifier'],
-        ['What comes back', selected.issues ? selected.issues : 'Nothing — this coordinator is checking, not issuing'],
+        ['What is asked for', selected.asksFor.length ? selected.asksFor.join(', ') : t.text('asks-nothing')],
+        ['What comes back', selected.issues ? selected.issues : t.text('issues-nothing')],
       ]),
       callout([selected.lesson]),
       el('div', { class: 'chips' }, [
@@ -1938,7 +1925,7 @@ async function chapterMoving(context) {
   show();
 
   fragment.append(
-    panel('What each one buys', 'and what it charges for it', [
+    panel(t.text('buys.title'), t.text('buys.hint'), [
       table(
         ['', 'The document travels', 'The parties talk'],
         [
@@ -1950,17 +1937,15 @@ async function chapterMoving(context) {
           ['Lets the verifier ask for something', 'No.', 'Yes, which is the entire point.'],
         ]
       ),
-      callout([
-        'The fourth row is where the two models genuinely need each other, and it is the honest limit of the portable one. A signed file proves who issued it and says nothing about who is holding it out, so <strong>anyone with a copy can present it</strong>. For a calibration certificate that is usually harmless — it is a public attestation about an instrument, and a copy is as true as the original. For a laboratory claiming its own accreditation in order to win work, a copy is enough to impersonate it. UNECE&rsquo;s own business-wallet page does not discuss holder binding, a nonce or replay at all, and that gap is exactly what the challenge in the exchange above closes.',
-        `And the exchange charges for it. State means a service, a store, an expiry policy and something to attack: this is the only thing in the whole demonstration that the server has to remember between requests, and it holds at most ${data.maxExchanges} exchanges for ${Math.round(data.ttlSeconds / 60)} minutes each, evicting the oldest when it runs out of room.`,
-      ]),
+      el('div', {
+        class: 'callout',
+        html: t.fill('buys.body', {
+          max: data.maxExchanges,
+          minutes: Math.round(data.ttlSeconds / 60),
+        }),
+      }),
     ]),
-    panel('Chapter 10’s claim, stated properly', 'it was right, and for a reason it did not give', [
-      prose([
-        'Chapter 10 says a verifier operates nothing, and an earlier version of this chapter called that an overstatement. It is not one — it is a claim about the portable model, and under that model it is true. Checking a credential you already hold is free and works on a laptop at a border post with an intermittent connection.',
-        'What is true alongside it is that <em>asking</em> for a credential is not free. So the cost is a property of the architecture chosen, not of credentials: choose the portable model and a verifier really does operate nothing, at the price of never being able to ask; choose the exchange and it can ask, at the price of running something. The measurement above is what that choice actually costs in this world, and the residue — a key and a revocation list per organisation — is what neither model can avoid.',
-      ]),
-    ])
+    panel(t.text('claim.title'), t.text('claim.hint'), [t.prose('claim')])
   );
 
   fragment.append(
@@ -2058,10 +2043,9 @@ export const CHAPTERS = [
     // every chapter from 9 upward, and two dozen references to a chapter by number --
     // several of them editorial fields in actors/harmonisation.py served to the reader
     // -- would quietly become wrong. ARCHITECTURE.md records the rule.
+    //
+    // Heading text comes from web/content/chapters/13-exchange.md
     id: 'exchange',
-    title: 'How a credential moves',
-    eyebrow: 'Distribution',
-    lede: 'Two architectures answer the same question and disagree about almost everything: let the document travel, or make the parties talk. Both are built here, and the cost of each is measured rather than argued.',
     render: chapterMoving,
   },
 ];
