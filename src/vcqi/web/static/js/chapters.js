@@ -1305,39 +1305,33 @@ async function chapterDependencies(context) {
 
 // ---------------------------------------------------------------- chapter 8
 
-const GROUP_LABELS = {
-  forgery: 'Forgery — the cryptography catches these',
-  standing: 'Standing — the organisation was not entitled to issue it',
-  metrological: 'Metrology — everything verifies and the claim is still wrong',
-};
-
-const GROUP_NOTES = {
-  forgery: 'Any Verifiable Credentials library would reject all of these. They are the easy half.',
-  standing:
-    'Signatures say nothing about whether an accreditation has lapsed, been suspended, or never covered this activity. Recognition chains and status lists do.',
-  metrological:
-    'Every signature verifies, every organisation is in good standing, and the document is still wrong. A system that checked only the cryptography would accept every one of these.',
-};
-
 async function chapterBreakIt(context) {
+  // Prose: web/content/chapters/09-break.md
+  const t = context.text('break');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'A demonstration where everything always passes teaches very little. Each case below is a specific thing that can go wrong, and each names in advance the single check that is supposed to notice it.',
-      'The third group is the one worth dwelling on. In every case there, the signature is valid, the issuer is genuinely recognised, and the document is inside its validity period.',
-    ])
-  );
+  fragment.append(t.prose('why-break-it'));
+
+  // The three group headings and their notes used to be two module-level maps keyed by
+  // group name. They are read by literal key instead, because a computed key is
+  // invisible to the test that checks every key a chapter asks for exists -- and that
+  // one test is what makes the others able to see anything at all.
+  const GROUPS = [
+    { key: 'forgery', label: t.text('forgery.title'), note: t.text('forgery.hint') },
+    { key: 'standing', label: t.text('standing.title'), note: t.text('standing.hint') },
+    { key: 'metrological', label: t.text('metrological.title'), note: t.text('metrological.hint') },
+  ];
+  const labelFor = (key) => (GROUPS.find((group) => group.key === key) || {}).label;
 
   const output = el('div', {});
 
-  for (const group of ['forgery', 'standing', 'metrological']) {
-    const cases = context.world.tamperCases.filter((item) => item.group === group);
+  for (const group of GROUPS) {
+    const cases = context.world.tamperCases.filter((item) => item.group === group.key);
     fragment.append(
       panel(
-        GROUP_LABELS[group],
+        group.label,
         null,
         [
-          el('p', { class: 'muted', style: 'margin-top:-4px', text: GROUP_NOTES[group] }),
+          el('p', { class: 'muted', style: 'margin-top:-4px', text: group.note }),
           el(
             'div',
             { class: 'chips' },
@@ -1359,7 +1353,7 @@ async function chapterBreakIt(context) {
     const result = await api.tamper(key);
     const caught = result.caughtByExpectedStep;
     clear(output).append(
-      panel(result.case.title, GROUP_LABELS[result.case.group], [
+      panel(result.case.title, labelFor(result.case.group), [
         prose([result.case.description]),
         keyValues([
           ['Expected to be caught by', el('code', { text: result.case.expectedStep })],
@@ -2077,10 +2071,8 @@ export const CHAPTERS = [
     render: chapterDependencies,
   },
   {
+    // Heading text comes from web/content/chapters/09-break.md
     id: 'break',
-    title: 'Break it',
-    eyebrow: 'Failure modes',
-    lede: 'Eighteen ways this can go wrong, and the check that catches each. The interesting ones pass every cryptographic test.',
     render: chapterBreakIt,
   },
   {
