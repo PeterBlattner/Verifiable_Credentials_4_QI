@@ -435,17 +435,12 @@ function flipLast(value) {
 // ---------------------------------------------------------------- chapter 2
 
 async function chapterGraph(context) {
+  // Prose: web/content/chapters/03-graph.md
+  const t = context.text('graph');
   const fragment = document.createDocumentFragment();
-  fragment.append(
-    prose([
-      'Thirteen organisations, and two supply chains running through them. A national metrology institute calibrates a laboratory&rsquo;s transfer standard; the laboratory calibrates a testing laboratory&rsquo;s multimeter; the testing laboratory measures a kettle; a certification body certifies the kettle; the manufacturer presents that certificate at a border. The same testing laboratory also evaluates a type of electricity meter against an OIML Recommendation, and an Issuing Authority certifies the type on the strength of that evaluation.',
-      'The three organisations at the top are the roots of trust: one for metrology, one for accreditation, one for legal metrology. All three are inventions, like everything else here. <strong>Global ACI</strong> stands in for whichever body holds the accreditation role, and nothing in the demonstration rests on that name &mdash; a verifier reaches an anchor by following identifiers upward from the document in front of it, not by knowing who occupies the position.',
-      'The three arrangements are separate, and the interesting part is where they are not. <strong>Helvetia Testing</strong> is accredited by SAS under ISO/IEC 17025 <em>and</em> recognised by OIML to perform type evaluation &mdash; one laboratory, one identifier, two arrangements above it, and neither of them aware the other exists. Filter to one arrangement to see its shape; the rest dims rather than disappearing, because a document resting on two of them at once is the thing worth looking at.',
-      'Click any organisation to see the identifier it signs with and what it has issued. Click any edge to read the credential behind it.',
-    ])
-  );
+  fragment.append(t.prose('the-world'));
 
-  const detail = panel('Select an organisation or an edge', 'Everything below is fetched from the running server', el('p', { class: 'muted', text: 'Nothing selected yet.' }));
+  const detail = panel(t.text('detail.title'), t.text('detail.hint'), el('p', { class: 'muted', text: t.text('nothing-selected') }));
   const graphHolder = el('div', {});
   const filterHolder = el('div', { class: 'controls' });
   const filterNote = el('p', { class: 'muted' });
@@ -526,12 +521,12 @@ async function chapterGraph(context) {
               ],
               ['Public key', el('span', { class: 'hash', text: data.actor.publicKeyMultibase })],
             ]),
-            el('h3', { text: 'DID document' }),
-            el('p', { class: 'muted', text: 'This is all an identifier resolves to: a key, what the key may be used for, and where to ask about the holder.' }),
+            el('h3', { text: t.text('did.title') }),
+            el('p', { class: 'muted', text: t.text('did-resolves') }),
             jsonView(data.didDocument, context.inspect),
             data.issued.length
               ? el('div', {}, [
-                  el('h3', { text: 'Credentials it has issued' }),
+                  el('h3', { text: t.text('issued.title') }),
                   el(
                     'div',
                     { class: 'chips' },
@@ -2085,10 +2080,8 @@ export const CHAPTERS = [
     render: chapterKeys,
   },
   {
+    // Heading text comes from web/content/chapters/03-graph.md
     id: 'graph',
-    title: 'The quality infrastructure as a trust graph',
-    eyebrow: 'The world',
-    lede: 'Ten organisations, two international anchors, and one supply chain running from a national standard to a kettle at a border.',
     render: chapterGraph,
   },
   {
