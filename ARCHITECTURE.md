@@ -562,13 +562,39 @@ than assumed.
 | `scope` | the numeric decision a schema cannot express |
 | `mra-logo` | whether a claim of international recognition is justified |
 | `uncertainty` | whether the stated U is supported by the budget offered for it, whether every representation matches its recorded digest, and whether the printed line agrees with the dependency data |
-| `traceability` | whether the chain of certificates below it holds, by content digest, and whether the influences of the parent are genuinely present in this result |
+| `traceability` | whether the chain of certificates below it holds, by content digest; whether the influences of the parent are genuinely present in this result; and whether each hop is about the object the next one used |
 
 Every step returns a structured result rather than a boolean, and a step that cannot be
 evaluated reports `skip` rather than passing quietly. `tests/test_pipeline.py` asserts
-that each of the thirteen failure cases is caught by the step that claims it, and that the
-metrological cases pass `proof`, `validity` and `recognition` first — which is the whole
+that every failure case is caught by the step that claims it, and that the metrological
+cases pass `proof`, `validity` and `recognition` first — which is the whole
 reason they are worth demonstrating.
+
+### Following a chain says nothing about what it is about
+
+`traceability` resolves each reference by identifier and confirms it by content digest,
+which establishes exactly which documents are in the chain. It establishes nothing
+whatever about the *artefact* they concern. A laboratory could reference a genuine,
+unaltered institute certificate for a standard it never owned, and proof, status,
+recognition, the digest, the inherited uncertainty and the shared input quantities would
+all still pass -- because every one of those is a property of the documents.
+
+The object was already written down: `traceableTo` carries an `instrument` beside the id
+and the digest (`actors/scenarios.py`). Nothing read it. `traceability.object-identity`
+now compares it against the subject of the certificate the reference points at, and
+`traceability-names-another-object` is the failure case that exists only because of it.
+
+A reference that names no object reports `skip`, not `pass`. That distinction matters
+here more than usual: most references in this world carry no instrument, so a passing
+verdict would be claiming a check that never ran. What the chain rests on in those cases
+is the documents alone, and the report should say so.
+
+This is the cheap half of a larger question. The identifier compared is a URN minted in
+`domain/instruments.py` and agreed only because one author wrote both ends -- the same
+weakness `tests/test_harmonisation.py` already pins for measurands. Two organisations
+would need a shared way to name a physical artefact before this check means anything
+between them, and that is a governance problem rather than a technical one.
+
 
 ## Not implemented
 

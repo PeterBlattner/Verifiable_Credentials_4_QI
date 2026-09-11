@@ -1035,6 +1035,68 @@ def _traceability_references(credential: dict[str, Any]) -> list[dict[str, Any]]
     return references
 
 
+def _step_object_identity(reference: dict[str, Any], parent: dict[str, Any]) -> Step:
+    """Check that the object a reference names is the object the parent was about.
+
+    A traceability reference is followed by identifier and confirmed by content digest,
+    which establishes that the document retrieved is the document that was referenced. It
+    establishes nothing at all about the *thing* the two documents concern. A laboratory
+    can reference a genuine, unaltered institute certificate for a standard it never
+    owned, and every signature and digest in the chain stays valid.
+
+    So where a reference names the object it used, that name is compared against the
+    subject of the certificate it points at. This is the only place in the pipeline where
+    the identity of a physical object is load-bearing for trust, and until now it was
+    written into the document and read by nobody.
+
+    Args:
+        reference: The traceability reference, which may carry an ``instrument``.
+        parent: The referenced credential, already retrieved and digest-checked.
+
+    Returns:
+        The step. A reference that names no object skips rather than passing: nothing was
+        established, and saying so is the difference between a check that ran and a check
+        that had nothing to run on.
+    """
+    named = reference.get("instrument")
+    if not isinstance(named, str) or not named:
+        return Step(
+            id="traceability.object-identity",
+            title="The object referenced is the object calibrated",
+            status=SKIP,
+            detail=(
+                "the reference names no object, so the chain rests on the documents "
+                "alone"
+            ),
+        )
+
+    subject = parent.get("credentialSubject")
+    actual = subject.get("id") if isinstance(subject, dict) else None
+    if not isinstance(actual, str):
+        return Step(
+            id="traceability.object-identity",
+            title="The object referenced is the object calibrated",
+            status=FAIL,
+            detail=(
+                f"the reference names the object {named!r}, and the document it points "
+                f"at identifies no subject to compare it with"
+            ),
+            evidence={"named": named},
+        )
+
+    matches = named == actual
+    return Step(
+        id="traceability.object-identity",
+        title="The object referenced is the object calibrated",
+        status=PASS if matches else FAIL,
+        detail=(
+            f"the reference names {named!r} and the certificate it points at is about "
+            f"{actual!r}"
+        ),
+        evidence={"named": named, "subject": actual},
+    )
+
+
 def _step_inherited_uncertainty(
     credential: dict[str, Any], parent: dict[str, Any]
 ) -> Step:
@@ -1211,13 +1273,22 @@ def _step_traceability(
             )
             continue
 
+        identity = _step_object_identity(reference, referenced)
+
         if target in visited:
+            # Already verified, but the object it names has not been compared on this
+            # branch, and two branches can name two different things.
             children.append(
                 Step(
                     id=f"traceability.{index}",
                     title=f"Referenced document {target}",
-                    status=PASS,
-                    detail="already verified earlier in this chain",
+                    status=FAIL if identity.status == FAIL else PASS,
+                    detail=(
+                        identity.detail
+                        if identity.status == FAIL
+                        else "already verified earlier in this chain"
+                    ),
+                    children=[identity],
                 )
             )
             continue
@@ -1249,6 +1320,10 @@ def _step_traceability(
             child.children.append(_step_shared_inputs(credential, referenced))
             if any(item.status == FAIL for item in child.children[-2:]):
                 child.status = FAIL
+        child.children.append(identity)
+        if identity.status == FAIL:
+            child.status = FAIL
+            child.detail = identity.detail
         children.append(child)
 
     everything_ok = all(child.status in (PASS, SKIP, WARN) for child in children)

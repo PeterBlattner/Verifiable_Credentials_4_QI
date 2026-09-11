@@ -9,7 +9,7 @@ import pytest
 
 from vcqi.actors.registry import TRUST_ANCHORS
 from vcqi.actors.scenarios import BIPM_RECOGNITION, DEMO_NOW, build_world
-from vcqi.actors.tamper import TAMPER_CASES
+from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
 from vcqi.vc.recognition import discover_recognition
 from vcqi.vc.resolver import Resolver
 from vcqi.vc.verify import verify_credential
@@ -402,3 +402,99 @@ class TestTamperCases:
         """Keys address cases from the interface, so they have to be unique."""
         keys = [case.key for case in TAMPER_CASES]
         assert len(set(keys)) == len(keys)
+
+
+class TestObjectIdentity:
+    """The chain is about physical objects, and following it does not establish that.
+
+    Every other traceability check is a property of the documents: the reference resolves,
+    the digest matches, the parent verifies, the uncertainty reconciles. None of them
+    notices a laboratory referencing a genuine certificate about a standard it never had.
+    """
+
+    def _identity_steps(self, report):
+        """Collect every object-identity step in a report.
+
+        Args:
+            report: The verification report.
+
+        Returns:
+            The steps, outermost first.
+        """
+        found = []
+
+        def walk(steps):
+            for step in steps:
+                if step.id == "traceability.object-identity":
+                    found.append(step)
+                walk(step.children)
+
+        walk(report.steps)
+        return found
+
+    def test_the_real_chain_names_the_object_it_used(self, world) -> None:
+        """The laboratory's transfer standard is the standard the institute calibrated."""
+        steps = self._identity_steps(_verify(world, "callab-calibration"))
+        assert [step.status for step in steps] == ["pass"]
+        assert "SR10K-0042" in steps[0].detail
+
+    def test_a_reference_naming_no_object_skips(self, world) -> None:
+        """Skipped, not passed.
+
+        The test report's equipment reference carries no instrument, so nothing was
+        established. Reporting that as a pass would claim a check ran when it did not,
+        which is the distinction the whole report is built on.
+        """
+        steps = self._identity_steps(_verify(world, "testlab-report"))
+        assert any(step.status == "skip" for step in steps)
+        assert all(step.status in ("pass", "skip") for step in steps)
+
+    def test_naming_a_different_object_is_caught(self, world) -> None:
+        """And is caught by nothing else, which is why the check was added.
+
+        The tampered certificate references the institute's real, unaltered certificate
+        and names a different resistor. Proof, recognition, status, the digest of the
+        reference and the inherited uncertainty all still pass.
+        """
+        result = tamper_by_key("traceability-names-another-object").apply()
+        report = verify_credential(
+            result.credential,
+            store=result.world.store,
+            now=result.verify_at,
+            trusted_issuers=TRUST_ANCHORS,
+        )
+        assert report.outcome == "rejected"
+
+        failed = {step.id for step in report.failures}
+        assert "traceability.object-identity" in failed
+
+        intact = {step.id: step.status for step in report.steps}
+        for step_id in ("proof", "validity", "status", "recognition", "scope", "uncertainty"):
+            assert intact[step_id] == "pass", step_id
+
+    def test_the_inherited_uncertainty_still_reconciles(self, world) -> None:
+        """The sharpest part: the arithmetic is untouched.
+
+        A reader could reasonably expect a wrong parent to show up in the numbers. It
+        does not, because the numbers were copied from the certificate that really was
+        referenced. Only the object is wrong, and only the object check sees it.
+        """
+        result = tamper_by_key("traceability-names-another-object").apply()
+        report = verify_credential(
+            result.credential,
+            store=result.world.store,
+            now=result.verify_at,
+            trusted_issuers=TRUST_ANCHORS,
+        )
+
+        def find(steps, step_id):
+            for step in steps:
+                if step.id == step_id:
+                    return step
+                found = find(step.children, step_id)
+                if found:
+                    return found
+            return None
+
+        assert find(report.steps, "traceability.inherited").status == "pass"
+        assert find(report.steps, "traceability.shared-inputs").status == "pass"
