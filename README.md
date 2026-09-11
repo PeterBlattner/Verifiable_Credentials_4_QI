@@ -70,7 +70,7 @@ modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 ```
 uv run pytest                                  # the whole suite
 uv run python -m vcqi.actors.scenarios         # list every signed credential
-uv run python -m vcqi.actors.scenarios --dump out/   # write all 76 documents as JSON
+uv run python -m vcqi.actors.scenarios --dump out/   # write all 78 documents as JSON
 ```
 
 Two extras, both optional and neither needed to run the demonstration:
@@ -287,8 +287,8 @@ Helvetia ──test report──▶ Confoederatio ──certificate of conformit
 ```
 
 That authority runs eleven checks, and reaches a verified path from the kettle down to
-a national measurement standard, having fetched 76 documents and known none of the
-parties in advance.
+a national measurement standard, having made 76 retrievals across 31 distinct
+documents and known none of the parties in advance.
 
 ## Three arrangements, and where they join
 

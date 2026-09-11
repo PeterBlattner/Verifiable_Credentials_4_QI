@@ -22,7 +22,7 @@ A market surveillance authority that trusts two identifiers, meeting a certifica
 
 This is the demonstration proper. A market surveillance authority in an importing country receives a certificate of conformity. It has no relationship with the certification body, the testing laboratory, the calibration laboratory or the institute. It trusts two identifiers in the world: the BIPM and Global ACI.
 
-It runs eleven checks. Four are generic, one walks the recognition chain, and six are about whether the metrology holds up. Expand any step to see what it decided.
+It runs eleven checks on this document. Four are generic, one walks the recognition chain, and six are about whether the metrology holds up — and a credential that only points at its certificate, rather than carrying one, picks up a twelfth. Expand any step to see what it decided.
 
 <!-- block: stapled -->
 
