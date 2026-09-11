@@ -16,10 +16,16 @@
      in the code: they are assembled as table elements, and dropping them in from here
      would wrap each in a div.
 
-     Everything from dcc down -- the mapping panel, the document, what is said twice, and
-     the signature comparison -- appears only when a reader selects the PTB/DKD DCC tab,
-     because all of it is about wrapping that document in a credential. A certificate
-     carrying no PTB/DKD DCC shows the single line in no-dcc instead.
+     Everything from dcc down -- the mapping panel, the document, what is said twice, the
+     signature comparison, and the three ways of carrying it -- appears only when a reader
+     selects the PTB/DKD DCC tab, because all of it is about wrapping that document in a
+     credential. A certificate carrying no PTB/DKD DCC shows the single line in no-dcc
+     instead.
+
+     The carriage and verdicts blocks describe a second certificate, METAS-2026-0420,
+     which points at its document instead of carrying it. The verdicts beside them are
+     read out of a real verification rather than written down, so if the pipeline ever
+     starts deciding more about that certificate, the words here need revisiting.
 
      "{inputs}" in the unclib block is the number of input quantities the certificate
      actually carries. Leave the braces alone. -->
@@ -154,6 +160,40 @@ Including the signature
 
 <!-- block: sign-once -->
 
-A document carrying both can verify under one mechanism and fail under the other, and there is no natural rule for which wins. So this demonstration **signs once**: the credential proof covers the credential, the credential carries a digest of the PTB/DKD DCC bytes, and the `ds:Signature` slot stays empty. One trust path. That is a choice rather than an obligation.
+A document carrying both can verify under one mechanism and fail under the other, and there is no natural rule for which wins. So for this certificate the demonstration **signs once**: the credential proof covers the credential, the credential carries a digest of the PTB/DKD DCC bytes, and the `ds:Signature` slot stays empty. One trust path. That is a choice rather than an obligation, and the panel below shows a certificate where the other choice was made.
 
 There are three honest ways to live with the rest of the redundancy, and only the first is built here. **Duplicate and check**, so every repeated fact becomes somewhere a mistake gets caught. **Do not duplicate**, by making the PTB/DKD DCC the credential subject and letting `issuer` and `validFrom` be views of it — cleanest, and probably what a real deployment settles on. Or **declare precedence**, saying which copy governs, which works and needs governance and is never read at the moment it is needed.
+
+<!-- block: carriage.title -->
+
+Three ways to carry the document
+
+<!-- block: carriage.hint -->
+
+this demonstration builds the first two; the third is described
+
+<!-- block: carriage -->
+
+Everything above puts the PTB/DKD DCC **inside** the credential, as a passenger beside a readable subject saying the same things in JSON. There are two other places it could go, and the choice is not a detail — it decides what a verifier is able to decide.
+
+**Carry it** — what you have been looking at. Six facts are stated twice, and because they are, something can compare them. The duplication is the cost and the check is what buys it back.
+
+**Point at it.** The credential holds a URL, two digests and a short index, and the document stays outside. Nothing is duplicated, so nothing can disagree — and almost nothing can be checked either. Certificate METAS-2026-0420 in this world is built that way, and it carries the DKD's own published example for standard resistors, at schema 3.4.0-rc.2 rather than the 3.3.0 this demonstration generates. That is the honest attraction of the model: the issuer ships whatever its own tooling produces, and the credential never has to understand it.
+
+**Make it the subject**, so `issuer` and `validFrom` become views of the document rather than second copies of it. Cleanest, probably right for a real deployment, and not built here — it would change every chapter.
+
+<!-- block: verdicts.title -->
+
+What the pointer credential verifies as
+
+<!-- block: verdicts.hint -->
+
+the real pipeline, run over METAS-2026-0420
+
+<!-- block: verdicts -->
+
+Read the two amber rows rather than the green ones. The signature verifies, the issuer is recognised, the document is byte-for-byte the one that was signed for — and **the measurement was never examined**. The value and the Expanded Uncertainty exist only inside the document, so the range and the uncertainty floor of the CMC went unchecked, and the four facts the credential states about the document are the issuer's word rather than anything confirmed against it.
+
+The document also carries its own `ds:Signature`, which this demonstration really does compute — Canonical XML 1.1, ECDSA P-256, the key inline. It proves the bytes have not changed and says nothing about who produced them, because there is no chain to follow and no identifier to resolve. That is the second trust path the chapter warned about, and seeing it pass beside the credential's proof is the clearest way to see that passing is not the same as meaning something.
+
+So this credential comes out **verified**, and a verified verdict here is worth less than a verified verdict anywhere else in the demonstration. That is not a bug in the pipeline. It is the pointer model, stated honestly: you may not duplicate and check, or you may not duplicate, but you may not do neither and still expect the verifier to know things.

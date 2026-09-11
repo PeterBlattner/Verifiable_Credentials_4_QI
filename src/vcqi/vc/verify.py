@@ -16,15 +16,22 @@ actually has. The full sequence is:
    the CIPM MRA logo, is that claim justified;
 9. does its traceability chain hold, all the way down to an institute that realises the
    unit;
-10. is the stated uncertainty consistent with the budget offered to support it.
+10. is the stated uncertainty consistent with the budget offered to support it;
+11. and, for a credential that points at a document instead of carrying one, is that
+    document the one that was signed for, and what about it could not be checked.
 
-Steps 1 to 4 are generic. Step 5 is the Recognized Entities contribution. Steps 6 to 10
+Steps 1 to 4 are generic. Step 5 is the Recognized Entities contribution. Steps 6 to 11
 are where the quality infrastructure lives, and they are the ones that turn a document
 that merely verifies into a document a metrologist can rely on.
 
 Every step returns a structured result rather than a boolean, so the interface can show
 which check decided the outcome. A step that cannot be evaluated is reported as skipped,
-never silently passed.
+never silently passed -- and a step that could only be half evaluated warns rather than
+passing, which is what step 11 and the scope check do on every run for a credential that
+only points at its document.
+
+The list numbers questions rather than steps; step 8 answers its two halves as two steps,
+so a credential of that kind reports twelve top-level steps rather than eleven.
 """
 
 from __future__ import annotations
@@ -38,7 +45,8 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from vcqi.crypto.jcs import canonicalize
-from vcqi.crypto.multibase import verify_digest_multibase
+from vcqi.crypto.multibase import verify_digest_multibase, verify_digest_sri
+from vcqi.crypto.xmldsig import verify_enveloped
 from vcqi.domain.scope import (
     DeclaredCapability,
     MeasurementClaim,
@@ -72,6 +80,7 @@ __all__ = ["Step", "VerificationReport", "verify_credential", "REQUIRED_ACTIONS"
 #: made one of them wrong -- and wrong in the direction that fails a genuine document.
 REQUIRED_ACTIONS: dict[str, frozenset[str]] = {
     "CalibrationCertificateCredential": frozenset({"issue"}),
+    "ExternalDocumentCredential": frozenset({"issue"}),
     "TestReportCredential": frozenset({"issue"}),
     "ProductConformityCredential": frozenset({"issue"}),
     "TypeEvaluationReportCredential": frozenset({"evaluate"}),
@@ -246,7 +255,14 @@ def _payload(credential: dict[str, Any]) -> dict[str, Any]:
     subject = credential.get("credentialSubject")
     if not isinstance(subject, dict):
         return {}
-    for member in ("calibration", "testing", "conformity", "typeEvaluation", "oimlCertificate"):
+    for member in (
+        "calibration",
+        "testing",
+        "conformity",
+        "typeEvaluation",
+        "oimlCertificate",
+        "externalDocument",
+    ):
         value = subject.get(member)
         if isinstance(value, dict):
             return value
@@ -628,6 +644,9 @@ def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
             detail="the document names no capability to check against",
         )
 
+    if _most_specific_type(credential) == "ExternalDocumentCredential":
+        return _step_scope_of_external_document(credential, reference, resolver)
+
     # `retrieve`: a CMC or an accreditation scope carries neither a signature nor a
     # digest, so a copy cannot be checked. Accepting one from the holder would let a
     # laboratory declare its own capability. Signing the KCDB is what would change this.
@@ -686,6 +705,102 @@ def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
             + "; ".join(check.detail for check in verdict.failures)
         ),
         evidence={"capability": reference, "verdict": verdict.to_json()},
+        children=children,
+    )
+
+
+def _step_scope_of_external_document(
+    credential: dict[str, Any], reference: dict[str, Any], resolver: Resolver
+) -> Step:
+    """Judge what can be judged when the measurement is not in the credential.
+
+    A credential that only points at a document states the measurand and the unit and
+    stops. Those two can be checked against the declared capability and they are worth
+    checking -- a certificate for DC voltage claiming a resistance CMC is caught here.
+
+    What cannot be checked is everything the capability exists to bound: whether the
+    measured value falls inside the declared range, and whether the reported Expanded
+    Uncertainty is at or above the floor the entry publishes. Both live only inside the
+    document, and this pipeline does not parse it.
+
+    So the verdict is a warning rather than a pass. Reporting it as a pass would be the
+    more dangerous mistake by far: it would read exactly like the full adjudication
+    every other certificate here gets, while resting on four facts the issuer asserted
+    about a document nobody opened.
+
+    Args:
+        credential: The credential being verified.
+        reference: The capability reference it names.
+        resolver: Used to retrieve the registry entry.
+
+    Returns:
+        The step, with one child per condition that could be evaluated.
+    """
+    document = resolver.retrieve(reference["id"])
+    if document is None:
+        return Step(
+            id="scope",
+            title="Claim falls inside the declared capability",
+            status=FAIL,
+            detail=f"the capability at {reference['id']} could not be retrieved",
+            evidence={"capability": reference},
+        )
+
+    capability = _capability_from_document(document)
+    if capability is None:
+        return _step_scope_by_method(credential, document, reference)
+
+    payload = _payload(credential)
+    children: list[Step] = []
+    for key, title, claimed, declared in (
+        (
+            "measurand",
+            "Measurand matches the capability",
+            payload.get("measurand"),
+            capability.measurand,
+        ),
+        ("unit", "Unit matches the capability", payload.get("unit"), capability.unit),
+    ):
+        matches = claimed == declared
+        children.append(
+            Step(
+                id=f"scope.{key}",
+                title=title,
+                status=PASS if matches else FAIL,
+                detail=(
+                    f"the credential states {claimed!r} and {capability.label} declares "
+                    f"{declared!r}"
+                ),
+            )
+        )
+
+    children.append(
+        Step(
+            id="scope.not-evaluated",
+            title="Range and uncertainty floor were not evaluated",
+            status=WARN,
+            detail=(
+                "the measured value and the Expanded Uncertainty are stated only inside "
+                "the external document, which this pipeline does not parse, so neither "
+                f"the range nor the uncertainty floor of {capability.label} was checked"
+            ),
+        )
+    )
+
+    failed = [child for child in children if child.status == FAIL]
+    return Step(
+        id="scope",
+        title="Claim falls inside the declared capability",
+        status=FAIL if failed else WARN,
+        detail=(
+            "; ".join(child.detail for child in failed)
+            if failed
+            else (
+                f"the measurand and unit match {capability.label}; whether the result "
+                "does cannot be decided from the credential alone"
+            )
+        ),
+        evidence={"capability": reference},
         children=children,
     )
 
@@ -1233,8 +1348,17 @@ def verify_credential(
     scope_step = _step_scope(credential, resolver)
     report.steps.append(scope_step)
     report.steps.append(_step_mra_logo(credential, scope_step))
-    # The representations sit under the uncertainty step, so the top-level list stays
-    # the same eleven checks however many ways the certificate offers its uncertainty.
+    # One more top-level step, and the first that is not another view of the same
+    # certificate: a credential pointing at a document outside itself is a different kind
+    # of document, and burying that under `uncertainty` -- which is where the
+    # representation checks went -- would hide the one thing it exists to show.
+    if _most_specific_type(credential) == "ExternalDocumentCredential":
+        report.steps.append(_step_external_document(credential, resolver))
+    # The representations sit under the uncertainty step, so the top-level list does not
+    # grow with however many ways a certificate offers its uncertainty. The external
+    # document step above is the one exception and earned it: a credential pointing at a
+    # document outside itself is a different kind of document, not another view of the
+    # same one.
     uncertainty_step = _step_uncertainty(credential)
     representations_step = _step_representations(credential, resolver)
     uncertainty_step.children.append(representations_step)
@@ -1273,6 +1397,152 @@ def _representations(credential: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     value = result.get("uncertaintyRepresentations")
     return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _step_external_document(credential: dict[str, Any], resolver: Resolver) -> Step:
+    """Check the document a credential points at instead of carrying.
+
+    Four things, in the order a verifier can establish them. The bytes are found; they
+    are the bytes that were signed for; the document's own ``ds:Signature`` -- a second
+    integrity mechanism over overlapping content -- says what it says; and the index the
+    credential states about the document is *not* confirmed against it.
+
+    That last one is a warning on every run, by construction. It is the price of not
+    duplicating: with nothing said twice there is nothing to disagree, and equally
+    nothing to compare. The passenger form pays the opposite price, which is what
+    ``uncertainty.duplication`` reports for every other calibration certificate here.
+
+    Args:
+        credential: The credential being verified.
+        resolver: Used to fetch the document.
+
+    Returns:
+        The step, with one child per check.
+    """
+    external = _payload(credential)
+    resource = _related_resource(credential)
+    if not external or resource is None:
+        return Step(
+            id="external-document",
+            title="External document is intact",
+            status=SKIP,
+            detail="the credential points at no external document",
+        )
+
+    children: list[Step] = []
+    payload, where = _representation_bytes(resource, resolver)
+    children.append(
+        Step(
+            id="external-document.retrieved",
+            title="The document was retrieved",
+            status=FAIL if payload is None else PASS,
+            detail=where,
+        )
+    )
+
+    if payload is None:
+        return Step(
+            id="external-document",
+            title="External document is intact",
+            status=FAIL,
+            detail=where,
+            evidence={"resource": resource},
+            children=children,
+        )
+
+    multibase = resource.get("digestMultibase")
+    sri = resource.get("digestSRI")
+    digests: list[tuple[str, bool]] = []
+    if isinstance(multibase, str):
+        digests.append(("digestMultibase", verify_digest_multibase(payload, multibase)))
+    if isinstance(sri, str):
+        digests.append(("digestSRI", verify_digest_sri(payload, sri)))
+    intact = bool(digests) and all(matched for _, matched in digests)
+    children.append(
+        Step(
+            id="external-document.digest",
+            title="The document is the one that was signed for",
+            status=PASS if intact else FAIL,
+            detail=(
+                f"{len(payload)} bytes, "
+                + ", ".join(
+                    f"{name} {'matches' if matched else 'does not match'}"
+                    for name, matched in digests
+                )
+                if digests
+                else "the reference records no digest, so the document cannot be checked"
+            ),
+        )
+    )
+
+    signature = verify_enveloped(payload.decode("utf-8", errors="replace"))
+    children.append(
+        Step(
+            id="external-document.xml-signature",
+            title="The document's own signature",
+            status=PASS if signature.verified else (SKIP if not signature.present else FAIL),
+            detail=(
+                f"{signature.detail}. Key discovery: {signature.key_discovery}. This is "
+                "a second trust path over the same bytes, and the credential's proof is "
+                "the one that names an issuer."
+            ),
+        )
+    )
+
+    stated = [
+        name
+        for name in ("certificateNumber", "performedOn", "measurand", "unit")
+        if external.get(name) is not None
+    ]
+    children.append(
+        Step(
+            id="external-document.index",
+            title="The index was not confirmed against the document",
+            status=WARN,
+            detail=(
+                f"the credential states {len(stated)} fact(s) about the document "
+                f"({', '.join(stated)}) and this pipeline does not parse "
+                f"{external.get('format')} {external.get('schemaVersion')} to check "
+                "them, so they are the issuer's word rather than a verified claim"
+            ),
+            evidence={"stated": {name: external.get(name) for name in stated}},
+        )
+    )
+
+    failed = [child for child in children if child.status == FAIL]
+    return Step(
+        id="external-document",
+        title="External document is intact",
+        status=FAIL if failed else WARN,
+        detail=(
+            "; ".join(child.detail for child in failed)
+            if failed
+            else (
+                "the document is intact and signed twice over; what it says about the "
+                "measurement was not read"
+            )
+        ),
+        evidence={"resource": resource},
+        children=children,
+    )
+
+
+def _related_resource(credential: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the first related resource a credential integrity-protects.
+
+    Args:
+        credential: The credential to inspect.
+
+    Returns:
+        The resource object, or None when there is none.
+    """
+    resources = credential.get("relatedResource")
+    if not isinstance(resources, list):
+        return None
+    for resource in resources:
+        if isinstance(resource, dict) and isinstance(resource.get("id"), str):
+            return resource
+    return None
 
 
 def _representation_bytes(

@@ -28,6 +28,7 @@ VERIFIED_CREDENTIALS = (
     "callab-calibration",
     "metas-SR10K-0091",
     "metas-SR10K-0092",
+    "metas-external-dcc",
     "testlab-report",
     "cab-conformity",
     "oiml-ia-recognition",

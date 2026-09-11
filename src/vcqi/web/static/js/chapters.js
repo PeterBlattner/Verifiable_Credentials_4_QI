@@ -33,6 +33,7 @@ const CREDENTIAL_LABELS = {
   'callab-calibration': 'Calibration certificate AC-2026-1182',
   'metas-SR10K-0091': 'Calibration certificate METAS-2026-0418 (check standard A)',
   'metas-SR10K-0092': 'Calibration certificate METAS-2026-0419 (check standard B)',
+  'metas-external-dcc': 'Calibration certificate METAS-2026-0420 (PTB/DKD DCC by reference)',
   'testlab-report': 'Test report HTS-2026-3391',
   'cab-conformity': 'Certificate of conformity CPC-2026-0055',
   'oiml-ia-recognition': 'OIML recognition of Issuing Authorities',
@@ -588,7 +589,7 @@ async function chapterIssuing(context) {
     );
   }
 
-  fragment.append(picker, holder);
+  fragment.append(picker, holder, t.prose('what-is-signed'));
   await show('metas-calibration');
   return fragment;
 }
@@ -794,13 +795,13 @@ async function chapterScope(context) {
 /**
  * Render the PTB/DKD DCC tab: the document, and what it does that the others do not.
  *
- * `duplication` is the panel comparing the facts the credential and the document both
- * state, built by the caller because it needs a verification report and this helper is
- * synchronous. It belongs here rather than beside the tabs: everything it says is about
- * wrapping a PTB/DKD DCC in a credential, and a reader on the Classical or the UncLib tab
- * was being told that a document they were not looking at duplicates most of itself.
+ * `duplication` and `carriage` are both built by the caller, because each needs a
+ * verification report and this helper is synchronous. They belong here rather than beside
+ * the tabs: everything they say is about wrapping a PTB/DKD DCC in a credential, and a
+ * reader on the Classical or the UncLib tab was being told that a document they were not
+ * looking at duplicates most of itself.
  */
-function dccTab(body, representations, context, duplication) {
+function dccTab(body, representations, context, duplication, carriage) {
   // Prose: web/content/chapters/07-traceability.md, which is the only chapter that
   // reaches this helper.
   const t = context.text('traceability');
@@ -840,8 +841,74 @@ function dccTab(body, representations, context, duplication) {
     el('h3', { text: t.text('document.title') }),
     el('pre', { class: 'code json json--tall', text: dcc.content || `published separately at ${dcc.id}` }),
     callout([dcc.signatureNote]),
-    duplication || null
+    duplication || null,
+    carriage || null
   );
+}
+
+/**
+ * Find one step of a verification report by id, however deeply it is nested.
+ *
+ * @param {object} report  what POST /api/verify returned
+ * @param {string} id  the step id, for example 'uncertainty.duplication'
+ * @returns {object|null} the step, or null when the pipeline did not run it
+ */
+function findStep(report, id) {
+  const walk = (steps) => {
+    for (const step of steps || []) {
+      if (step.id === id) return step;
+      const found = walk(step.children);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(report.steps);
+}
+
+/**
+ * Show what a credential pointing at an external document can and cannot settle.
+ *
+ * The comparison is written down; the verdicts beside it are read out of a real
+ * verification, so the claim that a pointer credential decides less cannot quietly stop
+ * being true.
+ *
+ * @param {object} context  the chapter render context
+ * @returns {Promise<Element>} the panel
+ */
+async function carriagePanel(context) {
+  // Prose: web/content/chapters/07-traceability.md
+  const t = context.text('traceability');
+  const report = await api.verify({ name: 'metas-external-dcc' });
+
+  const rows = [
+    ['scope', 'Inside the declared capability?', 'measurand and unit only'],
+    ['external-document', 'Is the document the one signed for?', 'digest and XML signature'],
+    ['uncertainty', 'Does the budget support the stated U?', 'no budget to check'],
+    ['traceability', 'Does the chain reach a national standard?', 'nothing to follow'],
+  ].map(([id, question, note]) => {
+    const step = findStep(report, id);
+    return [badge(step ? step.status : 'skip'), question, el('span', { class: 'muted', text: note })];
+  });
+
+  return panel(t.text('carriage.title'), t.text('carriage.hint'), [
+    t.prose('carriage'),
+    table(
+      ['', 'Carried in the credential', 'Pointed at by digest', 'The document as subject'],
+      [
+        ['where the document is', 'inside, or by URL', 'outside, by URL and digest', 'it is the subject'],
+        ['facts stated twice', 'six, and compared', 'four, and unchecked', 'none'],
+        ['CMC scope decidable', 'yes', 'measurand and unit only', 'yes'],
+        ['uncertainty consistency', 'yes', 'no', 'yes'],
+        ['traceability by digest', 'yes', 'no', 'yes'],
+        ['trust paths over the bytes', 'one', 'two', 'one'],
+        ['built here', 'yes', 'yes', 'no'],
+      ]
+    ),
+    el('h3', { text: t.text('verdicts.title') }),
+    el('p', { class: 'muted', text: t.text('verdicts.hint') }),
+    table(['', 'What a verifier wants to know', 'What it had to work with'], rows),
+    t.prose('verdicts'),
+  ]);
 }
 
 /** Show every fact the credential and the PTB/DKD DCC both state, and whether they agree. */
@@ -850,20 +917,8 @@ async function duplicationPanel(context, certificateName) {
   const t = context.text('traceability');
   const report = await api.verify({ name: certificateName });
 
-  const find = (id) => {
-    const walk = (steps) => {
-      for (const step of steps) {
-        if (step.id === id) return step;
-        const found = walk(step.children || []);
-        if (found) return found;
-      }
-      return null;
-    };
-    return walk(report.steps);
-  };
-
-  const duplication = find('uncertainty.duplication');
-  const agreement = find('uncertainty.agreement');
+  const duplication = findStep(report, 'uncertainty.duplication');
+  const agreement = findStep(report, 'uncertainty.agreement');
 
   const rows = (duplication && duplication.children ? duplication.children : []).map((child) => {
     const parts = child.detail.split(', PTB/DKD DCC says ');
@@ -919,7 +974,11 @@ async function representationPanel(context, certificateName) {
   const result = data.credential.credentialSubject.calibration.results[0];
   const representations = result.uncertaintyRepresentations || [];
   const gtc = await api.gtc();
-  const duplication = await duplicationPanel(context, certificateName);
+  // Both need a verification report and neither needs the other's, so they run together.
+  const [duplication, carriage] = await Promise.all([
+    duplicationPanel(context, certificateName),
+    carriagePanel(context),
+  ]);
 
   const body = el('div', {});
   const tabs = [
@@ -1011,7 +1070,7 @@ async function representationPanel(context, certificateName) {
     }
 
     if (kind === 'dcc') {
-      dccTab(body, representations, context, duplication);
+      dccTab(body, representations, context, duplication, carriage);
       return;
     }
 
