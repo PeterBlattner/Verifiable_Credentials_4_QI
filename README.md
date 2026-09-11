@@ -222,6 +222,7 @@ So every certificate here offers its uncertainty three ways at once:
 | **METAS UncLib** | every input quantity, its own identifier, its distribution, and the sensitivity to it — as [XML or binary][unclib] | recombine correctly, because shared influences are recognisable |
 | **GTC** | the same idea from [MSL New Zealand][gtc], UUID-identified elementary quantities in a JSON archive | the same, from an independent implementation |
 | **PTB/DKD DCC** | the whole certificate in the [PTB/DKD][dcc] schema 3.3.0, quantities in D-SI | read it as a standardised calibration certificate |
+| **PTB/DKD DCC, by reference** | a URL, two digests and four facts of index; the document stays outside the credential | fetch it, check it is the document that was signed for, and read it yourself |
 
 The classical statement is always present and always first. It is what remains legally
 recognisable and the only thing an issuer without such a tool can offer. The others are
@@ -244,9 +245,20 @@ Carrying it is not free. Wrapping a standardised document inside a credential sa
 of the certificate twice — who calibrated, for whom, when, under which number, and the
 integrity mechanism itself. Duplication permits disagreement, and a signature does
 nothing about copies that were written inconsistent. So the verifier reads both and
-compares them, and the demonstration signs once: the credential proof covers the
-credential, the credential carries a digest of the DCC bytes, and the `ds:Signature`
-slot stays empty. Chapter 6 lays out the alternatives.
+compares them, and for these certificates the demonstration signs once: the credential
+proof covers the credential, the credential carries a digest of the DCC bytes, and the
+`ds:Signature` slot stays empty.
+
+One certificate does it the other way round, so the alternative can be looked at rather
+than only read about. `METAS-2026-0420` is an `ExternalDocumentCredential`: it carries no
+measurement at all, only a URL, two digests and four facts of index, and the document it
+points at is the DKD's own published example for standard resistors, at schema 3.4.0-rc.2
+rather than the 3.3.0 generated here, with a real `ds:Signature` over it. Nothing is
+duplicated, so nothing can disagree — and the verifier can no longer check the range, the
+uncertainty floor, the budget or the traceability chain, and reports each of those as a
+warning or a skip rather than passing them. It still comes out **verified**, which is the
+most useful thing the comparison shows: a verdict means what the checks behind it were
+able to reach. Chapter 6 lays both out side by side.
 
 Chapter 6 makes the difference concrete. Two check standards, both calibrated against the
 same national standard, are correlated at r = 0.69. A customer forming their difference
