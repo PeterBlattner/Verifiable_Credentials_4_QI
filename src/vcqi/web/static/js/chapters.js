@@ -791,8 +791,16 @@ async function chapterScope(context) {
 
 // ---------------------------------------------------------------- chapter 6
 
-/** Render the PTB/DKD DCC tab: the document, and what it does that the others do not. */
-function dccTab(body, representations, context) {
+/**
+ * Render the PTB/DKD DCC tab: the document, and what it does that the others do not.
+ *
+ * `duplication` is the panel comparing the facts the credential and the document both
+ * state, built by the caller because it needs a verification report and this helper is
+ * synchronous. It belongs here rather than beside the tabs: everything it says is about
+ * wrapping a PTB/DKD DCC in a credential, and a reader on the Classical or the UncLib tab
+ * was being told that a document they were not looking at duplicates most of itself.
+ */
+function dccTab(body, representations, context, duplication) {
   // Prose: web/content/chapters/07-traceability.md, which is the only chapter that
   // reaches this helper.
   const t = context.text('traceability');
@@ -831,7 +839,8 @@ function dccTab(body, representations, context) {
     t.callout('siunitx'),
     el('h3', { text: t.text('document.title') }),
     el('pre', { class: 'code json json--tall', text: dcc.content || `published separately at ${dcc.id}` }),
-    callout([dcc.signatureNote])
+    callout([dcc.signatureNote]),
+    duplication || null
   );
 }
 
@@ -839,7 +848,6 @@ function dccTab(body, representations, context) {
 async function duplicationPanel(context, certificateName) {
   // Prose: web/content/chapters/07-traceability.md
   const t = context.text('traceability');
-  const data = await api.credential(certificateName);
   const report = await api.verify({ name: certificateName });
 
   const find = (id) => {
@@ -911,6 +919,7 @@ async function representationPanel(context, certificateName) {
   const result = data.credential.credentialSubject.calibration.results[0];
   const representations = result.uncertaintyRepresentations || [];
   const gtc = await api.gtc();
+  const duplication = await duplicationPanel(context, certificateName);
 
   const body = el('div', {});
   const tabs = [
@@ -1002,7 +1011,7 @@ async function representationPanel(context, certificateName) {
     }
 
     if (kind === 'dcc') {
-      dccTab(body, representations, context);
+      dccTab(body, representations, context, duplication);
       return;
     }
 
@@ -1092,7 +1101,6 @@ async function chapterTraceability(context) {
   }
 
   fragment.append(await representationPanel(context, 'metas-calibration'));
-  fragment.append(await duplicationPanel(context, 'metas-calibration'));
 
   const live = el('div', {});
   const state = {

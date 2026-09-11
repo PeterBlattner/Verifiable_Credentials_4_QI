@@ -11,10 +11,15 @@
      too: they are labels, not sentences.
 
      The blocks from representations.title downwards belong to the four representation
-     tabs and the duplication panel. Those are built by helpers shared with nothing else,
-     so they read their words from this file. The field-mapping table and the two
-     signature comparison tables stay in the code: they are assembled as table elements,
-     and dropping them in from here would wrap each in a div.
+     tabs. Those are built by helpers shared with nothing else, so they read their words
+     from this file. The field-mapping table and the two signature comparison tables stay
+     in the code: they are assembled as table elements, and dropping them in from here
+     would wrap each in a div.
+
+     Everything from dcc down -- the mapping panel, the document, what is said twice, and
+     the signature comparison -- appears only when a reader selects the PTB/DKD DCC tab,
+     because all of it is about wrapping that document in a credential. A certificate
+     carrying no PTB/DKD DCC shows the single line in no-dcc instead.
 
      "{inputs}" in the unclib block is the number of input quantities the certificate
      actually carries. Leave the braces alone. -->
