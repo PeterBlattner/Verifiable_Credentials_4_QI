@@ -63,3 +63,7 @@ The finished credential
 <!-- block: finished.hint -->
 
 The proof configuration, plus the signature it covers
+
+<!-- block: what-is-signed -->
+
+One of the documents above is not like the others. Certificate METAS-2026-0420 carries no measurement at all — no value, no Expanded Uncertainty, no budget. Its claims are a URL, two digests of a PTB/DKD DCC published elsewhere, and four facts of index about it. Pick it and watch the canonical form: there is very little of it, because there is very little being said. Everything the certificate actually reports is in a document this credential vouches for and does not contain. Chapter 6 is where that trade is worked through.

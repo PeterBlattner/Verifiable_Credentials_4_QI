@@ -21,7 +21,7 @@ Failure modes
 
 <!-- block: lede -->
 
-Eighteen ways this can go wrong, and the check that catches each. The interesting ones pass every cryptographic test.
+Nineteen ways this can go wrong, and the check that catches each. The interesting ones pass every cryptographic test.
 
 <!-- block: why-break-it -->
 

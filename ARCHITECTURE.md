@@ -117,6 +117,78 @@ facts stated twice and turns the redundancy into somewhere mistakes get caught;
 `validFrom` from it, which is cleanest and probably right for a real deployment; or
 **declare precedence**, which works, needs governance, and is never read when needed.
 
+### The other way to carry it, and what that costs
+
+The three options above are not hypothetical any more: the second of them, *do not
+duplicate*, is now built in a partial form. Certificate `METAS-2026-0420` is an
+`ExternalDocumentCredential`. It carries no measurement at all -- no value, no Expanded
+Uncertainty, no budget -- only a URL, a `relatedResource` with both digest spellings the
+data model allows, and four facts of index: certificate number, date, measurand, unit.
+The document it points at is the DKD's own published example for standard resistors
+(DKD-E 1-1, Appendix A), adapted to this world's fictional actors and carried at schema
+**3.4.0-rc.2** while `domain/dcc.py` generates 3.3.0. That mismatch is the argument for
+the model rather than a defect in it: an issuer ships what its own tooling produces and
+the credential never has to understand it.
+
+What it costs is exact, and the pipeline reports it rather than hiding it:
+
+| Check | Carried in the credential | Pointed at by digest |
+| --- | --- | --- |
+| `scope` | full adjudication against the CMC | **warn** -- measurand and unit only |
+| `uncertainty` | recomputed from the budget | **skip** -- no budget is present |
+| `traceability` | followed by digest | **skip** -- nothing to follow |
+| duplicated facts | six, compared by `uncertainty.duplication` | four, compared by nothing |
+
+`external-document.index` warns on every run by construction. The four index facts are
+what the issuer says about a document this pipeline does not parse -- it could not
+without work, since the example states `si:valueExpandedMU` where `parse_dcc_result`
+reads `si:uncertainty`, a real incompatibility between two versions of one format.
+
+The consequence is worth stating plainly because it is easy to miss: **this credential
+comes out `verified`**. `outcome` is `rejected` only when a step fails, and nothing here
+fails. A verified verdict on a pointer credential is worth less than a verified verdict
+on any other document in this demonstration, and `tests/test_external_dcc.py` asserts
+exactly that pairing so it cannot quietly stop being true. Making `outcome` report a
+third value when a step warns would be defensible and was not done: it would change
+every caller for one credential, and the step tree already says it.
+
+The generated `outputValidation` schema grew an `anyOf` to accommodate this, and the
+reason is worth keeping. What a recognition authorises is a measurement, not a JSON
+shape. A schema naming only the carried form would refuse the pointer form -- not
+because the institute may not do it, but because the schema was written before it did.
+
+### Signing the document as well, which is the thing this avoids everywhere else
+
+The external document is the one place here with a real `ds:Signature`, and it exists to
+make the two-mechanism problem visible rather than only described. It needed two modules
+that are otherwise unnecessary:
+
+- `crypto/xmlc14n.py` -- **Canonical XML 1.1**, for the same reason `crypto/jcs.py`
+  implements RFC 8785 in-repo: the signing path is what is being explained. 1.1 rather
+  than 1.0 because canonicalizing `ds:SignedInfo` is a document-subset operation, which
+  is exactly where the two versions differ; on a document with no `xml:base` and no
+  `xml:id` they agree, and a test says so.
+- `crypto/xmldsig.py` -- an enveloped signature: the enveloped-signature transform, then
+  C14N 1.1, SHA-256, and ECDSA P-256 through the existing RFC 6979 deterministic signer,
+  so the published bytes and therefore the recorded digest are the same on every run.
+
+**`ds:KeyInfo` carries a bare `ds:KeyValue`, not an X.509 certificate.** Two reasons. A
+self-signed certificate would suggest a chain to a certification authority, and there is
+no such authority here; a bare key says the true thing, which is that the signature
+verifies arithmetically and identifies nobody. And certificate signing in `cryptography`
+is randomised, which would break the byte-identical build. A real DCC would use X.509,
+and the contrast is the point: the credential wrapped around the document is what
+supplies an issuer, a resolvable key and a revocation path, and the `ds:Signature` supplies
+none of the three.
+
+**What this is not.** No independent XML Signature implementation is installed on the
+machine this was written on -- `xmlsec` and `lxml` both need native builds -- so nothing
+here establishes interoperability. Conformance rests on the specification's own published
+test cases, transcribed into `tests/test_xmlc14n.py`, and on round-tripping against our
+own verifier. A systematic error shared by the signer and the verifier would pass every
+test in the suite. That is weaker evidence than the RFC 8785 vectors give for JCS, and
+the cheapest way to close it is to hand a signed document to someone who has `xmlsec1`.
+
 **Two names outgrew their contents** when the DCC arrived, and it is better to record
 that than to leave it as a puzzle. The credential member is still
 `uncertaintyRepresentations` although it now also holds a whole certificate, and the
@@ -490,13 +562,39 @@ than assumed.
 | `scope` | the numeric decision a schema cannot express |
 | `mra-logo` | whether a claim of international recognition is justified |
 | `uncertainty` | whether the stated U is supported by the budget offered for it, whether every representation matches its recorded digest, and whether the printed line agrees with the dependency data |
-| `traceability` | whether the chain of certificates below it holds, by content digest, and whether the influences of the parent are genuinely present in this result |
+| `traceability` | whether the chain of certificates below it holds, by content digest; whether the influences of the parent are genuinely present in this result; and whether each hop is about the object the next one used |
 
 Every step returns a structured result rather than a boolean, and a step that cannot be
 evaluated reports `skip` rather than passing quietly. `tests/test_pipeline.py` asserts
-that each of the thirteen failure cases is caught by the step that claims it, and that the
-metrological cases pass `proof`, `validity` and `recognition` first — which is the whole
+that every failure case is caught by the step that claims it, and that the metrological
+cases pass `proof`, `validity` and `recognition` first — which is the whole
 reason they are worth demonstrating.
+
+### Following a chain says nothing about what it is about
+
+`traceability` resolves each reference by identifier and confirms it by content digest,
+which establishes exactly which documents are in the chain. It establishes nothing
+whatever about the *artefact* they concern. A laboratory could reference a genuine,
+unaltered institute certificate for a standard it never owned, and proof, status,
+recognition, the digest, the inherited uncertainty and the shared input quantities would
+all still pass -- because every one of those is a property of the documents.
+
+The object was already written down: `traceableTo` carries an `instrument` beside the id
+and the digest (`actors/scenarios.py`). Nothing read it. `traceability.object-identity`
+now compares it against the subject of the certificate the reference points at, and
+`traceability-names-another-object` is the failure case that exists only because of it.
+
+A reference that names no object reports `skip`, not `pass`. That distinction matters
+here more than usual: most references in this world carry no instrument, so a passing
+verdict would be claiming a check that never ran. What the chain rests on in those cases
+is the documents alone, and the report should say so.
+
+This is the cheap half of a larger question. The identifier compared is a URN minted in
+`domain/instruments.py` and agreed only because one author wrote both ends -- the same
+weakness `tests/test_harmonisation.py` already pins for measurands. Two organisations
+would need a shared way to name a physical artefact before this check means anything
+between them, and that is a governance problem rather than a technical one.
+
 
 ## Not implemented
 

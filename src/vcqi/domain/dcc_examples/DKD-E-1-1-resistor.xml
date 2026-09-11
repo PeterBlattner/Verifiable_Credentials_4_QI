@@ -1,0 +1,577 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dcc:digitalCalibrationCertificate xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://ptb.de/dcc https://ptb.de/dcc/v3.4.0-rc.2/dcc.xsd" xmlns:dcc="https://ptb.de/dcc" xmlns:si="https://ptb.de/si" schemaVersion="3.4.0-rc.2">
+	<!-- 
+    Suggestion for the citation of sources: 
+    DKD Expert report DKD-E 1-1 Anleitung zur Nutzung des DCC-Schemas für die Erstellung eines digitalen Kalibrierscheins für Normalwiderstände, Appendix A, Edition 07/2026, Physikalisch-Technische Bundesanstalt, Braunschweig and Berlin. 
+    DOI: https://doi.org/10.7795/550.20260724A 
+
+    This DCC is part of the 
+    DKD expert report DKD-E 1-1 Anleitung zur Nutzung des DCC-Schemas für die Erstellung eines digitalen Kalibrierscheins für Normalwiderstände, Edition 07/2026, Physikalisch-Technische Bundesanstalt, Braunschweig and Berlin. 
+    DOI: https://doi.org/10.7795/550.20260724 
+    
+    This is NOT a real calibration certificate! 
+    -->
+	<!--
+    ADAPTED COPY. This file is the DKD example above with the laboratory, the
+    customer, the responsible persons, the accreditation statement, the dates and
+    the reported uncertainty replaced by the fictional ones this demonstration
+    uses. Every organisation named below is a .example domain that exists only
+    here. The structure, the element names, the namespaces and the schema version
+    are the DKD's and are unchanged.
+
+    It is carried by an ExternalDocumentCredential, which references it by URL and
+    digest and does not parse it. See src/vcqi/domain/external_dcc.py.
+    -->
+	<!--Dies ist ein Beispiel für einen Normalwiderstand. Das Beispiel wurde im DKD-FA Niederfrequenz im Arbeitskreis DCC DC & NF erstellt.
+ Version des Beispiels: V0.4 , Datum: 12.06.2026   -->
+	<dcc:administrativeData>
+		<dcc:dccSoftware>
+			<dcc:software>
+				<dcc:name>
+					<dcc:content>DCC Software</dcc:content>
+				</dcc:name>
+				<dcc:release>0.1.2</dcc:release>
+			</dcc:software>
+		</dcc:dccSoftware>
+		<dcc:refTypeDefinitions>
+			<dcc:refTypeDefinition>
+				<dcc:name>
+					<dcc:content lang="de">Namensraum für Querschnitts-RefTypes</dcc:content>
+					<dcc:content lang="en">Namespace for Cross-Community RefTypes</dcc:content>
+				</dcc:name>
+				<dcc:description>
+					<dcc:content lang="de">Der Namensraum &apos;basic&apos; beinhaltet allgemeine RefTypes die messgrößenübergreifend genutzt werden.</dcc:content>
+					<dcc:content lang="en">The &quot;basic&quot; namespace contains RefTypes common for multiple communities.</dcc:content>
+				</dcc:description>
+				<dcc:namespace>basic</dcc:namespace>
+				<dcc:link>https://digilab.ptb.de/dkd/refType/vocab/index.php?tema=2</dcc:link>
+			</dcc:refTypeDefinition>
+			<dcc:refTypeDefinition>
+				<!--Sobald Namespace vorhanden ist, hier aktualisieren und Namensraum in Zeile 495/496-->
+				<dcc:name>
+					<dcc:content lang="de">Namensraum für RefTypes der Temperaturmessgrößen</dcc:content>
+					<dcc:content lang="en">Namespace for RefTypes of the Temperature community</dcc:content>
+				</dcc:name>
+				<dcc:description>
+					<dcc:content lang="de">Der Namensraum &apos;temperature&apos; beinhaltet spezifische RefTypes die für elektrische Messgrößen genutzt werden.</dcc:content>
+					<dcc:content lang="en">The &quot;temperature&quot; namespace contains RefTypes for electromagnetic quantities.</dcc:content>
+				</dcc:description>
+				<dcc:namespace>electromagnetic</dcc:namespace>
+				<dcc:link>https://digilab.ptb.de/dkd/refType/vocab/index.php?tema=389</dcc:link>
+			</dcc:refTypeDefinition>
+			<dcc:refTypeDefinition>
+				<dcc:name>
+					<dcc:content lang="de">Namensraum für mathematische RefTypes</dcc:content>
+					<dcc:content lang="en">Namespace for mathematical RefTypes</dcc:content>
+				</dcc:name>
+				<dcc:description>
+					<dcc:content lang="de">Der Namensraum 'math' beinhaltet RefTypes mathematischer Operationen.</dcc:content>
+					<dcc:content lang="en">The "math" namespace contains RefTypes for mathematical operations.</dcc:content>
+				</dcc:description>
+				<dcc:namespace>math</dcc:namespace>
+				<dcc:link>https://digilab.ptb.de/dkd/refType/vocab/index.php?tema=292</dcc:link>
+			</dcc:refTypeDefinition>
+		</dcc:refTypeDefinitions>
+		<dcc:coreData>
+			<dcc:countryCodeISO3166_1>CH</dcc:countryCodeISO3166_1>
+			<dcc:usedLangCodeISO639_1>de</dcc:usedLangCodeISO639_1>
+			<dcc:usedLangCodeISO639_1>en</dcc:usedLangCodeISO639_1>
+			<dcc:mandatoryLangCodeISO639_1>de</dcc:mandatoryLangCodeISO639_1>
+			<dcc:uniqueIdentifier>METAS-2026-0420</dcc:uniqueIdentifier>
+			<dcc:identifications>
+				<dcc:identification refType="basic_certificateIdentifier">
+					<dcc:issuer>calibrationLaboratory</dcc:issuer>
+					<dcc:value>METAS-2026-0420</dcc:value>
+					<dcc:name>
+						<dcc:content lang="de">interne Nummer</dcc:content>
+						<dcc:content lang="en">internal Number</dcc:content>
+					</dcc:name>
+				</dcc:identification>
+				<dcc:identification refType="basic_orderNumber">
+					<dcc:issuer>customer</dcc:issuer>
+					<dcc:value>HTS-2026-0088</dcc:value>
+					<dcc:name>
+						<dcc:content lang="de">Kundenauftrags-Nummer</dcc:content>
+						<dcc:content lang="en">Customerorder-Number</dcc:content>
+					</dcc:name>
+				</dcc:identification>
+				<dcc:identification refType="basic_certificateNumber">
+					<dcc:issuer>calibrationLaboratory</dcc:issuer>
+					<dcc:value>METAS-2026-0420</dcc:value>
+					<dcc:name>
+						<dcc:content lang="de">Zertifikats-Nummer</dcc:content>
+						<dcc:content lang="en">certificate number</dcc:content>
+					</dcc:name>
+				</dcc:identification>
+			</dcc:identifications>
+			<dcc:beginPerformanceDate>2026-02-10</dcc:beginPerformanceDate>
+			<dcc:endPerformanceDate>2026-02-10</dcc:endPerformanceDate>
+			<dcc:performanceLocation>laboratory</dcc:performanceLocation>
+			<dcc:issueDate>2026-02-12</dcc:issueDate>
+		</dcc:coreData>
+		<dcc:items>
+			<dcc:item>
+				<dcc:name>
+					<dcc:content lang="de">AC/DC Normalwiderstand</dcc:content>
+					<dcc:content lang="en">AC/DC Standard Resistor</dcc:content>
+				</dcc:name>
+				<dcc:manufacturer>
+					<dcc:name>
+						<dcc:content>Meterworks Instrumentation AG (demonstration)</dcc:content>
+					</dcc:name>
+				</dcc:manufacturer>
+				<dcc:model>SR100</dcc:model>
+				<dcc:identifications>
+					<dcc:identification refType="basic_identificationNumber">
+						<dcc:issuer>owner</dcc:issuer>
+						<dcc:value>HTS-R100-004</dcc:value>
+						<dcc:name>
+							<dcc:content lang="de">Kundenprüfmittelnummer</dcc:content>
+							<dcc:content lang="en">Customer test equipment number</dcc:content>
+						</dcc:name>
+					</dcc:identification>
+					<dcc:identification refType="basic_identificationNumber">
+						<dcc:issuer>customer</dcc:issuer>
+						<dcc:value>HTS-INV-20260088</dcc:value>
+						<dcc:name>
+							<dcc:content lang="de">Kunden Inventarnummer</dcc:content>
+							<dcc:content lang="en">Customer inventory number</dcc:content>
+						</dcc:name>
+					</dcc:identification>
+					<dcc:identification refType="basic_identificationNumber">
+						<dcc:issuer>calibrationLaboratory</dcc:issuer>
+						<dcc:value>12345678</dcc:value>
+						<dcc:name>
+							<dcc:content lang="de">Labor Nummer</dcc:content>
+							<dcc:content lang="en">Laboratory number</dcc:content>
+						</dcc:name>
+					</dcc:identification>
+					<dcc:identification refType="basic_serialNumber">
+						<dcc:issuer>manufacturer</dcc:issuer>
+						<dcc:value>SR100-0417</dcc:value>
+						<dcc:name>
+							<dcc:content lang="de">Hersteller Seriennummer</dcc:content>
+							<dcc:content lang="en">Manufacturer serial number</dcc:content>
+						</dcc:name>
+					</dcc:identification>
+				</dcc:identifications>
+				<!-- itemQuantaties ist optional -->
+				<dcc:itemQuantities>
+					<dcc:itemQuantity refType="basic_nominalValue">
+						<dcc:name>
+							<dcc:content lang="de">Nennwert</dcc:content>
+							<dcc:content lang="en">Nominal value</dcc:content>
+						</dcc:name>
+						<si:real>
+							<si:value>100</si:value>
+							<si:unit>\ohm</si:unit>
+						</si:real>
+					</dcc:itemQuantity>
+				</dcc:itemQuantities>
+			</dcc:item>
+		</dcc:items>
+		<dcc:calibrationLaboratory>
+			<dcc:calibrationLaboratoryCode>CH-NMI-METAS-DEMO</dcc:calibrationLaboratoryCode>
+			<dcc:contact>
+				<dcc:name>
+					<dcc:content>Federal Institute of Metrology (demonstration)</dcc:content>
+				</dcc:name>
+				<dcc:eMail>calibration@metas.example</dcc:eMail>
+				<dcc:phone>+41 00 000 00 00</dcc:phone>
+				<dcc:location>
+					<dcc:countryCode>CH</dcc:countryCode>
+					<dcc:postCode>3003</dcc:postCode>
+					<dcc:city>Bern-Wabern (demonstration)</dcc:city>
+					<dcc:street>Lindenweg</dcc:street>
+					<dcc:streetNo>50</dcc:streetNo>
+				</dcc:location>
+			</dcc:contact>
+		</dcc:calibrationLaboratory>
+		<dcc:respPersons>
+			<dcc:respPerson>
+				<dcc:person>
+					<dcc:name>
+						<dcc:content>Max Mustermann</dcc:content>
+					</dcc:name>
+				</dcc:person>
+				<dcc:role>Head of the calibration laboratory (demonstration)</dcc:role>
+				<dcc:mainSigner>true</dcc:mainSigner>
+			</dcc:respPerson>
+			<dcc:respPerson>
+				<dcc:person>
+					<dcc:name>
+						<dcc:content>Martina Musterfrau</dcc:content>
+					</dcc:name>
+				</dcc:person>
+				<dcc:role>Released the certificate (demonstration)</dcc:role>
+			</dcc:respPerson>
+		</dcc:respPersons>
+		<dcc:customer>
+			<dcc:name>
+				<dcc:content>Helvetia Testing Services GmbH (demonstration)</dcc:content>
+			</dcc:name>
+			<dcc:location>
+				<dcc:city>Zurich (demonstration)</dcc:city>
+				<dcc:countryCode>CH</dcc:countryCode>
+				<dcc:postCode>8005</dcc:postCode>
+			</dcc:location>
+		</dcc:customer>
+		<dcc:statements>
+			<dcc:statement refType="basic_resultScope">
+				<dcc:norm>DIN EN ISO/IEC 17025:2018-03</dcc:norm>
+				<dcc:declaration>
+					<dcc:content lang="de">Die Ergebnisse beziehen sich nur auf den in diesem DCC beschriebenen Gegenstand.</dcc:content>
+					<dcc:content lang="en">The results refer only to the object calibrated in this DCC.</dcc:content>
+				</dcc:declaration>
+			</dcc:statement>
+			<dcc:statement id="accredited" refType="basic_isInCMC">
+				<dcc:description>
+					<dcc:content lang="de">Alle Messergebnisse werden von einem dcc:valid-Element (oder dcc:validXMLList-Element) begleitet, 
+											das durch eine refId auf dieses dcc:statement-Element verweist. 
+											Einträge "true" innerhalb dieses dcc:valid-Elements (oder dcc:validXMLList-Elements) geben an, dass 
+											(a) die zugehörigen Ergebnisse innerhalb des akkreditierten (oder KCDB-abgedeckten) Bereichs liegen UND 
+											(b) dass die mit den Werten verbundene Unsicherheit größer oder gleich der CMC-Unsicherheit ist.</dcc:content>
+					<dcc:content lang="en">All measurement results are accompanied by a dcc:valid (or dcc:validXMLList) element 
+											with a refId pointing to this dcc:statement element. 
+											Entries "true" within this dcc:valid (or dcc:validXMLList) element denote that 
+											(a) the associated result(s) is/are within the accredited (or KCDB-covered) range AND 
+											(b) that the uncertainty associated with the value(s) is greater than or equal to the CMC uncertainty.</dcc:content>
+				</dcc:description>
+				<dcc:link>https://bipm.example/kcdb/cmc/CH-EM-0042</dcc:link>
+				<dcc:declaration>
+					<dcc:content lang="en">The issuing institute is a signatory of the CIPM Mutual Recognition Arrangement, and this calibration falls within the calibration and measurement capability CH-EM-0042 published in the key comparison database. Every organisation named in this document is fictional.</dcc:content>
+				</dcc:declaration>
+				<dcc:respAuthority>
+					<dcc:name>
+						<dcc:content>BIPM (demonstration)</dcc:content>
+					</dcc:name>
+					<dcc:eMail>kcdb@bipm.example</dcc:eMail>
+					<dcc:location>
+						<dcc:city>Sevres (demonstration)</dcc:city>
+					</dcc:location>
+				</dcc:respAuthority>
+			</dcc:statement>
+			<dcc:statement id="traceable" refType="basic_metrologicallyTraceableToSI">
+				<dcc:description>
+					<dcc:content lang="de">Alle Messergebnisse werden von einem dcc:valid-Element (oder dcc:validXMLList-Element) begleitet, 
+											das durch eine refId auf dieses dcc:statement-Element verweist. 
+											Einträge "true" innerhalb dieses dcc:valid-Elements (oder dcc:validXMLList-Elements) geben an, 
+											dass die zugehörigen Ergebnisse metrologisch auf das SI rückführbar sind.</dcc:content>
+					<dcc:content lang="en">All measurement results are accompanied by a dcc:valid (or dcc:validXMLList) element 
+											with a refId pointing to this dcc:statement element. 
+											Entries "true" within this dcc:valid (or dcc:validXMLList) element denote that 
+											the associated result(s) is/are metrologically traceable to the SI.</dcc:content>
+				</dcc:description>
+				<dcc:norm>ISO/IEC 17025:2017</dcc:norm>
+				<dcc:reference>7.8.4.1c</dcc:reference>
+				<dcc:link>https://www.iso.org/obp/ui/fr/#iso:std:iso-iec:17025:ed-3:v1:en</dcc:link>
+				<dcc:declaration>
+					<dcc:content lang="de">Dieser Kalibrierschein dokumentiert die metrologische Rückführbarkeit 
+											auf nationale Normale zur Darstellung der Einheiten 
+											in Übereinstimmung mit dem Internationalen Einheitensystem (SI).</dcc:content>
+					<dcc:content lang="en">This calibration certificate documents the metrological traceability 
+											to national standards, which realize the units of measurement 
+											according to the International System of Units (SI).</dcc:content>
+				</dcc:declaration>
+			</dcc:statement>
+			<dcc:statement refType="basic_recalibrationDate">
+				<dcc:norm>ISO/IEC 17025:2017</dcc:norm>
+				<dcc:reference>7.8.4.3</dcc:reference>
+				<dcc:link>https://www.iso.org/obp/ui/fr/#iso:std:iso-iec:17025:ed-3:v1:en</dcc:link>
+				<dcc:declaration>
+					<dcc:content lang="de">Die Ergebnisse gelten zum Zeitpunkt der Kalibrierung. Es obliegt dem Verwender, zu gegebener Zeit eine Rekalibrierung zu veranlassen.</dcc:content>
+					<dcc:content lang="en">The results refer only to the object calibrated in this DCC. The measurement results are valid at the time of calibration. The user is responsible for arranging a recalibration in due time.</dcc:content>
+				</dcc:declaration>
+			</dcc:statement>
+		</dcc:statements>
+	</dcc:administrativeData>
+	<dcc:measurementResults>
+		<dcc:measurementResult>
+			<dcc:name>
+				<dcc:content lang="de">Messergebnisse</dcc:content>
+				<dcc:content lang="en">Measurement results</dcc:content>
+			</dcc:name>
+			<dcc:usedMethods>
+				<dcc:usedMethod refType="basic_calibrationMethod">
+					<!--https://digilab.ptb.de/dkd/refType/vocab/index.php?tema=156&/calibrationmethod-->
+					<dcc:name>
+						<!-- Noch nicht alle Informationen digital hinterlegt. Digital hinterlegte Informationen könnten/sollten hier entfallen.-->
+						<dcc:content lang="de">Der Wert des Widerstandes wurde bei konstantem Messstrom mittels eines DC-Widerstandskomparators durch Vergleich mit einem
+			                       Normalwiderstand des Nennwertes 100 Ω ermittelt. Der Kalibriergegenstand befand sich während der Kalibrierung in einem thermostatischen, 
+								   umwälzenden Ölbad bei t = 23 °C. Die Messungen erfolgten in 4-Leiter-Technik.</dcc:content>
+						<dcc:content lang="en">The resistance value was calculated at constant measuring current, measured by comparison with a standard resistor of a nominal value of 100 Ω using a 
+									DC resistance comparator. The calibration object was placed in a circulating oil bath at t = 23 °C during the calibration. 
+									The measurements were carried out using a 4 wire technique.</dcc:content>
+					</dcc:name>
+				</dcc:usedMethod>
+				<dcc:usedMethod refType="basic_methodMeasurementUncertainty">
+					<!--https://digilab.ptb.de/dkd/refType/vocab/index.php?tema=111&/methodmeasurementuncertainty den refType "basic_uncertainty" gibt es nicht-->
+					<dcc:name>
+						<dcc:content lang="de">Erweiterte Messunsicherheit</dcc:content>
+						<dcc:content lang="en">Expanded uncertainty</dcc:content>
+					</dcc:name>
+					<dcc:description>
+						<dcc:content lang="de">Angegeben ist die erweiterte Messunsicherheit, die sich aus der Standardmessunsicherheit durch Multiplikation mit dem Er-weiterungsfaktor k = 2 ergibt. Sie wurde gemäß EA-4/02 M: 2022 ermittelt. Der Wert der Messgröße liegt mit einer Wahrschein-lichkeit von etwa 95 % im zugeordneten Werteintervall. Ein Anteil für die Langzeit-Instabilität ist nicht enthalten.</dcc:content>
+						<dcc:content lang="en">The expanded uncertainty of measurement corresponding to the measurement results is stated as the standard uncertainty of measurement multiplied by the coverage factor k = 2. This was determined in accordance with EA-4/02 M: 2022. Usually the true value is located within the corresponding interval with a probability of approximately 95%. A ratio for the long-term instability is not included.</dcc:content>
+					</dcc:description>
+					<dcc:norm>EA-4/02 M:2022</dcc:norm>
+					<dcc:link>https://european-accreditation.org/wp-content/uploads/2018/10/EA-4-02.pdf</dcc:link>
+				</dcc:usedMethod>
+			</dcc:usedMethods>
+			<dcc:measuringEquipments>
+				<dcc:measuringEquipment>
+					<dcc:name>
+						<dcc:content lang="de">DC-Komparator</dcc:content>
+						<dcc:content lang="en">DC Resistance Bridge</dcc:content>
+					</dcc:name>
+					<dcc:certificate>
+						<dcc:referral>
+							<dcc:content>https://metas.example/equipment</dcc:content>
+						</dcc:referral>
+						<dcc:referralID>UUID</dcc:referralID>
+						<dcc:procedure>analogue</dcc:procedure>
+						<dcc:value>analogue</dcc:value>
+					</dcc:certificate>
+					<dcc:identifications>
+						<dcc:identification>
+							<dcc:issuer>calibrationLaboratory</dcc:issuer>
+							<dcc:value>METAS-BRIDGE-02</dcc:value>
+							<dcc:name>
+								<dcc:content lang="de">ID</dcc:content>
+								<dcc:content lang="en">ID</dcc:content>
+							</dcc:name>
+						</dcc:identification>
+					</dcc:identifications>
+				</dcc:measuringEquipment>
+				<dcc:measuringEquipment>
+					<dcc:name>
+						<dcc:content lang="de">Gebrauchs-Widerstandsnormal</dcc:content>
+						<dcc:content lang="en">Working resistance standard</dcc:content>
+					</dcc:name>
+					<dcc:certificate>
+						<dcc:referral>
+							<dcc:content>https://metas.example/equipment</dcc:content>
+						</dcc:referral>
+						<dcc:referralID>UUID</dcc:referralID>
+						<dcc:procedure>analogue</dcc:procedure>
+						<dcc:value>analogue</dcc:value>
+					</dcc:certificate>
+					<dcc:identifications>
+						<dcc:identification>
+							<dcc:issuer>calibrationLaboratory</dcc:issuer>
+							<dcc:value>METAS-SR100-NAT</dcc:value>
+							<dcc:name>
+								<dcc:content lang="de">ID</dcc:content>
+								<dcc:content lang="en">ID</dcc:content>
+							</dcc:name>
+						</dcc:identification>
+					</dcc:identifications>
+				</dcc:measuringEquipment>
+			</dcc:measuringEquipments>
+			<dcc:influenceConditions>
+				<dcc:influenceCondition refType="basic_ambient">
+					<dcc:name>
+						<dcc:content lang="de">Umgebungsbedingung</dcc:content>
+						<dcc:content lang="en">Environmental condition</dcc:content>
+					</dcc:name>
+					<dcc:description>
+						<dcc:content lang="de">Alle Werte wurden während der Kalibrierung überwacht.</dcc:content>
+						<dcc:content lang="en">All values were monitored during calibration.</dcc:content>
+					</dcc:description>
+					<dcc:data>
+						<dcc:quantity refType="basic_temperature">
+							<dcc:name>
+								<dcc:content lang="de">Umgebungsbedingung Temperatur</dcc:content>
+								<dcc:content lang="en">Environmental condition temperature</dcc:content>
+							</dcc:name>
+							<si:real>
+								<si:value>23.0</si:value>
+								<si:unit>\degreecelsius</si:unit>
+								<si:measurementUncertaintyUnivariate>
+									<si:expandedMU>
+										<si:valueExpandedMU>1</si:valueExpandedMU>
+										<si:coverageFactor>1.732</si:coverageFactor>
+										<si:coverageProbability>1</si:coverageProbability>
+										<si:distribution>uniform</si:distribution>
+									</si:expandedMU>
+								</si:measurementUncertaintyUnivariate>
+							</si:real>
+						</dcc:quantity>
+						<dcc:quantity refType="basic_humidityRelative">
+							<dcc:name>
+								<dcc:content lang="de">Umgebungsbedingung rel. Feuchte</dcc:content>
+								<dcc:content lang="en">Environmental condition relative humidity</dcc:content>
+							</dcc:name>
+							<si:real>
+								<si:value>0.45</si:value>
+								<si:unit>\one</si:unit>
+								<si:measurementUncertaintyUnivariate>
+									<si:expandedMU>
+										<si:valueExpandedMU>0.25</si:valueExpandedMU>
+										<si:coverageFactor>1.732</si:coverageFactor>
+										<si:coverageProbability>1</si:coverageProbability>
+										<si:distribution>uniform</si:distribution>
+									</si:expandedMU>
+								</si:measurementUncertaintyUnivariate>
+							</si:real>
+						</dcc:quantity>
+						<dcc:quantity refType="basic_pressure">
+							<dcc:name>
+								<dcc:content lang="de">Umgebungsbedingung Absolutdruck</dcc:content>
+								<dcc:content lang="en">Environmental condition absolute pressure</dcc:content>
+							</dcc:name>
+							<si:real>
+								<si:value>102000</si:value>
+								<si:unit>\pascal</si:unit>
+								<si:measurementUncertaintyUnivariate>
+									<si:expandedMU>
+										<si:valueExpandedMU>500</si:valueExpandedMU>
+										<si:coverageFactor>1.732</si:coverageFactor>
+										<si:coverageProbability>1</si:coverageProbability>
+										<si:distribution>uniform</si:distribution>
+									</si:expandedMU>
+								</si:measurementUncertaintyUnivariate>
+							</si:real>
+						</dcc:quantity>
+					</dcc:data>
+				</dcc:influenceCondition>
+			</dcc:influenceConditions>
+			<dcc:results>
+				<dcc:result>
+					<dcc:name>
+						<dcc:content lang="de">Messergebnisse</dcc:content>
+						<dcc:content lang="en">Measuring results</dcc:content>
+					</dcc:name>
+					<dcc:data>
+						<!-- kein refType bei list, da hier mit "measurands" gearbeitet wird -->
+						<dcc:list>
+							<!--diese list-Ebene ist nicht überflüssig, da hier, obwohl nur eine quantity berichtet wird, dieses als Anker für influenceCondition und measurands benötigt wird, die stehen weiter unten-->
+							<dcc:quantity refType="basic_referenceValue math_arithmeticMean">
+								<!--"math_arithmeticMean" in Abstimmung im QA: https://gitlab1.ptb.de/d-ptb/dcc/TCs/dcc-ua-querschnittsthemen/-/issues/112-->
+								<dcc:name>
+									<dcc:content lang="de">Messwert Kalibriergegenstand</dcc:content>
+									<dcc:content lang="en">measured value probe</dcc:content>
+								</dcc:name>
+								<si:real>
+									<si:value>100.001502</si:value>
+									<si:unit>\ohm</si:unit>
+									<si:measurementUncertaintyUnivariate>
+										<si:expandedMU>
+											<si:valueExpandedMU>0.00025</si:valueExpandedMU>
+											<si:coverageFactor>2</si:coverageFactor>
+											<si:coverageProbability>0.95</si:coverageProbability>
+											<si:distribution>normal</si:distribution>
+										</si:expandedMU>
+									</si:measurementUncertaintyUnivariate>
+								</si:real>
+								<dcc:influenceConditions>
+									<dcc:influenceCondition refType="electromagnetic_measuringCurrent">
+										<!--ISO/IEC 17025:2017 7.8.2.1n-->
+										<!--Zukünftig ohne refType, wenn über dcc:measurand spezifiziert-->
+										<dcc:name>
+											<dcc:content lang="de">Verwendeter Messstrom bei der Kalibrierung</dcc:content>
+											<dcc:content lang="en">Measuring current used</dcc:content>
+										</dcc:name>
+										<dcc:description>
+											<dcc:content lang="de">Der Gleichstromwiderstand wurde bei der hier gennanten Messstromstärke ermittelt</dcc:content>
+											<dcc:content lang="en">The DC resistance value was determined at the mentioned current</dcc:content>
+										</dcc:description>
+										<dcc:data>
+											<dcc:quantity>
+												<dcc:name>
+													<dcc:content lang="de">Effektiver Messstrom</dcc:content>
+													<dcc:content lang="en">Measuring current (RMS)</dcc:content>
+												</dcc:name>
+												<si:real>
+													<si:value>0.01</si:value>
+													<si:unit>\ampere</si:unit>
+												</si:real>
+											</dcc:quantity>
+										</dcc:data>
+									</dcc:influenceCondition>
+								</dcc:influenceConditions>
+								<dcc:measurementMetaData>
+									<dcc:metaData refId="traceable">
+										<dcc:valid>true</dcc:valid>
+									</dcc:metaData>
+									<dcc:metaData refId="accredited">
+										<dcc:valid>true</dcc:valid>
+									</dcc:metaData>
+								</dcc:measurementMetaData>
+							</dcc:quantity>
+							<dcc:measurands>
+								<dcc:measurand>
+									<dcc:name>
+										<dcc:content lang="de">Gleichstromwiderstand</dcc:content>
+										<dcc:content lang="en">DC resistance</dcc:content>
+									</dcc:name>
+									<dcc:description/>
+									<dcc:informationSources>
+										<!-- References to entries for the complete measurand -->
+										<dcc:informationSource>
+											<dcc:reference>Metrology Database</dcc:reference>
+											<dcc:referenceID>Electromagnetic.Impedance.DC.Resistance</dcc:referenceID>
+											<dcc:link>https://digilab.ptb.de/dkd/refType/vocab/index.php?tema=514</dcc:link>
+										</dcc:informationSource>
+									</dcc:informationSources>
+									<!--
+                    <dcc:measurandSpecifications>
+                        <dcc:measurandSpecification>
+                            <dcc:name>
+                                <dcc:content lang="en">Anschlusstechnik</dcc:content>
+                                <dcc:content lang="de">connection type</dcc:content>
+                            </dcc:name>
+                            <dcc:informationSources>
+                                <dcc:informationSource>
+                                    <dcc:reference>Metrology Database</dcc:reference>
+                                    <dcc:referenceID>xxx</dcc:referenceID>
+                                    <dcc:link>https://digilab.ptb.de/dkd/refType/vocab/index.php?tema=xxx</dcc:link>
+                                </dcc:informationSource>
+                            </dcc:informationSources>
+                        </dcc:measurandSpecification>
+              -->
+									<!--mehrere Anschlussbedingungen könnten als dcc:measurandSpecification eingefügt werden - Unterscheidung dann per refType -->
+									<!-->
+					</dcc:measurandSpecifications>
+                -->
+                </dcc:measurand>
+						</dcc:measurands>
+						<dcc:influenceConditions>
+							<dcc:influenceCondition>
+								<dcc:name>
+									<dcc:content lang="de">Kalibrierbedingung</dcc:content>
+									<dcc:content lang="en">Calibration condition</dcc:content>
+								</dcc:name>
+								<dcc:data>
+									<dcc:quantity refType="basic_temperature">
+										<dcc:name>
+											<dcc:content lang="de">Messtemperatur t90</dcc:content>
+											<dcc:content lang="en">Measurement temperature t90</dcc:content>
+										</dcc:name>
+										<dcc:description>
+											<dcc:content lang="de">Der Gleichstromwiderstand wurde bei der hier genannten Temperatur ermittelt</dcc:content>
+											<dcc:content lang="en">The DC resistance value was determined at the mentioned temperature</dcc:content>
+										</dcc:description>
+										<si:real>
+											<si:value>23.0</si:value>
+											<si:unit>\degreecelsius</si:unit>
+											<si:measurementUncertaintyUnivariate>
+												<si:expandedMU>
+													<si:valueExpandedMU>1</si:valueExpandedMU>
+													<si:coverageFactor>1.732</si:coverageFactor>
+													<si:coverageProbability>1</si:coverageProbability>
+													<si:distribution>uniform</si:distribution>
+												</si:expandedMU>
+											</si:measurementUncertaintyUnivariate>
+										</si:real>
+									</dcc:quantity>
+								</dcc:data>
+							</dcc:influenceCondition>
+						</dcc:influenceConditions>
+					</dcc:list>
+				</dcc:data>
+			</dcc:result>
+		</dcc:results>
+	</dcc:measurementResult>
+</dcc:measurementResults>
+</dcc:digitalCalibrationCertificate>

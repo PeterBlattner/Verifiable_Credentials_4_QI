@@ -35,12 +35,14 @@ from pathlib import Path
 from typing import Any
 
 from vcqi.crypto.dataintegrity import ProofTrace, sign_document
+from vcqi.crypto.xmldsig import C14N_ALGORITHM, SIGNATURE_ALGORITHM
 from vcqi.domain import accreditation as accreditation_registry
 from vcqi.domain import kcdb as kcdb_registry
 from vcqi.domain.engine import mu
 from vcqi.domain.instruments import SHARED_REFERENCE_PAIR, instrument_by_id
 from vcqi.domain.oiml import RECOMMENDATIONS, instrument_type_by_id, recommendation_by_id
 from vcqi.domain.dcc import to_dcc_xml
+from vcqi.domain.external_dcc import EXTERNAL_DCC_INDEX, external_dcc_bytes
 from vcqi.domain.gtc_archive import build_gtc_archive
 from vcqi.domain.uncertainty import (
     MeasurementResult,
@@ -59,6 +61,7 @@ from vcqi.vc.model import (
     artefact_document,
     calibration_certificate_credential,
     credential_reference,
+    external_document_credential,
     issuer_reference,
     oiml_certificate_credential,
     product_conformity_credential,
@@ -86,6 +89,8 @@ GLOBAL_ACI_RECOGNITION = "https://global-aci.example/recognition/global-aci-mra-
 SAS_RECOGNITION = "https://sas.example/recognition/accredited-bodies-2026"
 
 METAS_CERTIFICATE = "https://metas.example/certificates/METAS-2026-0417"
+#: The one certificate in this world that exists only as an external document.
+METAS_EXTERNAL = "https://metas.example/certificates/METAS-2026-0420"
 CALLAB_CERTIFICATE = "https://callab.example/certificates/AC-2026-1182"
 METAS_CHECK_A = "https://metas.example/certificates/METAS-2026-0418"
 METAS_CHECK_B = "https://metas.example/certificates/METAS-2026-0419"
@@ -124,6 +129,7 @@ STATUS_INDEX = {
     GLOBAL_ACI_RECOGNITION: 1,
     SAS_RECOGNITION: 1,
     METAS_CERTIFICATE: 7,
+    METAS_EXTERNAL: 12,
     CALLAB_CERTIFICATE: 3,
     TESTLAB_REPORT: 5,
     CAB_CERTIFICATE: 2,
@@ -1123,6 +1129,74 @@ def _shared_reference_pair(world: World, unused: MeasurementResult) -> None:
         world._register(f"metas-{instrument.serial_number}", signed, trace)
 
 
+def _external_document_certificate(world: World) -> None:
+    """Issue the certificate that exists only as a document outside its credential.
+
+    Everything else the institute issues carries its PTB/DKD DCC as a passenger beside a
+    readable subject. This one carries a URL, a digest and four facts of index, and the
+    document -- the DKD's own published example for standard resistors, adapted to this
+    world -- is published separately with its own ``ds:Signature`` over it.
+
+    Two integrity mechanisms therefore cover overlapping content, which is the situation
+    every other certificate here avoids by signing once. It is built deliberately, so the
+    chapter can show what each one does and does not settle.
+
+    Args:
+        world: The world being built.
+    """
+    metas = actor_by_did("did:web:metas.example")
+    testlab = actor_by_did("did:web:testlab.example")
+    assert metas is not None and testlab is not None
+
+    cmc = kcdb_registry.cmc_by_id("CH-EM-0042")
+    assert cmc is not None
+
+    key = actor_key("did:web:metas.example")
+    document = external_dcc_bytes(key)
+    address = f"{METAS_EXTERNAL}/certificate.dcc.xml"
+    world.publish_artefacts({address: ("application/xml", document)})
+
+    index = EXTERNAL_DCC_INDEX
+    credential = external_document_credential(
+        credential_id=METAS_EXTERNAL,
+        issuer=issuer_reference(
+            "did:web:metas.example", metas.legal_name, recognized_in=BIPM_RECOGNITION
+        ),
+        valid_from=_stamp(METAS_ISSUED),
+        valid_until=_stamp(METAS_EXPIRES),
+        document_url=address,
+        document=document,
+        document_format="PTB-DKD-DCC-XML",
+        specification="https://www.ptb.de/dcc/",
+        media_type="application/xml",
+        schema_version=index.schema_version,
+        namespace=index.namespace,
+        quantity_format=index.quantity_format,
+        certificate_number=index.certificate_number,
+        performed_on=index.performed_on,
+        measurand=index.measurand,
+        unit=index.unit,
+        capability_reference={
+            "id": cmc.url,
+            "type": "KcdbCmcEntry",
+            "identifier": cmc.identifier,
+        },
+        xml_signature={
+            "canonicalization": C14N_ALGORITHM,
+            "algorithm": SIGNATURE_ALGORITHM,
+            "keyDiscovery": "ds:KeyValue, inline, with no certificate chain",
+            "note": (
+                "The document carries its own signature as well. It proves the bytes "
+                "have not changed and says nothing about who made them, because there "
+                "is no chain to follow and no identifier to resolve."
+            ),
+        },
+        credential_status=status_entry(METAS_STATUS, STATUS_INDEX[METAS_EXTERNAL]),
+    )
+    signed, trace = sign_document(credential, key, created=METAS_ISSUED)
+    world._register("metas-external-dcc", signed, trace)
+
+
 def _test_report_and_conformity(world: World) -> None:
     """Build the test report and the certificate of conformity that rests on it.
 
@@ -1564,6 +1638,7 @@ def build_world() -> World:
     _recognition_credentials(world, schemas)
     _calibration_certificates(world)
     _shared_reference_pair(world, world.results['metas-calibration'])
+    _external_document_certificate(world)
     _test_report_and_conformity(world)
     _oiml_certification(world, schemas)
     _whois_presentations(world)

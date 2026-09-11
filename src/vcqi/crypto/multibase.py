@@ -9,6 +9,11 @@ Three encodings appear in the credentials this demonstrator produces:
   base58btc with a ``z`` prefix;
 * ``digestMultibase`` when one document references another by content, which is a
   SHA-256 multihash encoded as unpadded base64url with a ``u`` prefix.
+
+A fourth appears only on ``relatedResource``, where the data model offers
+``digestSRI`` as an alternative spelling of the same idea: Subresource Integrity, as
+a browser writes it, which is the hash name and padded base64 separated by a hyphen.
+It carries no multihash prefix because the algorithm is in the string already.
 """
 
 from __future__ import annotations
@@ -24,7 +29,9 @@ __all__ = [
     "encode_p256_multikey",
     "decode_p256_multikey",
     "digest_multibase",
+    "digest_sri",
     "verify_digest_multibase",
+    "verify_digest_sri",
 ]
 
 _BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -168,6 +175,39 @@ def digest_multibase(data: bytes) -> str:
     """
     multihash = _SHA256_MULTIHASH_PREFIX + hashlib.sha256(data).digest()
     return "u" + base64.urlsafe_b64encode(multihash).decode("ascii").rstrip("=")
+
+
+def digest_sri(data: bytes) -> str:
+    """Return the SHA-256 ``digestSRI`` value for some bytes.
+
+    The Verifiable Credentials data model accepts this beside ``digestMultibase`` on a
+    ``relatedResource``, and a credential referencing an external document is the one
+    place in this repository where both are worth carrying: they say the same thing to
+    two different audiences, and a reader comparing them learns what a multihash prefix
+    is for.
+
+    Args:
+        data: The bytes to digest.
+
+    Returns:
+        The digest in Subresource Integrity form, for example ``sha256-47DEQ...``.
+    """
+    return "sha256-" + base64.b64encode(hashlib.sha256(data).digest()).decode("ascii")
+
+
+def verify_digest_sri(data: bytes, expected: str) -> bool:
+    """Check bytes against a ``digestSRI`` value.
+
+    Args:
+        data: The bytes to check.
+        expected: The ``digestSRI`` value the reference claims.
+
+    Returns:
+        True if the bytes hash to the expected digest, False otherwise. As with
+        ``verify_digest_multibase``, a malformed value returns False rather than
+        raising, because a verifier meets these as untrusted input.
+    """
+    return digest_sri(data) == expected
 
 
 def verify_digest_multibase(data: bytes, expected: str) -> bool:

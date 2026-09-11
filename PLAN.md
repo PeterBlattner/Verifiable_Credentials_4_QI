@@ -2276,3 +2276,562 @@ Branch `feature/portable-credentials`, from `develop`. Nothing pushed without as
   travel. Signing them is the BIPM's to do, the demonstration can say what it would buy
   without pretending to have done it, and inventing a signature over a KCDB entry would
   have been this project asserting a decision nobody has taken.
+
+# Change set 13 - finish the content layer, and question the format first
+
+## Context
+
+Change set 7 built the content layer and moved two chapters into it. Twelve were left
+carrying their prose as string literals in `chapters.js`, and `CONTENT.md` listed only the
+two that were done -- so for the other twelve it answered "where do I edit this sentence?"
+by omission, and an editor had to read 2218 lines of interactive JavaScript to find out
+whether the words were reachable at all.
+
+The half-finished state was supported by design and honestly so: `blocks_for` returns an
+empty mapping for an unmigrated chapter deliberately. What was not defensible was the map
+of it.
+
+## The format, questioned before it was finished
+
+The first thing asked was not "finish it" but "wouldn't HTML be better?" -- the page is
+HTML in the end, so a markdown hop looks like indirection. That was the right question to
+ask before migrating twelve more chapters into a format, and the answer is worth keeping
+because it is not the one `ARCHITECTURE.md` gave.
+
+`ARCHITECTURE.md` justified markdown by an editor working in the GitHub web UI. Asked
+directly, the only people who edit this prose are the author and developers, so that
+argument does not hold and could not be leaned on.
+
+What holds instead, measured rather than asserted:
+
+- `to_text()` tokenises with `<[^>]+>`, which is a valid tokeniser *only* because no
+  attribute in the renderer's output can contain `>`. It feeds every panel title.
+- `_kind()` classifies a block with a bare `startswith("<table")`. A leading newline or a
+  comment -- which `_parse` explicitly permits at the top of a file -- would make a real
+  table classify as prose.
+- `_safe_url` rewrites `javascript:`, `data:` and `vbscript:` targets to `#`, and every
+  link gets `rel="noopener"`. Nothing would do either for a hand-typed `<a>`.
+- `content.js`'s `fill()` escapes three characters and substitutes into the HTML string.
+  Today a `{placeholder}` can only land in prose; in author-written HTML it could land
+  inside an attribute, where escaping three characters is not enough.
+- `TestMarkdown` is 7 tests and 27 collected cases, 57% of the cases in that file, and
+  deletes wholesale under HTML. Eight further tests change shape rather than pass.
+
+And the one argument that would have favoured HTML did not survive measurement. The appeal
+was that the twelve chapters already held HTML in their literals, so migration would be
+cut-and-paste with byte-identical snapshots. `chapters.js` contained **102 inline tags in
+total**: 48 `<strong>`, 25 `<em>`, 22 `<code>`, 4 `<a>`, 2 `<p>`, 1 `<sup>`. All but the
+last are five mechanical substitutions. HTML would have saved almost nothing.
+
+So markdown stayed, and the recorded reason was corrected to the one that is true.
+
+## The delimiter, and a claim that had to be withdrawn
+
+`## some-key` became `<!-- block: some-key -->`.
+
+`ARCHITECTURE.md` presented `##` as settled: chosen over YAML front matter so that
+GitHub's own preview of the file stays a usable preview of the prose. Sound, but it never
+considered a delimiter invisible to the preview. A comment gets the same property and
+better -- the keys stop appearing in the preview as headings the real page never renders --
+and it removes a trap, since `## some-name` mid-paragraph used to be swallowed as a marker.
+
+The claim first written into `content.py` was that this frees every `#` level for a
+heading. That is false and was withdrawn in the same change set. `markdown.py` emits `h3`
+to `h6`, so `## foo` renders with its hashes showing, and `app.css` has no `h2` rule.
+`##` is free of the *delimiter*; it is still not a heading. All three documents now say
+that instead of implying an `h2` an editor cannot have.
+
+## Three defects this turned up
+
+**Chapter 2's lede counted an older world.** It promised "Ten organisations, two
+international anchors, and one supply chain". The world serves thirteen nodes and three
+trust anchors, and the chapter's own first paragraph says two supply chains. Every number
+had been left behind when the legal-metrology branch and its OIML anchor arrived.
+
+The test that guards exactly this read `chapters.js` with a regex and matched whichever
+count came first in the file -- the paragraph, which was right. The lede sat two lines
+above it and was never read. This is the same shape as the `must-resolve` zero in change
+set 12: the number that mattered was the one nothing was looking at.
+
+**Chapter 12 showed an HTML entity to a reader.** The step-3 hint built the holder's name
+with `&rsquo;` and reaches the page through `panel()`, which sets a hint with
+`textContent`, so anyone pressing "Run the exchange" saw `Verifica&rsquo;s key` spelled
+out. It renders only after a click, which is why the snapshot harness never saw it. Every
+other entity in the file went to an `html:` slot and was fine.
+
+**A test was guarding nothing.** `test_there_is_a_readme_for_whoever_edits_these` asserted
+`"##" in text` against the editing guide, and went on passing after the delimiter changed
+because the guide's syntax table happens to contain `### Like this`. It now requires the
+guide to contain a line the parser itself would accept, so the two cannot drift silently.
+
+## And the cautions had drifted between the two copies
+
+Change set 8's statement exists twice, on the site and in `README.md`, and three documents
+say to change both. A paragraph about a reviewer was removed from `00-cautions.md` and left
+standing in the README, so the repository claimed a review the site no longer mentioned.
+
+Removed from the README too. What survives says the same thing in both places -- the site's
+`correction` block and the README's closing paragraphs are now word for word identical, and
+both record that a correction happened once without detailing it, which was the
+load-bearing part.
+
+A test for this was considered and rejected on evidence. Comparing each caution body,
+whitespace collapsed and emphasis stripped: `spec-moving` and `no-warranty` are identical,
+`no-institution` differs deliberately ("Nothing on these pages" against "Nothing here"),
+`no-permanence` carries README-only navigation prose, and `nothing-validated` is 474
+characters on the site against 1297 in the README. `test_the_repository_says_the_same_thing`
+is right to compare headings and to say in its docstring that the words deliberately are
+not. Neither subset direction catches what happened, because the README saying *more* is
+normally correct. This one needed a person.
+
+## What moved, and what did not
+
+236 blocks across 14 files, 67 737 bytes of prose. `chapters.js` went from 2218 lines to
+2024 -- a net 194, which is the honest figure: the interaction code all stays and gains
+accessor calls, and what left was about a hundred and twenty paragraphs of literal prose.
+
+Kept in code, by the rule already recorded -- move it if a reader reads it as a sentence or
+a heading, leave it if it is a label, a unit, an option name or a value:
+
+- Button, slider, field and badge labels.
+- The records in `actors/` -- the eighteen failure cases, the deployment profiles, the
+  harmonisation items, the portability classes. The verifier reads the same records.
+- Sentences built around a value the server has just computed, where a plain-text slot
+  cannot take a substitution. Where the slot accepts markup they did move, as interpolated
+  blocks: `{curve}`, `{part}`, `{total}`, `{open}`, `{share}`, `{inputs}`, `{max}`,
+  `{minutes}`, `{reason}`, `{outcome}`, `{travelling}`, `{baseline}`, `{residue}`,
+  `{kinds}`.
+- Three comparison tables -- signing-versus-encryption in chapter 1, the two signature
+  comparisons in chapter 6 -- assembled as table elements. Dropping them in from a content
+  file would wrap each in a div: a change in markup for no gain in editability.
+- The two closing footnotes, which render straight into a `p.footnote`. Every accessor that
+  returns markup wraps a block in a paragraph of its own, which would nest one inside the
+  other.
+- Chapter 8's group headings could not simply be read by key, because a content key has to
+  be a literal at the call site and a test enforces it -- a computed key is invisible to
+  the check that every key exists, and that check is what lets the others see anything. The
+  two maps became a small array read by literal key.
+
+## Two things a reader sees differently
+
+Everything else is byte-identical. These are the whole cost:
+
+1. `2<sup>256</sup>` became `2^256` in chapter 1. The subset has no superscript and no raw
+   HTML; extending the renderer for one exponent was the alternative and was not worth it.
+   One differing region in 9504 characters.
+2. Four links gained `rel="noopener"` -- two in chapter 11, two in chapter 12 -- because
+   the renderer adds it to every link. An improvement, and no words changed.
+
+## Files
+
+```
+src/vcqi/web/content.py                     _BLOCK is a comment; docstring corrected
+src/vcqi/web/content/chapters/*.md          12 new files; the 2 existing ones converted
+src/vcqi/web/content/README.md              the editing guide, rewritten
+src/vcqi/web/static/js/chapters.js          -194 lines; every chapter reads its prose
+tests/test_web.py                           3 scraping tests repointed at the content layer
+tests/test_content.py                       the guide test checks against the parser
+CONTENT.md                                  all 14 chapters; the filename trap recorded
+ARCHITECTURE.md                             the format rationale, corrected
+README.md                                   the reviewer paragraph; the live URL
+render.yaml                                 the hostname does not follow from `name:`
+.dockerignore                               ARCHITECTURE.md excluded; stale note removed
+```
+
+`markdown.py` is untouched.
+
+## Verification
+
+- `uv run pytest` -- 440 passed, 46 skipped. Was 437 before; three tests were repointed and
+  three added.
+- `tools/chapter-snapshot.mjs` per chapter, before and after, compared with the
+  100-character wrapping undone. A change of length re-aligns every following line, so a
+  plain `diff` reports the whole tail and buries the one thing worth seeing; `temp/realdiff.py`
+  unwraps both sides and reports only the differing regions.
+- `node tools/ui-clicks.mjs` -- every control on all fourteen chapters responds. This is
+  what covers the exchange log and the representation tabs, which render only after a click
+  and which the snapshot harness therefore never sees.
+- Against the deployed service: `/healthz` reporting the merged commit, CSP, `x-robots-tag`,
+  `no-cache` on the modules and `no-store` on `/api/content`, `/docs` 404, and `/api/content`
+  serving fourteen chapters with no entity in a text-only slot and no empty block.
+
+## Git
+
+Branches `refactor/content-block-delimiter`, `fix/readme-cautions-drift`,
+`fix/record-the-live-url`, each from `develop`, each deleted after merge. PRs #32, #33, #35.
+
+One conflict, worth recording. PR #31 landed on `develop` mid-change and added a
+`CONTENT.md` table pointing at `chapters.js` line ranges for the twelve unmigrated
+chapters -- accurate when written and wrong by the time it merged. Git auto-merged inside
+the paragraphs and produced a hybrid opening "The words in the demonstration are moving
+into markdown files. For a chapter that has one..." directly above the new delimiter: two
+states of the world in one sentence. The file was taken from the branch wholesale after
+checking that nothing unique was lost.
+
+## Change set 13 - build order
+
+- [x] **P1 - Question the format.** Audit what depends on markdown rather than HTML;
+      measure the 102 inline tags; keep markdown for reasons that are true.
+- [x] **P2 - The delimiter.** `<!-- block: name -->`, two files converted, byte-identical.
+- [x] **P3 - Twelve chapters.** One per commit, each against a snapshot baseline.
+- [x] **P4 - The helpers.** `representationPanel`, `dccTab`, `duplicationPanel` -- about
+      twenty paragraphs the first chapter 6 commit had claimed and not moved.
+- [x] **P5 - The three broken guards.** Repointed at the content layer; the graph one
+      parametrized over both places the number appears.
+- [x] **P6 - The lede.** Thirteen organisations, three anchors, two supply chains.
+- [x] **P7 - Docs.** `CONTENT.md`, the editing guide, `ARCHITECTURE.md`, `content.py`.
+- [x] **P8 - The cautions.** The README copy brought back into agreement.
+- [x] **P9 - The live URL,** which nothing in the repository recorded.
+
+## Change set 13 - progress log
+
+440 tests pass, 46 skipped. Fourteen chapters render, every control responds, and the
+deployed service reports the merged commit.
+
+- **Three tests broke loudly and that is the whole reason this was caught.** All three
+  scraped `chapters.js` for literals that had moved, and each asserted its own pattern
+  still matched rather than passing on an empty match. A test that quietly finds nothing is
+  worse than no test, and the one that did behave that way -- `"##" in text` -- is exactly
+  the one that had been guarding nothing for a whole change set.
+- **The over-claim is the most useful thing to have written down.** Freeing `##` from the
+  delimiter felt like it should enable an `h2`, it was written into a docstring as though
+  it did, and it does not. The renderer was never asked. Checking took one call to
+  `render('## Like this')`.
+- Migrating out of order was fine and the file names allow it, but nothing said the prefix
+  is the array position rather than the chapter number -- so `01-orientation.md` being
+  chapter 0 was a trap sitting in plain sight. `CONTENT.md` says it now.
+- The half-finished state was defensible for one change set and stopped being so once
+  `CONTENT.md` described only half of it. The lesson is not "finish migrations" but
+  "a map that covers half the territory is worse than none, because it looks complete".
+- One thing not done deliberately: `markdown.py` still emits `h3` and upward. Making `##`
+  a heading needs an `h2` rule in `app.css` as well, and an `h2` inside a chapter body
+  would sit oddly beside the page's own `h1`. The restriction on writing one stands even
+  though the reason for it changed.
+
+# Change set 14 - the PTB/DKD DCC as an external document
+
+## Context
+
+Two problems, both found by reading `content/chapters/07-traceability.md` against
+`content/chapters/04-issuing.md`.
+
+**1. Three sections of chapter 7 were out of scope where they sat.** *What is now said
+twice*, *Including the signature* and the *A document carrying both...* paragraph are all
+about wrapping a PTB/DKD DCC in a credential, but `duplicationPanel()` was appended
+unconditionally outside the tab strip, so a reader on the Classical or the METAS UncLib
+tab was told that "wrapping a PTB/DKD DCC in a credential duplicates most of the
+certificate" while looking at something that was not one. `_step_duplication` already
+returned SKIP without a DCC, so the data layer was honest and only the layout was not.
+
+**2. Nothing said how a PTB/DKD DCC relates to the JSON claims.** It was a *passenger*:
+one entry in `uncertaintyRepresentations` with `type: "CertificateRepresentation"`,
+inline under `INLINE_LIMIT` and published by URL above it. Two consequences were
+undocumented: the DCC is covered by `digestMultibase` but appears nowhere in the
+generated JSON Schema, and the passenger model is only one of three ways to carry a
+document.
+
+So this change set scoped the three sections correctly and then built the second way - a
+credential carrying a *reference* to an external DCC rather than the document - using a
+real DKD example, so the trade-off is measured rather than asserted.
+
+## Decisions taken with the user
+
+- The three sections move **into the PTB/DKD DCC tab**.
+- Build the pointer variant, from the DKD example downloaded to
+  `temp/DKD-E_Widerstand_V4.xml`.
+- Subject carries a **pointer plus a minimal index**, and both the chapter and the
+  pipeline say what cannot be tested as a result.
+- The document is a **new 100 ohm standard, pointer-only** - no readable subject anywhere.
+- `ds:Signature` built for real: **Canonical XML 1.1 in-repo**, ECDSA P-256.
+- The credential appears in chapter 4's document list.
+
+## What the example turned out to be
+
+28 123 bytes, 572 lines, and three facts shaped the work:
+
+- **schemaVersion 3.4.0-rc.2**, not the 3.3.0 `domain/dcc.py` emits. The generator was
+  left alone; the external document is carried at whatever version its issuer produced,
+  which is the point of the pointer model rather than a defect in it.
+- Its uncertainty is `si:valueExpandedMU`; `parse_dcc_result` reads `si:uncertainty`. So
+  **the pipeline cannot parse this document** - a real incompatibility between two
+  versions of one format, and the honest reason the index goes unchecked.
+- It carries `dcc:statement refType="basic_isInCMC"` with `dcc:valid`/`refId`: the
+  document asserts its own CMC coverage, and the credential cannot corroborate it.
+
+**Adaptation.** Laboratory, responsible persons, customer, accreditation statement, dates
+and reported uncertainty replaced with this world's fictional actors; the DKD-E 1-1
+citation, both DOIs and "This is NOT a real calibration certificate!" kept, plus an
+ADAPTED COPY note. The published example states U = 1e-7 ohm, which at 100 ohm is 1e-9
+relative and is a placeholder rather than a measurement; it was brought to 2.5e-4 ohm,
+which CMC CH-EM-0042 actually supports, rather than shipping a world containing a
+certificate better than its own published capability. Nothing in the pipeline checks
+that - which is the finding - so `tests/test_external_dcc.py` checks it once instead.
+
+## What was built
+
+### Scoping
+
+`duplicationPanel()` is built in `representationPanel()` (already async) and passed into
+`dccTab()`, which appends it below the `if (!dcc) return;` guard. `dccTab` stays
+synchronous and `show()` is unchanged. The unused `api.credential` fetch in
+`duplicationPanel` went at the same time, and the inline step walker became a shared
+`findStep(report, id)`.
+
+### The signature
+
+- `crypto/xmlc14n.py` - Canonical XML 1.1. 1.1 rather than 1.0 because canonicalizing
+  `ds:SignedInfo` is a document-subset operation, which is exactly where the two differ;
+  on a document with no `xml:base` and no `xml:id` they agree, and a test says so.
+- `crypto/xmldsig.py` - enveloped signature: the enveloped-signature transform, C14N 1.1,
+  SHA-256, ECDSA P-256 through the existing RFC 6979 signer, so the bytes are identical
+  on every run.
+
+`ds:KeyInfo` carries a bare `ds:KeyValue/ECKeyValue`, not X.509: a self-signed
+certificate would suggest a chain to an authority that does not exist here, and
+certificate signing in `cryptography` is randomised and would break the reproducible
+build. The contrast is the point - the signature verifies arithmetically and identifies
+nobody.
+
+### The credential
+
+`external_document_credential()` in `vc/model.py`. Subject is `externalDocument` with the
+format, schema version, namespace, byte count, the four index facts and a
+`capabilityReference`; integrity goes in top-level `relatedResource` with both
+`digestSRI` and `digestMultibase`, which is the data model's own spelling for what the
+request called `checksum_external_type` / `checksum_external_value`. `digest_sri` and
+`verify_digest_sri` were added to `crypto/multibase.py`.
+
+### Verification
+
+`REQUIRED_ACTIONS` and `_payload` gained the type and its subject member. A twelfth
+top-level step, `external-document`, with four children: retrieved, digest (both
+spellings), the document's own `ds:Signature`, and **index - WARN on every run**, because
+the four facts are the issuer's word about a document nothing parses. `_step_scope` gained
+a branch that checks measurand and unit and returns **WARN**, naming the range and the
+uncertainty floor as unevaluated.
+
+### One thing the work itself forced
+
+The generated `outputValidation` schema rejected the new credential, and it was right to:
+it required `credentialSubject.calibration` and a `CalibrationCertificateCredential`
+type. The fix belonged in the schema rather than around it. What a recognition authorises
+is a measurement, not a JSON shape, so `calibration_certificate_schema` grew an `anyOf`
+with one branch per carrier - the carried form bounded as before, the pointer form pinned
+on measurand and unit and required to carry a digest. A schema naming only the first would
+have refused the second for the wrong reason: not because the institute may not do it, but
+because the schema was written before it did.
+
+## Files
+
+```
+src/vcqi/crypto/xmlc14n.py                           new - Canonical XML 1.1
+src/vcqi/crypto/xmldsig.py                           new - enveloped signature
+src/vcqi/crypto/multibase.py                         digest_sri, verify_digest_sri
+src/vcqi/domain/dcc_examples/DKD-E-1-1-resistor.xml  new - adapted DKD example, unsigned
+src/vcqi/domain/external_dcc.py                      new - load, sign, the index
+src/vcqi/vc/model.py                                 external_document_credential()
+src/vcqi/vc/schema.py                                anyOf, one branch per carrier
+src/vcqi/vc/verify.py                                the step, the scope branch, the tables
+src/vcqi/actors/scenarios.py                         issue it, publish the signed XML
+src/vcqi/actors/tamper.py                            substituted-schema finds its branch
+src/vcqi/web/static/js/chapters.js                   scoping, findStep, carriagePanel, the label
+src/vcqi/web/content/chapters/04-issuing.md          what-is-signed
+src/vcqi/web/content/chapters/07-traceability.md     carriage, verdicts, header comment
+src/vcqi/web/content/chapters/10-implications.md     the DCC paragraph, and what it costs
+tests/test_xmlc14n.py, test_xmldsig.py, test_external_dcc.py   new
+tests/test_pipeline.py                               metas-external-dcc
+README.md, ARCHITECTURE.md
+```
+
+## Change set 14 - build order
+
+- [x] **X1 - Scope.** Duplication panel moved into `dccTab()`; header comment; dead fetch
+      removed.
+- [x] **X2 - Canonicalization.** `crypto/xmlc14n.py` and the specification's test cases.
+- [x] **X3 - Signature.** `crypto/xmldsig.py`, deterministic, four failure modes tested.
+- [x] **X4 - The document.** DKD example adapted and committed; `domain/external_dcc.py`.
+- [x] **X5 - The credential.** `external_document_credential()`; issued in `scenarios.py`.
+- [x] **X6 - Verification.** The `external-document` step, the `_step_scope` branch, the
+      `REQUIRED_ACTIONS` and `_payload` entries, the schema `anyOf`.
+- [x] **X7 - Chapters.** The label, chapter 4's block, chapter 7's carriage panel,
+      chapter 10's paragraph.
+- [x] **X8 - Tests and docs.** Three new test files, README, ARCHITECTURE, the step count.
+
+## Change set 14 - progress log
+
+Complete. 504 tests pass, 46 skipped. Every control on all fourteen chapters responds,
+and the world still builds byte-identically across 78 documents.
+
+- Chapter 7's duplication and signature sections now appear only under the PTB/DKD DCC
+  tab, which is where the `dcc` prose already was.
+- The world carries a twelfth credential, `metas-external-dcc`, which points at a signed
+  PTB/DKD DCC 3.4.0-rc.2 instead of carrying one.
+- Canonical XML 1.1 and enveloped XML signatures are implemented in-repo, the same way
+  RFC 8785 already was and for the same reason.
+
+### What the pointer credential actually verifies as
+
+| Step | Verdict | Why |
+| --- | --- | --- |
+| proof, recognition, action, status | pass | ordinary; a new type is authorised like any other |
+| output-validation | pass | after the schema learned the second carrier |
+| external-document.digest | pass | both digest spellings match the published bytes |
+| external-document.xml-signature | pass | and the key it carries names nobody |
+| **scope** | **warn** | measurand and unit only; range and uncertainty floor unreachable |
+| **external-document.index** | **warn** | four facts the issuer asserts, checked against nothing |
+| uncertainty, traceability | skip | no budget and no chain, because neither is in the credential |
+
+**And the outcome is `verified`.** Nothing failed, so nothing rejected it. That pairing -
+a verified verdict beside two warnings saying the measurement was never examined - is the
+single most useful thing the comparison shows, and `test_a_verified_verdict_here_carries_two_warnings`
+asserts it so it cannot quietly stop being true. Making `outcome` report a third value
+when a step warns would be defensible and was not done: it would change every caller for
+one credential, and the step tree already says it.
+
+### What could not be verified, and is recorded rather than glossed
+
+No independent XML Signature implementation is installed on this machine - `xmlsec` and
+`lxml` both need native builds - so nothing here establishes interoperability.
+Conformance rests on the specification's own published test cases, transcribed into
+`tests/test_xmlc14n.py`, and on round-tripping against our own verifier; a systematic
+error shared by signer and verifier would pass the whole suite. That is weaker evidence
+than the RFC 8785 vectors give for JCS. The cheapest way to close it is to hand a signed
+document to someone who has `xmlsec1` on the command line.
+
+### Verified
+
+- `uv run pytest` - 504 passed, 46 skipped.
+- `python -m vcqi.actors.scenarios --dump` twice - byte-identical across 78 documents,
+  the enveloped XML signature included, which is what RFC 6979 is doing there.
+- `node tools/ui-clicks.mjs` - every control on every chapter responds; chapter 4 went
+  from 13 controls to 14 with the new document in the picker.
+- Not verified visually. The layout of the carriage panel has not been seen in a browser.
+
+# Change set 15 - the object the chain is about
+
+## Context
+
+A colleague proposed a "special-purpose VC passport" per measurement standard. Reviewed
+against the repository, most of the sketch is already the demonstrator: the recognition
+chain, the traceability links by content digest, the accreditation half reaching Global
+ACI, and - since change set 14 - the choice between carrying a PTB/DKD DCC and pointing
+at one.
+
+One part was genuinely new, and reviewing it exposed a hole worth closing on its own.
+
+**The chain was held together by credential digests alone.** A laboratory certificate
+carries `traceableTo: {id, digestMultibase, instrument}`. The verifier followed the id,
+checked the digest, and re-ran the whole pipeline on the parent - but `vc/verify.py`
+contained no occurrence of the word "instrument". So "the transfer standard I used is the
+standard the institute calibrated" was asserted by the laboratory and checked by nobody. A
+verifier could walk the chain end to end without establishing that it concerned one
+physical object.
+
+## Part A - the check that needs no passport (built)
+
+`traceability.object-identity`, a child of each traceability hop. Where a reference names
+an object, it is compared against the subject of the certificate it points at. A reference
+that names none reports **skip**, not pass: most references in this world carry no
+instrument, and a passing verdict would claim a check that never ran.
+
+`traceability-names-another-object` is the failure case that exists only because of it:
+the laboratory references the institute's real, unaltered certificate and names a
+different resistor - one the institute really did calibrate, just not in the certificate
+being referenced. Nineteen cases now.
+
+### Why it is worth having, stated as the tests state it
+
+Everything else about that certificate still passes. Proof, validity, status,
+recognition, scope, the digest of the reference, **and the inherited uncertainty**, which
+reconciles line by line because the numbers were copied from the certificate that really
+was referenced. Only the object is wrong, and until now only the reader would have
+noticed.
+
+### The honest limit
+
+The identifier compared is a URN minted in `domain/instruments.py`, agreed only because
+one author wrote both ends - the same weakness `tests/test_harmonisation.py` already pins
+for measurands. Two organisations would need a shared way to name a physical artefact
+before the check means anything between them. That is governance, not engineering, and
+`ARCHITECTURE.md` says so beside the check.
+
+## Part B - the passport (designed, not built)
+
+The design rule that keeps a passport from competing with a certificate: **it states
+nothing a certificate states.** Identity only - what the object is, who keeps it, what it
+is for - and no value, no Expanded Uncertainty, no coverage factor, no budget. The two
+then have no overlapping claims and cannot disagree, which is the failure
+`uncertainty.duplication` exists to catch elsewhere.
+
+The move is the one chapter 6 already makes for the PTB/DKD DCC: Classical, UncLib and GTC
+describe a *result*, a DCC describes a *document*, a passport would describe an *object*.
+`ARCHITECTURE.md`'s "a calibration certificate is a statement about that object on that
+day" stays true and is complemented rather than contradicted.
+
+**Links would point upward.** A passport listing its calibrations must be reissued on
+every one, which is where supersession, versioning and the append-only-log problem come
+from. Each certificate naming its passport instead - the way `issuer.recognizedIn` points
+up at the recognition that contextualises it - means issuing a certificate never touches
+the passport. No subject index, no supersession relation, no reissue.
+
+Not built pending a decision, because Part A banks most of the practical benefit without
+introducing a credential type, a vocabulary, or any reframing of a chapter.
+
+## Impact on the rest of the site, checked rather than assumed
+
+- **The trust graph does not change, and should not.** `_graph()` builds edges from a
+  hardcoded list of eleven credential names, not from everything issued. A passport has no
+  natural edge anyway: nodes come from `ACTORS` and a passport's target is an object URN
+  rather than a party. Chapter 3 keeps meaning "who recognises and issues to whom".
+- **Chapter 3's introduction is unaffected** - it counts organisations, and none is added.
+- **Chapter 5's introduction was already imprecise** and is corrected here: it said "It
+  runs eleven checks", which is true of the conformity certificate but not of the external
+  document credential added in change set 14, which gets twelve.
+- **Chapters 11 and 13 self-update** - their figures are computed or interpolated, with no
+  digits written into the prose.
+- **`README.md` was stale**: "write all 76 documents" became 78 after change set 14. The
+  other 76 turned out to be a retrieval count rather than a document count and was correct
+  but loosely worded; it now says 76 retrievals across 31 distinct documents.
+- **`ARCHITECTURE.md` said "thirteen failure cases"**, which had been wrong for two change
+  sets. Rephrased without a number so it cannot rot again.
+
+## Files
+
+```
+src/vcqi/vc/verify.py                              _step_object_identity, attached per hop
+src/vcqi/actors/tamper.py                          traceability-names-another-object
+src/vcqi/web/content/chapters/09-break.md          Eighteen -> Nineteen
+src/vcqi/web/content/chapters/05-verification.md   the step count, corrected
+tests/test_pipeline.py                             TestObjectIdentity
+README.md, ARCHITECTURE.md
+```
+
+Reused rather than rebuilt: the already-fetched and digest-checked parent inside
+`_step_traceability`, so the check adds a comparison rather than a retrieval; `_resign`
+and `_republish` for the failure case.
+
+## Change set 15 - build order
+
+- [x] **P1 - The hole.** `traceability.object-identity` plus the failure case.
+- [ ] **P2 - The credential.** `instrument_passport_credential()` and `subjectPassport`.
+- [ ] **P3 - The world.** The national standard as an object; two passports issued.
+- [ ] **P4 - The check.** `traceability.passport`, and the three-way identity.
+- [ ] **P5 - The chapter.** The section, the panel, the labels.
+- [ ] **P6 - Tests and docs.**
+
+## Change set 15 - progress log
+
+Part A complete. 511 tests pass, 46 skipped; the world still builds byte-identically
+across 78 documents.
+
+- The real chain passes: the laboratory's reference names
+  `urn:instrument:callab:standard-resistor:SR10K-0042` and the institute's certificate is
+  about that object.
+- The test report's equipment reference names no object and reports skip, which is the
+  honest answer and not a pass.
+- The new failure case is caught by `traceability.object-identity` and by nothing else.
+  `test_the_inherited_uncertainty_still_reconciles` is the one worth reading: the
+  arithmetic is untouched, because the numbers were copied from the certificate that
+  really was referenced.
+
+Part B designed and deliberately not built; see above.

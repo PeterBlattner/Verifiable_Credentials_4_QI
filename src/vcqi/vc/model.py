@@ -1,6 +1,6 @@
 """Builders for the credential shapes this demonstration uses.
 
-Six credential types carry the story:
+Seven credential types carry the story:
 
 ``RecognizedEntityCredential``
     Straight from the Recognized Entities specification. A recognising authority lists
@@ -11,6 +11,12 @@ Six credential types carry the story:
     A calibration certificate. It states results with their Expanded Uncertainty,
     references the capability it was issued under, and points at the certificate one
     level up the traceability chain.
+
+``ExternalDocumentCredential``
+    The same calibration, carried the other way round: the credential holds a reference
+    and a digest, and the certificate itself is a document published separately. It
+    duplicates almost nothing and so lets a verifier decide almost nothing, which is the
+    trade the traceability chapter works through.
 
 ``TestReportCredential``
     A test report, which references the calibration certificate of the equipment used,
@@ -42,7 +48,7 @@ from typing import Any
 
 from vcqi.config import CONTEXT_CREDENTIALS_V2, CONTEXT_VCQI_V1
 from vcqi.crypto.jcs import canonicalize
-from vcqi.crypto.multibase import digest_multibase
+from vcqi.crypto.multibase import digest_multibase, digest_sri
 from vcqi.domain.unclib_blobs import (
     UNAVAILABLE_NOTE as UNCLIB_BINARY_UNAVAILABLE_NOTE,
 )
@@ -68,6 +74,7 @@ __all__ = [
     "recognized_entity_credential",
     "recognized_action",
     "calibration_certificate_credential",
+    "external_document_credential",
     "test_report_credential",
     "product_conformity_credential",
     "type_evaluation_report_credential",
@@ -402,6 +409,126 @@ def calibration_certificate_credential(
             "owner": owner,
             "calibration": calibration,
         },
+    }
+    if credential_status is not None:
+        credential["credentialStatus"] = credential_status
+    return credential
+
+
+def external_document_credential(
+    *,
+    credential_id: str,
+    issuer: dict[str, Any],
+    valid_from: str,
+    valid_until: str,
+    document_url: str,
+    document: bytes,
+    document_format: str,
+    specification: str,
+    media_type: str,
+    schema_version: str,
+    namespace: str,
+    quantity_format: str,
+    certificate_number: str,
+    performed_on: str,
+    measurand: str,
+    unit: str,
+    capability_reference: dict[str, Any],
+    xml_signature: dict[str, Any] | None = None,
+    credential_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a credential that vouches for a document it does not contain.
+
+    This is the other way to carry a standardised certificate, and it is the mirror of
+    what :func:`calibration_certificate_credential` does. There the document rides
+    inside the credential beside a readable subject saying the same things, which
+    duplicates six facts and makes them checkable against each other. Here the document
+    stays outside, the credential holds a URL and a digest, and nothing is duplicated --
+    so nothing can disagree, and almost nothing can be checked either.
+
+    What is left is an index: the certificate number, the date, the measurand and the
+    unit. Enough for a verifier to find the document and to know which declared
+    capability it should be judged against. Not enough to judge it, because the value
+    and the Expanded Uncertainty live only inside the document, which this demonstration
+    deliberately does not parse. ``vc/verify.py`` reports that limit rather than hiding
+    it, and the four index facts are the issuer's word rather than a checked claim.
+
+    The integrity of the document itself goes in ``relatedResource``, which is the data
+    model's own place for "an external resource this credential vouches for". Both
+    digest spellings the model allows are carried, because a reader comparing them is
+    most of the way to understanding what a multihash prefix is for.
+
+    Args:
+        credential_id: URL the credential is published at.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        valid_from: Start of validity, as an XML Schema dateTime.
+        valid_until: End of validity, as an XML Schema dateTime.
+        document_url: Where the document itself is published.
+        document: The document bytes, used only to compute the digests. They are not
+            carried; that is the whole point.
+        document_format: Format identifier, for example ``PTB-DKD-DCC-XML``.
+        specification: Where the format is defined.
+        media_type: Internet media type of the document.
+        schema_version: The schema version the document declares.
+        namespace: The XML namespace the document declares.
+        quantity_format: How quantities inside the document are written.
+        certificate_number: The certificate number, as the document states it.
+        performed_on: Date of calibration, as an ISO 8601 date.
+        measurand: Machine-readable identifier of the measured quantity.
+        unit: Unit symbol.
+        capability_reference: Reference to the CMC entry or accreditation scope the
+            document claims to have been issued under.
+        xml_signature: What the document's own ``ds:Signature`` uses, when it has one.
+            Recorded so a reader can see that two integrity mechanisms are in play
+            without having to open the document.
+        credential_status: Optional credentialStatus member.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    external: dict[str, Any] = {
+        "type": "ExternalCalibrationCertificate",
+        "format": document_format,
+        "specification": specification,
+        "mediaType": media_type,
+        "schemaVersion": schema_version,
+        "namespace": namespace,
+        "quantityFormat": quantity_format,
+        "byteCount": len(document),
+        "certificateNumber": certificate_number,
+        "performedOn": performed_on,
+        "measurand": measurand,
+        "unit": unit,
+        "capabilityReference": capability_reference,
+        "note": (
+            "The measurement is stated only inside the document. This credential "
+            "carries enough to find it and to know which capability it claims, and "
+            "nothing a verifier could use to decide whether that claim holds."
+        ),
+    }
+    if xml_signature is not None:
+        external["xmlSignature"] = xml_signature
+
+    credential: dict[str, Any] = {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": credential_id,
+        "type": ["VerifiableCredential", "ExternalDocumentCredential"],
+        "name": f"External calibration certificate {certificate_number}",
+        "issuer": issuer,
+        "validFrom": valid_from,
+        "validUntil": valid_until,
+        "credentialSubject": {
+            "id": document_url,
+            "externalDocument": external,
+        },
+        "relatedResource": [
+            {
+                "id": document_url,
+                "mediaType": media_type,
+                "digestSRI": digest_sri(document),
+                "digestMultibase": digest_multibase(document),
+            }
+        ],
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
