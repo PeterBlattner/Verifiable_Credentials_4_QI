@@ -2507,3 +2507,202 @@ deployed service reports the merged commit.
   a heading needs an `h2` rule in `app.css` as well, and an `h2` inside a chapter body
   would sit oddly beside the page's own `h1`. The restriction on writing one stands even
   though the reason for it changed.
+
+# Change set 14 - the PTB/DKD DCC as an external document
+
+## Context
+
+Two problems, both found by reading `content/chapters/07-traceability.md` against
+`content/chapters/04-issuing.md`.
+
+**1. Three sections of chapter 7 were out of scope where they sat.** *What is now said
+twice*, *Including the signature* and the *A document carrying both...* paragraph are all
+about wrapping a PTB/DKD DCC in a credential, but `duplicationPanel()` was appended
+unconditionally outside the tab strip, so a reader on the Classical or the METAS UncLib
+tab was told that "wrapping a PTB/DKD DCC in a credential duplicates most of the
+certificate" while looking at something that was not one. `_step_duplication` already
+returned SKIP without a DCC, so the data layer was honest and only the layout was not.
+
+**2. Nothing said how a PTB/DKD DCC relates to the JSON claims.** It was a *passenger*:
+one entry in `uncertaintyRepresentations` with `type: "CertificateRepresentation"`,
+inline under `INLINE_LIMIT` and published by URL above it. Two consequences were
+undocumented: the DCC is covered by `digestMultibase` but appears nowhere in the
+generated JSON Schema, and the passenger model is only one of three ways to carry a
+document.
+
+So this change set scoped the three sections correctly and then built the second way - a
+credential carrying a *reference* to an external DCC rather than the document - using a
+real DKD example, so the trade-off is measured rather than asserted.
+
+## Decisions taken with the user
+
+- The three sections move **into the PTB/DKD DCC tab**.
+- Build the pointer variant, from the DKD example downloaded to
+  `temp/DKD-E_Widerstand_V4.xml`.
+- Subject carries a **pointer plus a minimal index**, and both the chapter and the
+  pipeline say what cannot be tested as a result.
+- The document is a **new 100 ohm standard, pointer-only** - no readable subject anywhere.
+- `ds:Signature` built for real: **Canonical XML 1.1 in-repo**, ECDSA P-256.
+- The credential appears in chapter 4's document list.
+
+## What the example turned out to be
+
+28 123 bytes, 572 lines, and three facts shaped the work:
+
+- **schemaVersion 3.4.0-rc.2**, not the 3.3.0 `domain/dcc.py` emits. The generator was
+  left alone; the external document is carried at whatever version its issuer produced,
+  which is the point of the pointer model rather than a defect in it.
+- Its uncertainty is `si:valueExpandedMU`; `parse_dcc_result` reads `si:uncertainty`. So
+  **the pipeline cannot parse this document** - a real incompatibility between two
+  versions of one format, and the honest reason the index goes unchecked.
+- It carries `dcc:statement refType="basic_isInCMC"` with `dcc:valid`/`refId`: the
+  document asserts its own CMC coverage, and the credential cannot corroborate it.
+
+**Adaptation.** Laboratory, responsible persons, customer, accreditation statement, dates
+and reported uncertainty replaced with this world's fictional actors; the DKD-E 1-1
+citation, both DOIs and "This is NOT a real calibration certificate!" kept, plus an
+ADAPTED COPY note. The published example states U = 1e-7 ohm, which at 100 ohm is 1e-9
+relative and is a placeholder rather than a measurement; it was brought to 2.5e-4 ohm,
+which CMC CH-EM-0042 actually supports, rather than shipping a world containing a
+certificate better than its own published capability. Nothing in the pipeline checks
+that - which is the finding - so `tests/test_external_dcc.py` checks it once instead.
+
+## What was built
+
+### Scoping
+
+`duplicationPanel()` is built in `representationPanel()` (already async) and passed into
+`dccTab()`, which appends it below the `if (!dcc) return;` guard. `dccTab` stays
+synchronous and `show()` is unchanged. The unused `api.credential` fetch in
+`duplicationPanel` went at the same time, and the inline step walker became a shared
+`findStep(report, id)`.
+
+### The signature
+
+- `crypto/xmlc14n.py` - Canonical XML 1.1. 1.1 rather than 1.0 because canonicalizing
+  `ds:SignedInfo` is a document-subset operation, which is exactly where the two differ;
+  on a document with no `xml:base` and no `xml:id` they agree, and a test says so.
+- `crypto/xmldsig.py` - enveloped signature: the enveloped-signature transform, C14N 1.1,
+  SHA-256, ECDSA P-256 through the existing RFC 6979 signer, so the bytes are identical
+  on every run.
+
+`ds:KeyInfo` carries a bare `ds:KeyValue/ECKeyValue`, not X.509: a self-signed
+certificate would suggest a chain to an authority that does not exist here, and
+certificate signing in `cryptography` is randomised and would break the reproducible
+build. The contrast is the point - the signature verifies arithmetically and identifies
+nobody.
+
+### The credential
+
+`external_document_credential()` in `vc/model.py`. Subject is `externalDocument` with the
+format, schema version, namespace, byte count, the four index facts and a
+`capabilityReference`; integrity goes in top-level `relatedResource` with both
+`digestSRI` and `digestMultibase`, which is the data model's own spelling for what the
+request called `checksum_external_type` / `checksum_external_value`. `digest_sri` and
+`verify_digest_sri` were added to `crypto/multibase.py`.
+
+### Verification
+
+`REQUIRED_ACTIONS` and `_payload` gained the type and its subject member. A twelfth
+top-level step, `external-document`, with four children: retrieved, digest (both
+spellings), the document's own `ds:Signature`, and **index - WARN on every run**, because
+the four facts are the issuer's word about a document nothing parses. `_step_scope` gained
+a branch that checks measurand and unit and returns **WARN**, naming the range and the
+uncertainty floor as unevaluated.
+
+### One thing the work itself forced
+
+The generated `outputValidation` schema rejected the new credential, and it was right to:
+it required `credentialSubject.calibration` and a `CalibrationCertificateCredential`
+type. The fix belonged in the schema rather than around it. What a recognition authorises
+is a measurement, not a JSON shape, so `calibration_certificate_schema` grew an `anyOf`
+with one branch per carrier - the carried form bounded as before, the pointer form pinned
+on measurand and unit and required to carry a digest. A schema naming only the first would
+have refused the second for the wrong reason: not because the institute may not do it, but
+because the schema was written before it did.
+
+## Files
+
+```
+src/vcqi/crypto/xmlc14n.py                           new - Canonical XML 1.1
+src/vcqi/crypto/xmldsig.py                           new - enveloped signature
+src/vcqi/crypto/multibase.py                         digest_sri, verify_digest_sri
+src/vcqi/domain/dcc_examples/DKD-E-1-1-resistor.xml  new - adapted DKD example, unsigned
+src/vcqi/domain/external_dcc.py                      new - load, sign, the index
+src/vcqi/vc/model.py                                 external_document_credential()
+src/vcqi/vc/schema.py                                anyOf, one branch per carrier
+src/vcqi/vc/verify.py                                the step, the scope branch, the tables
+src/vcqi/actors/scenarios.py                         issue it, publish the signed XML
+src/vcqi/actors/tamper.py                            substituted-schema finds its branch
+src/vcqi/web/static/js/chapters.js                   scoping, findStep, carriagePanel, the label
+src/vcqi/web/content/chapters/04-issuing.md          what-is-signed
+src/vcqi/web/content/chapters/07-traceability.md     carriage, verdicts, header comment
+src/vcqi/web/content/chapters/10-implications.md     the DCC paragraph, and what it costs
+tests/test_xmlc14n.py, test_xmldsig.py, test_external_dcc.py   new
+tests/test_pipeline.py                               metas-external-dcc
+README.md, ARCHITECTURE.md
+```
+
+## Change set 14 - build order
+
+- [x] **X1 - Scope.** Duplication panel moved into `dccTab()`; header comment; dead fetch
+      removed.
+- [x] **X2 - Canonicalization.** `crypto/xmlc14n.py` and the specification's test cases.
+- [x] **X3 - Signature.** `crypto/xmldsig.py`, deterministic, four failure modes tested.
+- [x] **X4 - The document.** DKD example adapted and committed; `domain/external_dcc.py`.
+- [x] **X5 - The credential.** `external_document_credential()`; issued in `scenarios.py`.
+- [x] **X6 - Verification.** The `external-document` step, the `_step_scope` branch, the
+      `REQUIRED_ACTIONS` and `_payload` entries, the schema `anyOf`.
+- [x] **X7 - Chapters.** The label, chapter 4's block, chapter 7's carriage panel,
+      chapter 10's paragraph.
+- [x] **X8 - Tests and docs.** Three new test files, README, ARCHITECTURE, the step count.
+
+## Change set 14 - progress log
+
+Complete. 504 tests pass, 46 skipped. Every control on all fourteen chapters responds,
+and the world still builds byte-identically across 78 documents.
+
+- Chapter 7's duplication and signature sections now appear only under the PTB/DKD DCC
+  tab, which is where the `dcc` prose already was.
+- The world carries a twelfth credential, `metas-external-dcc`, which points at a signed
+  PTB/DKD DCC 3.4.0-rc.2 instead of carrying one.
+- Canonical XML 1.1 and enveloped XML signatures are implemented in-repo, the same way
+  RFC 8785 already was and for the same reason.
+
+### What the pointer credential actually verifies as
+
+| Step | Verdict | Why |
+| --- | --- | --- |
+| proof, recognition, action, status | pass | ordinary; a new type is authorised like any other |
+| output-validation | pass | after the schema learned the second carrier |
+| external-document.digest | pass | both digest spellings match the published bytes |
+| external-document.xml-signature | pass | and the key it carries names nobody |
+| **scope** | **warn** | measurand and unit only; range and uncertainty floor unreachable |
+| **external-document.index** | **warn** | four facts the issuer asserts, checked against nothing |
+| uncertainty, traceability | skip | no budget and no chain, because neither is in the credential |
+
+**And the outcome is `verified`.** Nothing failed, so nothing rejected it. That pairing -
+a verified verdict beside two warnings saying the measurement was never examined - is the
+single most useful thing the comparison shows, and `test_a_verified_verdict_here_carries_two_warnings`
+asserts it so it cannot quietly stop being true. Making `outcome` report a third value
+when a step warns would be defensible and was not done: it would change every caller for
+one credential, and the step tree already says it.
+
+### What could not be verified, and is recorded rather than glossed
+
+No independent XML Signature implementation is installed on this machine - `xmlsec` and
+`lxml` both need native builds - so nothing here establishes interoperability.
+Conformance rests on the specification's own published test cases, transcribed into
+`tests/test_xmlc14n.py`, and on round-tripping against our own verifier; a systematic
+error shared by signer and verifier would pass the whole suite. That is weaker evidence
+than the RFC 8785 vectors give for JCS. The cheapest way to close it is to hand a signed
+document to someone who has `xmlsec1` on the command line.
+
+### Verified
+
+- `uv run pytest` - 504 passed, 46 skipped.
+- `python -m vcqi.actors.scenarios --dump` twice - byte-identical across 78 documents,
+  the enveloped XML signature included, which is what RFC 6979 is doing there.
+- `node tools/ui-clicks.mjs` - every control on every chapter responds; chapter 4 went
+  from 13 controls to 14 with the new document in the picker.
+- Not verified visually. The layout of the carriage panel has not been seen in a browser.

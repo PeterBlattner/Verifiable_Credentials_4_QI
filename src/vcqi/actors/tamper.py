@@ -188,7 +188,16 @@ def _substituted_schema() -> TamperResult:
     world = build_world()
     url = "https://bipm.example/schemas/calibration-certificate-CH-EM-0042.json"
     schema = copy.deepcopy(world.schemas[url])
-    properties = schema["properties"]["credentialSubject"]["properties"]["calibration"]
+    # The schema offers one branch per carrier of the measurement; the certificate
+    # tampered with here carries its result, so that is the branch to loosen. Found by
+    # what it requires rather than by position, because a second branch was added once
+    # already and a third would move it again.
+    branch = next(
+        option
+        for option in schema["anyOf"]
+        if "calibration" in option["properties"]["credentialSubject"]["required"]
+    )
+    properties = branch["properties"]["credentialSubject"]["properties"]["calibration"]
     properties["properties"]["results"]["items"]["properties"]["value"]["maximum"] = 1.0e12
     world.store.publish(url, schema, "schema")
     return TamperResult(world, world.credential("metas-calibration"), DEMO_NOW)
