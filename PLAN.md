@@ -2706,3 +2706,132 @@ document to someone who has `xmlsec1` on the command line.
 - `node tools/ui-clicks.mjs` - every control on every chapter responds; chapter 4 went
   from 13 controls to 14 with the new document in the picker.
 - Not verified visually. The layout of the carriage panel has not been seen in a browser.
+
+# Change set 15 - the object the chain is about
+
+## Context
+
+A colleague proposed a "special-purpose VC passport" per measurement standard. Reviewed
+against the repository, most of the sketch is already the demonstrator: the recognition
+chain, the traceability links by content digest, the accreditation half reaching Global
+ACI, and - since change set 14 - the choice between carrying a PTB/DKD DCC and pointing
+at one.
+
+One part was genuinely new, and reviewing it exposed a hole worth closing on its own.
+
+**The chain was held together by credential digests alone.** A laboratory certificate
+carries `traceableTo: {id, digestMultibase, instrument}`. The verifier followed the id,
+checked the digest, and re-ran the whole pipeline on the parent - but `vc/verify.py`
+contained no occurrence of the word "instrument". So "the transfer standard I used is the
+standard the institute calibrated" was asserted by the laboratory and checked by nobody. A
+verifier could walk the chain end to end without establishing that it concerned one
+physical object.
+
+## Part A - the check that needs no passport (built)
+
+`traceability.object-identity`, a child of each traceability hop. Where a reference names
+an object, it is compared against the subject of the certificate it points at. A reference
+that names none reports **skip**, not pass: most references in this world carry no
+instrument, and a passing verdict would claim a check that never ran.
+
+`traceability-names-another-object` is the failure case that exists only because of it:
+the laboratory references the institute's real, unaltered certificate and names a
+different resistor - one the institute really did calibrate, just not in the certificate
+being referenced. Nineteen cases now.
+
+### Why it is worth having, stated as the tests state it
+
+Everything else about that certificate still passes. Proof, validity, status,
+recognition, scope, the digest of the reference, **and the inherited uncertainty**, which
+reconciles line by line because the numbers were copied from the certificate that really
+was referenced. Only the object is wrong, and until now only the reader would have
+noticed.
+
+### The honest limit
+
+The identifier compared is a URN minted in `domain/instruments.py`, agreed only because
+one author wrote both ends - the same weakness `tests/test_harmonisation.py` already pins
+for measurands. Two organisations would need a shared way to name a physical artefact
+before the check means anything between them. That is governance, not engineering, and
+`ARCHITECTURE.md` says so beside the check.
+
+## Part B - the passport (designed, not built)
+
+The design rule that keeps a passport from competing with a certificate: **it states
+nothing a certificate states.** Identity only - what the object is, who keeps it, what it
+is for - and no value, no Expanded Uncertainty, no coverage factor, no budget. The two
+then have no overlapping claims and cannot disagree, which is the failure
+`uncertainty.duplication` exists to catch elsewhere.
+
+The move is the one chapter 6 already makes for the PTB/DKD DCC: Classical, UncLib and GTC
+describe a *result*, a DCC describes a *document*, a passport would describe an *object*.
+`ARCHITECTURE.md`'s "a calibration certificate is a statement about that object on that
+day" stays true and is complemented rather than contradicted.
+
+**Links would point upward.** A passport listing its calibrations must be reissued on
+every one, which is where supersession, versioning and the append-only-log problem come
+from. Each certificate naming its passport instead - the way `issuer.recognizedIn` points
+up at the recognition that contextualises it - means issuing a certificate never touches
+the passport. No subject index, no supersession relation, no reissue.
+
+Not built pending a decision, because Part A banks most of the practical benefit without
+introducing a credential type, a vocabulary, or any reframing of a chapter.
+
+## Impact on the rest of the site, checked rather than assumed
+
+- **The trust graph does not change, and should not.** `_graph()` builds edges from a
+  hardcoded list of eleven credential names, not from everything issued. A passport has no
+  natural edge anyway: nodes come from `ACTORS` and a passport's target is an object URN
+  rather than a party. Chapter 3 keeps meaning "who recognises and issues to whom".
+- **Chapter 3's introduction is unaffected** - it counts organisations, and none is added.
+- **Chapter 5's introduction was already imprecise** and is corrected here: it said "It
+  runs eleven checks", which is true of the conformity certificate but not of the external
+  document credential added in change set 14, which gets twelve.
+- **Chapters 11 and 13 self-update** - their figures are computed or interpolated, with no
+  digits written into the prose.
+- **`README.md` was stale**: "write all 76 documents" became 78 after change set 14. The
+  other 76 turned out to be a retrieval count rather than a document count and was correct
+  but loosely worded; it now says 76 retrievals across 31 distinct documents.
+- **`ARCHITECTURE.md` said "thirteen failure cases"**, which had been wrong for two change
+  sets. Rephrased without a number so it cannot rot again.
+
+## Files
+
+```
+src/vcqi/vc/verify.py                              _step_object_identity, attached per hop
+src/vcqi/actors/tamper.py                          traceability-names-another-object
+src/vcqi/web/content/chapters/09-break.md          Eighteen -> Nineteen
+src/vcqi/web/content/chapters/05-verification.md   the step count, corrected
+tests/test_pipeline.py                             TestObjectIdentity
+README.md, ARCHITECTURE.md
+```
+
+Reused rather than rebuilt: the already-fetched and digest-checked parent inside
+`_step_traceability`, so the check adds a comparison rather than a retrieval; `_resign`
+and `_republish` for the failure case.
+
+## Change set 15 - build order
+
+- [x] **P1 - The hole.** `traceability.object-identity` plus the failure case.
+- [ ] **P2 - The credential.** `instrument_passport_credential()` and `subjectPassport`.
+- [ ] **P3 - The world.** The national standard as an object; two passports issued.
+- [ ] **P4 - The check.** `traceability.passport`, and the three-way identity.
+- [ ] **P5 - The chapter.** The section, the panel, the labels.
+- [ ] **P6 - Tests and docs.**
+
+## Change set 15 - progress log
+
+Part A complete. 511 tests pass, 46 skipped; the world still builds byte-identically
+across 78 documents.
+
+- The real chain passes: the laboratory's reference names
+  `urn:instrument:callab:standard-resistor:SR10K-0042` and the institute's certificate is
+  about that object.
+- The test report's equipment reference names no object and reports skip, which is the
+  honest answer and not a pass.
+- The new failure case is caught by `traceability.object-identity` and by nothing else.
+  `test_the_inherited_uncertainty_still_reconciles` is the one worth reading: the
+  arithmetic is untouched, because the numbers were copied from the certificate that
+  really was referenced.
+
+Part B designed and deliberately not built; see above.

@@ -987,3 +987,61 @@ OIML_CASES: tuple[TamperCase, ...] = (
 
 TAMPER_CASES = TAMPER_CASES + OIML_CASES
 _BY_KEY.update({case.key: case for case in OIML_CASES})
+
+
+# ---------------------------------------------------------------- object identity
+#
+# The chain is followed by identifier and confirmed by content digest, which establishes
+# which documents are in it and nothing about what they are about. This is the failure
+# that hole leaves open.
+
+
+def _traceability_names_another_object() -> TamperResult:
+    """Claim traceability through a certificate about a different standard.
+
+    The laboratory references the institute certificate it really was given, unaltered,
+    and names as its transfer standard a different resistor -- one the institute really
+    did calibrate, just not in the certificate being referenced.
+
+    Nothing cryptographic is wrong anywhere. The reference resolves, the digest matches,
+    the parent verifies on its own terms, the inherited uncertainty still reconciles and
+    the input quantities still reappear, because all of those are properties of the
+    documents rather than of the object. What has gone is the only thing that made the
+    chain a chain: that each certificate is about the artefact the next one used.
+    """
+    world = build_world()
+    credential = copy.deepcopy(world.credential("callab-calibration"))
+    credential["credentialSubject"]["calibration"]["traceableTo"]["instrument"] = (
+        "urn:instrument:callab:standard-resistor:SR10K-0091"
+    )
+    signed = _resign(credential, "did:web:callab.example", DEMO_NOW)
+    _republish(world, "callab-calibration", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
+IDENTITY_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="traceability-names-another-object",
+        title="The chain is followed to a certificate about a different object",
+        group="metrological",
+        description=(
+            "The laboratory claims its transfer standard was calibrated by the "
+            "institute, references a genuine institute certificate, and names a "
+            "different resistor as the one it used. Every signature verifies, every "
+            "digest matches, and the uncertainty still reconciles line by line."
+        ),
+        expected_step="traceability.object-identity",
+        catches=(
+            "Following a chain by identifier and digest establishes which documents are "
+            "in it and nothing whatever about what they concern. A certificate is a "
+            "statement about an object, so a chain of certificates is only a chain of "
+            "traceability if each one is about the artefact the next one used -- and "
+            "that is a claim about the physical world which has to be written down "
+            "before it can be checked."
+        ),
+        apply=_traceability_names_another_object,
+    ),
+)
+
+TAMPER_CASES = TAMPER_CASES + IDENTITY_CASES
+_BY_KEY.update({case.key: case for case in IDENTITY_CASES})
