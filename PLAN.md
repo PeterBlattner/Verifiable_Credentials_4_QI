@@ -2835,3 +2835,150 @@ across 78 documents.
   really was referenced.
 
 Part B designed and deliberately not built; see above.
+
+# Change set 16 - what an arrangement actually recognises
+
+## Context
+
+A colleague reviewed the Global ACI credential and returned six points with a rewritten
+version. One of them was worth acting on: the standards an accreditation body is
+recognised against lived only in a free-text `description`. Global ACI's `accredit` action
+was the only one of the three recognition levels carrying neither a `capabilityReference`
+nor an `outputValidation` - BIPM scopes each action to a published CMC, SAS scopes each
+action to a granted accreditation, and the arrangement at the top of the accreditation half
+scoped nothing at all.
+
+So the chain could establish that a body was recognised, and never that the accreditation
+it granted was one it was entitled to grant. The same shape as change set 15: a fact
+written down and read by nobody.
+
+The proposed fix - a machine-readable `assessmentStandard` array - does not reach far
+enough, and checking the real arrangement is what showed why.
+
+## Decisions taken with the user
+
+**Look the arrangement up rather than infer it.** Global ACI is not a stand-in. ILAC and
+IAF ceased to exist separately on 1 January 2026 and were replaced by Global Accreditation
+Cooperation Incorporated, which launched this MRA the same day - the date `RECOGNITION_FROM`
+already carried. Its scope list defines eleven **main scopes**, and a main scope is a pair:
+*"the combination of a Level 2 activity and the Level 3 relevant normative document"*.
+Signatory status is granted and extended one at a time, each with its own date of
+signature.
+
+**Model the pair, not the standard.** Testing and calibration are two different main scopes
+assessed against the same ISO/IEC 17025. A list of standards cannot say that a body is a
+signatory for one and not the other, which is the direction the answer is usually no. One
+`RecognizedAction` per main scope, which is what the other two levels already do.
+
+**Keep the roster shape, and record what it costs.** `credentialSubject` stays an array,
+matching the specification. The suspension granularity it forces is recorded rather than
+engineered around.
+
+**Keep the five-year recognition window.** `scenarios.py:187-192` already records the OIML
+layer learning that a recognition has to cover the documents issued under it. Shortening it
+without an archive of editions makes point-in-time resolution arrive sooner, not work.
+
+## What was built
+
+`domain/arrangement.py` - the eleven main scopes, and the three this world's accreditation
+body is a signatory for. Standards are identified by RFC 5141 ISO URNs
+(`urn:iso:std:iso-iec:17025:ed-3`), which makes them the one family of identifiers here not
+invented for the demonstration.
+
+`recognized_action` gained `main_scope`. Global ACI issues three `accredit` actions instead
+of one, each with its own date of signature; SAS's three actions carry the pair they were
+granted under, taken from the `activity` and `standard` that `domain/accreditation.py`
+already held.
+
+`recognition.arrangement-scope` - a sixth per-hop check. Every main scope a recognition
+credential grants must be one the hop above recognised its issuer for. Pairs are compared.
+Two deliberate restraints:
+
+- Where a credential recognises nobody, the check is **not added at all** rather than
+  passing. A certificate grants nothing, and a pass would report a comparison that never
+  happened.
+- It weighs only the grant the chain it is on rests on. Read as a question about the whole
+  roster it failed a laboratory's calibration certificate because a certification body
+  listed beside it was out of scope - the roster problem arriving from a second direction,
+  and now recorded as such.
+
+`accredits-outside-the-arrangement` - products certification withheld from the arrangement,
+the accreditation granted under it left standing, the certificate of conformity resting on
+it. Twenty cases now.
+
+### Why it is worth having, stated as the tests state it
+
+`test_the_calibration_chain_is_untouched` is the one to read. Same tampered world, and
+`callab-calibration` still verifies: nothing about ISO/IEC 17025 changed, and only a check
+comparing pairs can say so.
+
+### Two limits recorded, not fixed
+
+Both are now tier-2 harmonisation items - the tier for decisions that break nothing today
+and cannot be taken later.
+
+- **Suspension granularity.** One `statusListIndex` for a roster of three. Suspending one
+  signatory is not expressible. `suspended-accreditation` no longer states only the
+  flattering half.
+- **Point-in-time recognition.** `?when=` moves `validity` and `action`; `check_status`
+  takes no `now`. The pipeline answers "is this body recognised today" and never "was it
+  recognised then", which is the question a chain of older certificates raises.
+
+### What was deliberately not published
+
+An arrangement registry entry, written and then removed. A CMC is worth retrieving because
+the party being checked did not publish it; the arrangement is the trust anchor, the main
+scope travels inside the credential it signed, and fetching its unsigned page to check its
+own signed statement buys a retrieval and no evidence. An unread document here is a
+liability.
+
+## Files
+
+```
+src/vcqi/domain/arrangement.py                     new: main scopes and signatory scopes
+src/vcqi/domain/accreditation.py                   activity aligned to the arrangement
+src/vcqi/vc/model.py                               main_scope on recognized_action
+src/vcqi/vc/recognition.py                         arrangement-scope, scoped to the chain
+src/vcqi/actors/scenarios.py                       three actions for Global ACI
+src/vcqi/actors/tamper.py                          accredits-outside-the-arrangement
+src/vcqi/actors/harmonisation.py                   two tier-2 items
+src/vcqi/crypto/dataintegrity.py                   the proof @context comment, corrected
+src/vcqi/web/content/chapters/09-break.md          Nineteen -> Twenty
+tests/test_pipeline.py                             TestArrangementScope
+README.md, ARCHITECTURE.md
+```
+
+Reused rather than rebuilt: `_find_entity` for the per-chain scoping, `recognized_action`'s
+existing optional-member pattern, `_resign` and `_republish` for the failure case, and the
+`activity` and `standard` already carried by every accreditation scope.
+
+## Verification
+
+- `uv run pytest` - 519 passed, 46 skipped (was 511).
+- `python -m vcqi.actors.scenarios --dump` twice - byte-identical, 78 documents.
+- 76 retrievals across 31 distinct documents from 7 hosts, unchanged, because nothing new
+  is retrieved.
+
+## Change set 16 - build order
+
+- [x] **P1 - The arrangement.** `domain/arrangement.py`, the eleven main scopes.
+- [x] **P2 - The credentials.** `main_scope`, three Global ACI actions, SAS's pairs.
+- [x] **P3 - The check.** `recognition.arrangement-scope`, scoped to the chain.
+- [x] **P4 - The failure case.** `accredits-outside-the-arrangement`.
+- [x] **P5 - The limits.** Two harmonisation items, `ARCHITECTURE.md`, the counts.
+- [x] **P6 - Tests and the reply.** `TestArrangementScope`, the response to the review.
+
+## Change set 16 - progress log
+
+Complete. 519 tests pass, 46 skipped; the world still builds byte-identically across 78
+documents.
+
+- The happy path carries `arrangement-scope` on the hop where the arrangement is consulted,
+  and not on the hop below it, where the conformity certificate grants nothing.
+- The new failure case is caught by `recognition` and by nothing else: proof, validity and
+  status all pass, and so does traceability.
+- `test_the_calibration_chain_is_untouched` is the one worth reading. Withholding products
+  certification leaves calibration and testing standing, which is the difference between
+  recognising a standard and recognising an activity assessed against one.
+- The registry entry that was built and then removed is recorded above, because the reason
+  for removing it is the same reason this change set exists.

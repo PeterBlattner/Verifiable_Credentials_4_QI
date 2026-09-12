@@ -212,6 +212,94 @@ def _find_entity(
     return None, []
 
 
+def _main_scope_key(main_scope: Any) -> tuple[str, str] | None:
+    """Reduce a main scope to the pair that identifies it.
+
+    Args:
+        main_scope: The ``mainScope`` member of a recognised action, of any type.
+
+    Returns:
+        The activity and the identifier of the normative document, or None when the
+        member is absent or malformed. Both halves are in the key because the
+        arrangement recognises the pair: calibration and testing are separate main
+        scopes assessed against the same ISO/IEC 17025, and a key built on the standard
+        alone would let one stand in for the other.
+    """
+    if not isinstance(main_scope, dict):
+        return None
+    activity = main_scope.get("activity")
+    standard = main_scope.get("standard")
+    identifier = standard.get("id") if isinstance(standard, dict) else None
+    if not isinstance(activity, str) or not isinstance(identifier, str):
+        return None
+    return activity, identifier
+
+
+def _main_scope_label(main_scope: dict[str, Any]) -> str:
+    """Render a main scope the way a report should name it.
+
+    Args:
+        main_scope: The ``mainScope`` member of a recognised action.
+
+    Returns:
+        A phrase such as ``Calibration under ISO/IEC 17025:2017``.
+    """
+    standard = main_scope.get("standard")
+    standard = standard if isinstance(standard, dict) else {}
+    name = standard.get("name")
+    if not isinstance(name, str):
+        name = standard.get("id", "an unnamed document")
+    return f"{main_scope.get('activity')} under {name}"
+
+
+def _main_scopes(actions: list[dict[str, Any]]) -> dict[tuple[str, str], str]:
+    """Collect the main scopes a list of recognised actions names.
+
+    Args:
+        actions: Recognised actions.
+
+    Returns:
+        A mapping from the identifying pair to its display label, with actions that
+        name no main scope left out.
+    """
+    scopes: dict[tuple[str, str], str] = {}
+    for action in actions:
+        key = _main_scope_key(action.get("mainScope"))
+        if key is not None:
+            scopes[key] = _main_scope_label(action["mainScope"])
+    return scopes
+
+
+def _granted_main_scopes(credential: dict[str, Any]) -> dict[tuple[str, str], str]:
+    """Collect the main scopes a recognition credential grants to others.
+
+    Args:
+        credential: The credential being examined. A credential that recognises
+            nobody -- a calibration certificate, say -- grants nothing.
+
+    Returns:
+        A mapping from the identifying pair to its display label, gathered across every
+        entity the credential lists.
+    """
+    subjects = credential.get("credentialSubject")
+    if isinstance(subjects, dict):
+        subjects = [subjects]
+    if not isinstance(subjects, list):
+        return {}
+
+    granted: dict[tuple[str, str], str] = {}
+    for entry in subjects:
+        if not isinstance(entry, dict):
+            continue
+        actions = entry.get("recognizedTo", [])
+        if isinstance(actions, dict):
+            actions = [actions]
+        if not isinstance(actions, list):
+            continue
+        granted.update(_main_scopes([a for a in actions if isinstance(a, dict)]))
+    return granted
+
+
 def _discover_via_identifier(
     issuer: str, resolver: Resolver
 ) -> tuple[dict[str, Any] | None, str | None]:
@@ -289,6 +377,11 @@ def discover_recognition(
     chain = RecognitionChain()
     current = credential
     seen: set[str] = set()
+    # The entity whose recognition the chain arrived here through, once it has descended
+    # at least one step. It decides which of a roster credential's grants this chain
+    # actually rests on, so that a body overstepping for one organisation does not
+    # invalidate every other organisation listed beside it.
+    descended_from: str | None = None
 
     while True:
         issuer = issuer_id(current)
@@ -412,6 +505,47 @@ def discover_recognition(
             )
         )
 
+        # An accreditation body may grant only what it is itself a signatory for. The
+        # pairs are compared, not the standards: being recognised for calibration under
+        # ISO/IEC 17025 is not being recognised for testing under the same document.
+        # A credential that recognises nobody grants nothing, so nothing is claimed and
+        # the check is not added at all rather than passing quietly.
+        #
+        # Which grants count depends on how the chain got here. Having descended through
+        # one organisation, the grant to that organisation is the one this chain rests
+        # on, and the others in the same roster are somebody else's business. Asked about
+        # a recognition credential directly, with nothing below it, every grant it makes
+        # is in question.
+        if descended_from is None:
+            granted = _granted_main_scopes(current)
+        else:
+            _, granted_actions = _find_entity(current, descended_from)
+            granted = _main_scopes(granted_actions)
+        if granted:
+            recognised = _main_scopes(actions)
+            uncovered = sorted(
+                label for key, label in granted.items() if key not in recognised
+            )
+            checks.append(
+                (
+                    "arrangement-scope",
+                    CheckOutcome(
+                        passed=not uncovered,
+                        detail=(
+                            f"{issuer} grants only main scopes it is recognised for"
+                            if not uncovered
+                            else f"{issuer} grants {', '.join(uncovered)}, which it is "
+                            f"not recognised for"
+                        ),
+                        evidence={
+                            "grantedTo": descended_from,
+                            "granted": sorted(granted.values()),
+                            "recognised": sorted(recognised.values()),
+                        },
+                    ),
+                )
+            )
+
         hop = RecognitionHop(
             credential_id=current_id,
             credential_type=_most_specific_type(current),
@@ -435,4 +569,5 @@ def discover_recognition(
             )
             return chain
 
+        descended_from = issuer
         current = recognition

@@ -174,6 +174,7 @@ def recognized_action(
     *,
     output_validation: dict[str, Any] | None = None,
     capability_reference: dict[str, Any] | None = None,
+    main_scope: dict[str, Any] | None = None,
     valid_from: str | None = None,
     valid_until: str | None = None,
     description: str = "",
@@ -189,6 +190,10 @@ def recognized_action(
             bounds the recognition. A JSON Schema can express a measurand and a range,
             but not an uncertainty floor that varies with the measured level, so the
             numeric part of the scope has to be reachable separately.
+        main_scope: The activity and the normative document the recognition is held
+            under, as a pair. Both halves are needed: an arrangement may recognise a
+            body for calibration and not for testing, and those two are assessed
+            against the same ISO/IEC 17025, so the standard alone does not say which.
         valid_from: Start of validity of this action, if narrower than the credential.
         valid_until: End of validity of this action, if narrower than the credential.
         description: Human-readable summary of what is recognised.
@@ -207,6 +212,8 @@ def recognized_action(
         entry["outputValidation"] = output_validation
     if capability_reference is not None:
         entry["capabilityReference"] = capability_reference
+    if main_scope is not None:
+        entry["mainScope"] = main_scope
     if valid_from is not None:
         entry["validFrom"] = valid_from
     if valid_until is not None:

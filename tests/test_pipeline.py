@@ -10,6 +10,8 @@ import pytest
 from vcqi.actors.registry import TRUST_ANCHORS
 from vcqi.actors.scenarios import BIPM_RECOGNITION, DEMO_NOW, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
+from vcqi.domain import accreditation as accreditation_registry
+from vcqi.domain import arrangement as arrangement_registry
 from vcqi.vc.recognition import discover_recognition
 from vcqi.vc.resolver import Resolver
 from vcqi.vc.verify import verify_credential
@@ -498,3 +500,135 @@ class TestObjectIdentity:
 
         assert find(report.steps, "traceability.inherited").status == "pass"
         assert find(report.steps, "traceability.shared-inputs").status == "pass"
+class TestArrangementScope:
+    """An arrangement recognises a pair, and only the pair decides the question.
+
+    A main scope is an activity together with the normative document it is assessed
+    against. Calibration and testing are two of them and share ISO/IEC 17025, so a check
+    written against the standard alone would let either stand in for the other -- which
+    is exactly the substitution these tests exist to refuse.
+    """
+
+    def _hop_checks(self, report, hop_id):
+        """Return the named hop's checks, keyed by check name.
+
+        Args:
+            report: The verification report.
+            hop_id: Identifier of the hop, for example ``recognition.hop.2``.
+
+        Returns:
+            A mapping from check name to its recorded entry.
+        """
+        for step in report.steps:
+            if step.id != "recognition":
+                continue
+            for hop in step.children:
+                if hop.id == hop_id:
+                    return {
+                        entry["name"]: entry
+                        for entry in hop.evidence.get("checks", [])
+                    }
+        return {}
+
+    def test_every_accreditation_sits_in_a_main_scope(self) -> None:
+        """The two registries agree about what the accreditations are granted under.
+
+        An accreditation names an activity and a standard; the arrangement defines which
+        pairs of those it recognises. If the first drifts from the second, an
+        accreditation exists that no arrangement covers, and it should be impossible to
+        build the world rather than merely wrong to verify it.
+        """
+        pairs = {
+            (scope.activity, scope.standard)
+            for scope in arrangement_registry.MAIN_SCOPES
+        }
+        for scope in accreditation_registry.ACCREDITATION_SCOPES:
+            assert (scope.activity, scope.standard) in pairs, scope.identifier
+
+    def test_two_main_scopes_share_a_standard(self) -> None:
+        """The case the pair exists for, pinned so it cannot quietly stop being true."""
+        under_17025 = {
+            scope.activity
+            for scope in arrangement_registry.MAIN_SCOPES
+            if scope.standard == "ISO/IEC 17025:2017"
+        }
+        assert {"Calibration", "Testing"} <= under_17025
+
+    def test_the_body_grants_only_what_it_is_a_signatory_for(self, world) -> None:
+        """The happy path, checked at the hop where the arrangement is consulted."""
+        checks = self._hop_checks(_verify(world, "cab-conformity"), "recognition.hop.2")
+        assert checks["arrangement-scope"]["passed"] is True
+
+    def test_a_certificate_grants_nothing_so_nothing_is_claimed(self, world) -> None:
+        """The check is absent, not passing, where there is nothing to compare.
+
+        The first hop is the conformity certificate, which recognises nobody. A pass
+        there would report a comparison that never happened.
+        """
+        checks = self._hop_checks(_verify(world, "cab-conformity"), "recognition.hop.1")
+        assert "arrangement-scope" not in checks
+        assert "membership" in checks
+
+    def test_granting_outside_the_arrangement_is_caught(self) -> None:
+        """And caught by nothing else, which is why the check was added.
+
+        Products certification is withheld from the arrangement and the accreditation
+        granted under it is left standing. Every signature is genuine, the accreditation
+        body is recognised and listed, and both status lists are clean.
+        """
+        result = tamper_by_key("accredits-outside-the-arrangement").apply()
+        report = verify_credential(
+            result.credential,
+            store=result.world.store,
+            now=result.verify_at,
+            trusted_issuers=TRUST_ANCHORS,
+        )
+        assert report.outcome == "rejected"
+        assert {step.id for step in report.failures} == {
+            "recognition",
+            "recognition.hop.2",
+        }
+
+        intact = {step.id: step.status for step in report.steps}
+        for step_id in ("proof", "validity", "status"):
+            assert intact[step_id] == "pass", step_id
+
+        checks = self._hop_checks(report, "recognition.hop.2")
+        assert checks["membership"]["passed"] is True
+        assert checks["arrangement-scope"]["passed"] is False
+        assert "ISO/IEC 17065:2012" in checks["arrangement-scope"]["detail"]
+
+    def test_the_calibration_chain_is_untouched(self) -> None:
+        """The test worth reading, and the reason the pair is the unit.
+
+        The same withheld main scope, and the calibration certificate under the same
+        accreditation body still verifies. Nothing about ISO/IEC 17025 changed, and a
+        check written against standards rather than pairs would have had no way to say
+        so: it would have seen a body still recognised for 17025 either way, or -- worse,
+        reading the roster as a whole -- would have failed a chain that does not depend
+        on the accreditation at issue.
+        """
+        result = tamper_by_key("accredits-outside-the-arrangement").apply()
+        report = verify_credential(
+            result.world.credential("callab-calibration"),
+            store=result.world.store,
+            now=result.verify_at,
+            trusted_issuers=TRUST_ANCHORS,
+        )
+        assert report.outcome == "verified"
+
+        checks = self._hop_checks(report, "recognition.hop.2")
+        assert checks["arrangement-scope"]["passed"] is True
+
+        # And only the grant this chain rests on was weighed. The roster the hop reads
+        # still grants products certification to somebody else; that is that chain's
+        # problem, not this one's.
+        chain = discover_recognition(
+            result.world.credential("callab-calibration"),
+            resolver=Resolver(result.world.store),
+            trusted_issuers=TRUST_ANCHORS,
+            now=result.verify_at,
+        )
+        outcome = dict(chain.hops[1].checks)["arrangement-scope"]
+        assert outcome.evidence["grantedTo"] == "did:web:callab.example"
+        assert outcome.evidence["granted"] == ["Calibration under ISO/IEC 17025:2017"]
