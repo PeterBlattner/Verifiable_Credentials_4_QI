@@ -6,7 +6,7 @@
      name. Edit the words freely; renaming a key breaks the page, and the test suite
      will say which one. Read ../README.md first if you have not before.
 
-     The eighteen cases themselves -- their titles, what each one does and the check it
+     The twenty cases themselves -- their titles, what each one does and the check it
      is meant to trip -- are in src/vcqi/actors/tamper.py. They are records rather than
      prose, and the verifier reads the same records, so moving them here would split one
      fact across two files. Only the three group headings and their notes are here. -->
@@ -21,7 +21,7 @@ Failure modes
 
 <!-- block: lede -->
 
-Nineteen ways this can go wrong, and the check that catches each. The interesting ones pass every cryptographic test.
+Twenty ways this can go wrong, and the check that catches each. The interesting ones pass every cryptographic test.
 
 <!-- block: why-break-it -->
 

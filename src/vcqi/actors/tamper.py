@@ -44,6 +44,7 @@ from vcqi.actors.scenarios import (
     METAS_ISSUED,
     OIML_CERTIFICATE_ISSUED,
     OIML_EVALUATION_ISSUED,
+    RECOGNITION_FROM,
     _dcc_for,
     _callab_result,
     DEMO_NOW,
@@ -481,7 +482,11 @@ TAMPER_CASES: tuple[TamperCase, ...] = (
         catches=(
             "Each link of the recognition chain is checked against the issuer's status "
             "list, so a suspension takes effect for every certificate at once without "
-            "any of them being reissued."
+            "any of them being reissued. Worth seeing the other half of that, since this "
+            "case is where it shows: the entry suspended is an entry for the whole "
+            "credential, and the credential is a roster of three organisations. There is "
+            "no way to suspend one of them and leave the others standing, which is not "
+            "what an accreditation body suspending one laboratory would mean."
         ),
         apply=_suspended_accreditation,
     ),
@@ -1045,3 +1050,69 @@ IDENTITY_CASES: tuple[TamperCase, ...] = (
 
 TAMPER_CASES = TAMPER_CASES + IDENTITY_CASES
 _BY_KEY.update({case.key: case for case in IDENTITY_CASES})
+# An arrangement recognises an accreditation body for main scopes, one at a time, each
+# with its own date of signature. Granting an accreditation is only authorised if the
+# body is a signatory for the main scope that accreditation sits in.
+
+
+def _accredits_outside_the_arrangement() -> TamperResult:
+    """Withhold one main scope and leave the accreditation granted under it standing.
+
+    Global ACI is a signatory arrangement for the accreditation body in calibration and
+    in testing, but not in products certification. That is the ordinary case rather than
+    a contrived one: signatory status is granted and extended a main scope at a time, and
+    a body commonly holds some and not others. The accreditation body nevertheless still
+    holds, and still publishes, the product certification accreditation it granted the
+    certification body -- and the certificate of conformity at the end of the chain rests
+    on it.
+
+    Nothing is forged and nothing is stale. The arrangement credential is genuine and
+    signed by Global ACI itself, the accreditation body is recognised and listed, its own
+    credential verifies, the certification body appears in it, and both status lists are
+    clean. The only thing missing is the authority to have granted that one accreditation,
+    and it is missing in a way no signature, no digest and no validity period can show.
+
+    The pair is what decides it. Withholding products certification leaves calibration
+    and testing untouched, so the calibration chain below the same accreditation body
+    goes on verifying -- which is the difference between recognising a standard and
+    recognising an activity assessed against one.
+    """
+    world = build_world()
+    credential = copy.deepcopy(world.credential("global-aci-recognition"))
+    for entity in credential["credentialSubject"]:
+        entity["recognizedTo"] = [
+            action
+            for action in entity["recognizedTo"]
+            if action["mainScope"]["activity"] != "Products certification"
+        ]
+    signed = _resign(credential, "did:web:global-aci.example", RECOGNITION_FROM)
+    _republish(world, "global-aci-recognition", signed)
+    return TamperResult(world, world.credential("cab-conformity"), DEMO_NOW)
+
+
+ARRANGEMENT_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="accredits-outside-the-arrangement",
+        title="An accreditation is granted outside the arrangement",
+        group="standing",
+        description=(
+            "The arrangement recognises the accreditation body for calibration and "
+            "testing, but not for products certification. It has accredited a product "
+            "certification body anyway, and a certificate of conformity rests on that "
+            "accreditation. Every signature verifies and nobody is suspended."
+        ),
+        expected_step="recognition",
+        catches=(
+            "What an arrangement recognises is a main scope: an activity together with "
+            "the document it is assessed against, granted one at a time and each with "
+            "its own date of signature. Comparing the pair is what catches this, and "
+            "comparing standards alone would not have: calibration and testing are "
+            "different main scopes assessed against the same ISO/IEC 17025, so a body "
+            "recognised for one is not thereby recognised for the other."
+        ),
+        apply=_accredits_outside_the_arrangement,
+    ),
+)
+
+TAMPER_CASES = TAMPER_CASES + ARRANGEMENT_CASES
+_BY_KEY.update({case.key: case for case in ARRANGEMENT_CASES})
