@@ -13,7 +13,7 @@
 // Same jsdom arrangement as ui-clicks.mjs, and the same reasoning about why jsdom is not
 // a dependency of this project. Install it beside this file:
 //
-//   cd tools && npm install jsdom && cd ..
+//   cd tools && npm ci && cd ..
 //   uv run vc-demo &
 //   node tools/chapter-snapshot.mjs > /tmp/before.txt
 //   ...migrate a chapter...

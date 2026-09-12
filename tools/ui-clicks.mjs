@@ -9,11 +9,12 @@
 // Rendering a chapter is not the same as using one, so this drives the real application
 // in a real DOM: load it, navigate, click, and check that the page actually changed.
 //
-// It needs jsdom, which is deliberately not a dependency of this project: nothing that
-// ships needs npm, and that should stay true. Install it beside this file, where node
-// will find it without anything being added to the project:
+// It needs jsdom, which is deliberately not a dependency of the application: nothing that
+// ships needs npm, and that should stay true. The manifest beside this file is committed
+// so that ci.yml installs the same version you do -- it reaches no wheel, no image and no
+// page:
 //
-//   cd tools && npm install jsdom && cd ..
+//   cd tools && npm ci && cd ..
 //   uv run vc-demo &
 //   node tools/ui-clicks.mjs
 //

@@ -74,6 +74,86 @@ jobs:
           diff -r first/ second/
           echo "$(ls first/ | wc -l) documents, identical across runs"
 
+  interface:
+    # The two jsdom harnesses, which drive the real application in a real DOM instead of
+    # asking the server what it would compute.
+    #
+    # The Python suite cannot see this half, and the gap is not theoretical. A chapter
+    # once fetched its documents perfectly well and rendered them into a node that had
+    # never been put on the page: every request succeeded, every test passed, and seven
+    # buttons did nothing at all. Rendering a chapter is not the same as using one.
+    #
+    # This is why tools/package-lock.json is committed. It reaches no wheel, no image and
+    # no page -- nothing that ships needs npm, and that still holds.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.17"
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Install jsdom
+        # `ci` rather than `install`, for the reason `--frozen` is used above: a lockfile
+        # that has drifted should fail here rather than be re-resolved into something
+        # nobody reviewed. Run from the directory rather than with --prefix, which reads
+        # the manifest from one place and installs to another.
+        working-directory: tools
+        run: npm ci
+
+      - name: Drive the interface
+        env:
+          # Explicit, though it is also the default: a harness clicking every control on
+          # every chapter is exactly the traffic a limiter would refuse.
+          VCQI_RATE_LIMIT_BURST: "0"
+        run: |
+          set -euo pipefail
+
+          # Redirected, so the step does not hold the runner open on the server's stdout.
+          uv run vc-demo > server.log 2>&1 &
+          for _ in $(seq 1 40); do
+            curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS localhost:8000/healthz
+          echo
+
+          echo '--- every module the interface imports is served, and executable ---'
+          # Over HTTP, not from the working tree: a module that 404s or arrives with a
+          # content type a browser will not execute is invisible to a filesystem check.
+          node tools/served-modules.mjs
+          echo 'modules ok'
+
+          echo '--- every control on every chapter responds ---'
+          node tools/ui-clicks.mjs
+
+          echo '--- every chapter renders, settles, and renders the same way twice ---'
+          # The second capture is what regression-tests the harnesses themselves. Two
+          # captures can only agree if both were taken after the page had finished, which
+          # is the property tools/page-settled.mjs provides and the one a fixed delay got
+          # wrong on a slow machine -- the failure being guarded against here is a green
+          # result for a page the harness never actually looked at.
+          node tools/chapter-snapshot.mjs > first.txt
+          node tools/chapter-snapshot.mjs > second.txt
+          diff first.txt second.txt
+          echo "$(grep -c '^===== ' first.txt) chapters, identical across runs"
+
+      - if: always()
+        run: |
+          tail -30 server.log || true
+          pkill -f vc-demo || true
+
   container:
     # The image, exercised under the resources the smallest Render instance actually
     # has. A pass here means it fits there; measuring it in CI is cheaper than finding
