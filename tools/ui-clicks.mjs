@@ -32,36 +32,24 @@
 // at all, and anything written to console.error. The middle one is the trap -- a chapter
 // that throws has no buttons, so "0 controls, all responded" was true and meaningless.
 //
-// A fourth was added for the same reason, and it is the subtlest of them. This harness
-// used to wait a fixed 1400 ms after changing the hash and then read the page. Against a
-// warm server that is plenty; against a cold one the first content fetches outrun it, and
-// the harness reads the stage while the *previous* chapter is still on it. Observed once
-// as `FAILED: 4 inert control(s)` with chapter 11's fourteen controls counted against
-// chapter 12 and chapter 11 credited with none -- and the failure could just as easily
-// have gone the other way and reported a clean run for a page it never looked at.
+// A fourth was added for the same reason, and it is the subtlest of them: this harness
+// used to wait a fixed 1400 ms after changing the hash and then read the page, which a
+// cold server outruns. It now waits for the page to settle, and reports reaching the
+// deadline instead of reading the page anyway. page-settled.mjs holds that logic and the
+// reasoning behind it, because chapter-snapshot.mjs needs exactly the same thing.
 //
-// So nothing here waits for a duration any more. It waits for a condition and gives up
-// after a deadline, and giving up is itself reported rather than passed over. The two
-// conditions come from `show()` in app.js: `buildRail()` marks the active chapter
-// synchronously when a render starts, and the `.spinner` it appends is removed when that
-// render settles, on both the success and the error path. Add an idle network and that is
-// "this page is finished" stated exactly rather than estimated.
-//
-// VCQI_SETTLE is gone with the delays it configured. VCQI_READY_TIMEOUT and
-// VCQI_CLICK_TIMEOUT are deadlines, and raising them cannot make a wrong result right --
-// only a slow one possible.
+// VCQI_SETTLE is gone with the delays it configured; VCQI_READY_TIMEOUT and
+// VCQI_CLICK_TIMEOUT are deadlines.
 
 // Resolved at run time so the module can come from beside this file or from wherever
 // the operator already has it.
 const { JSDOM } = await import(process.env.VCQI_JSDOM || 'jsdom');
 const { servedModules } = await import(new URL('served-modules.mjs', import.meta.url));
+const { instrumentFetch, pageState, READY_TIMEOUT, CLICK_TIMEOUT } = await import(
+  new URL('page-settled.mjs', import.meta.url)
+);
 
 const BASE = process.env.VCQI_BASE || 'http://127.0.0.1:8000';
-
-// Deadlines, not delays. Reaching one is a failure, not a cue to carry on and look.
-const READY_TIMEOUT = Number(process.env.VCQI_READY_TIMEOUT || 20000);
-const CLICK_TIMEOUT = Number(process.env.VCQI_CLICK_TIMEOUT || 5000);
-const POLL = 25;
 
 const dom = new JSDOM(
   '<!doctype html><html><body><nav><ul id="rail-nav"></ul></nav><main id="stage"></main></body></html>',
@@ -77,50 +65,14 @@ global.Element = dom.window.Element;
 dom.window.Element.prototype.scrollIntoView = function scrollIntoView() {};
 dom.window.scrollTo = function scrollTo() {};
 
-// Wrapped for two reasons: to resolve relative URLs against the server, and to know
-// whether the page is still waiting on it. Without the second, "the stage did not change"
-// cannot be told apart from "the stage has not changed yet".
-const realFetch = global.fetch;
-let inFlight = 0;
-global.fetch = (input, init) => {
-  inFlight += 1;
-  let request;
-  try {
-    request = realFetch(String(input).startsWith('http') ? input : BASE + input, init);
-  } catch (error) {
-    inFlight -= 1;
-    throw error;
-  }
-  return request.finally(() => {
-    inFlight -= 1;
-  });
-};
+// Before app.js is imported, because that is what installs the code that fetches.
+const pending = instrumentFetch(BASE);
 
 const consoleErrors = [];
 console.error = (...args) => consoleErrors.push(args.map(String).join(' '));
 
 const contentMissing = [];
 const unsettled = [];
-
-const tick = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Wait for a condition to hold, polling until a deadline.
- *
- * @param {() => boolean} condition What the caller is waiting for.
- * @param {number} timeout How long to allow, in milliseconds.
- * @returns {Promise<boolean>} True if it held, false if the deadline passed. Every
- *   caller treats false as a result to report rather than one to ignore, which is the
- *   whole difference between this and the fixed delays it replaced.
- */
-async function waitUntil(condition, timeout) {
-  const deadline = Date.now() + timeout;
-  for (;;) {
-    if (condition()) return true;
-    if (Date.now() >= deadline) return false;
-    await tick(POLL);
-  }
-}
 
 // The bytes the server sends, not the ones on disk: see served-modules.mjs for
 // the failure that distinction let through.
@@ -129,28 +81,11 @@ const { CHAPTERS } = await import(new URL('chapters.js', modules));
 await import(new URL('app.js', modules));
 
 const stage = document.getElementById('stage');
+const page = pageState({ document, stage, pending });
 let inert = 0;
 const broken = [];
 
-/** @returns {boolean} Whether the page has finished whatever it was doing. */
-const quiet = () => inFlight === 0 && !stage.querySelector('.spinner');
-
-/**
- * Which chapter the application believes it is showing.
- *
- * `buildRail()` sets this at the top of `show()`, before the chapter body exists, so it
- * answers "has navigation started" where the spinner answers "has it finished". Waiting
- * on the second alone passes instantly while the previous chapter is still on the stage,
- * which is exactly the bug this replaced.
- *
- * @returns {number} Index into CHAPTERS, or -1 before the rail is built.
- */
-const activeChapter = () =>
-  [...document.querySelectorAll('#rail-nav .rail__link')].findIndex(
-    (link) => link.getAttribute('aria-current') === 'true'
-  );
-
-if (!(await waitUntil(() => activeChapter() >= 0 && quiet(), READY_TIMEOUT))) {
+if (!(await page.ready())) {
   console.log(`the application did not finish loading within ${READY_TIMEOUT} ms`);
   console.log('');
   console.log('FAILED: the application never became ready');
@@ -163,9 +98,7 @@ for (const [index, chapter] of CHAPTERS.entries()) {
   // like a product bug and is not one.
   dom.window.location.hash = chapter.id;
 
-  // Both halves, and in one condition so neither can be satisfied by the other: the rail
-  // has to name *this* chapter, and the page has to have stopped working on it.
-  if (!(await waitUntil(() => activeChapter() === index && quiet(), READY_TIMEOUT))) {
+  if (!(await page.showing(index))) {
     unsettled.push(`${chapter.id}: still rendering after ${READY_TIMEOUT} ms`);
     console.log(`${chapter.id.padEnd(14)} DID NOT SETTLE — not inspected, rather than inspected wrongly`);
     continue;
@@ -212,11 +145,11 @@ for (const [index, chapter] of CHAPTERS.entries()) {
     // Returns the moment it changes, so a responsive control costs milliseconds rather
     // than a fixed wait. Only a control that really does nothing spends the deadline,
     // which is the right way round: the slow path is the one that found a bug.
-    const responded = await waitUntil(() => stage.textContent !== before, CLICK_TIMEOUT);
+    const responded = await page.changedFrom(before);
 
     // Then let whatever it started finish, so a slow control is not blamed on the button
     // clicked after it.
-    await waitUntil(quiet, CLICK_TIMEOUT);
+    await page.idle(CLICK_TIMEOUT);
     if (!responded) dead.push(label);
   }
 
