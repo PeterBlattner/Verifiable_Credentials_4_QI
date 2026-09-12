@@ -31,14 +31,25 @@
 // success on a demonstrably broken page: an inert control, a chapter that did not render
 // at all, and anything written to console.error. The middle one is the trap -- a chapter
 // that throws has no buttons, so "0 controls, all responded" was true and meaningless.
+//
+// A fourth was added for the same reason, and it is the subtlest of them: this harness
+// used to wait a fixed 1400 ms after changing the hash and then read the page, which a
+// cold server outruns. It now waits for the page to settle, and reports reaching the
+// deadline instead of reading the page anyway. page-settled.mjs holds that logic and the
+// reasoning behind it, because chapter-snapshot.mjs needs exactly the same thing.
+//
+// VCQI_SETTLE is gone with the delays it configured; VCQI_READY_TIMEOUT and
+// VCQI_CLICK_TIMEOUT are deadlines.
 
 // Resolved at run time so the module can come from beside this file or from wherever
 // the operator already has it.
 const { JSDOM } = await import(process.env.VCQI_JSDOM || 'jsdom');
 const { servedModules } = await import(new URL('served-modules.mjs', import.meta.url));
+const { instrumentFetch, pageState, READY_TIMEOUT, CLICK_TIMEOUT } = await import(
+  new URL('page-settled.mjs', import.meta.url)
+);
 
 const BASE = process.env.VCQI_BASE || 'http://127.0.0.1:8000';
-const SETTLE = Number(process.env.VCQI_SETTLE || 1100);
 
 const dom = new JSDOM(
   '<!doctype html><html><body><nav><ul id="rail-nav"></ul></nav><main id="stage"></main></body></html>',
@@ -54,34 +65,44 @@ global.Element = dom.window.Element;
 dom.window.Element.prototype.scrollIntoView = function scrollIntoView() {};
 dom.window.scrollTo = function scrollTo() {};
 
-const realFetch = global.fetch;
-global.fetch = (input, init) =>
-  realFetch(String(input).startsWith('http') ? input : BASE + input, init);
+// Before app.js is imported, because that is what installs the code that fetches.
+const pending = instrumentFetch(BASE);
 
 const consoleErrors = [];
 console.error = (...args) => consoleErrors.push(args.map(String).join(' '));
 
 const contentMissing = [];
-
-const settle = (ms = SETTLE) => new Promise((resolve) => setTimeout(resolve, ms));
+const unsettled = [];
 
 // The bytes the server sends, not the ones on disk: see served-modules.mjs for
 // the failure that distinction let through.
 const modules = await servedModules(BASE);
 const { CHAPTERS } = await import(new URL('chapters.js', modules));
 await import(new URL('app.js', modules));
-await settle(1500);
 
 const stage = document.getElementById('stage');
+const page = pageState({ document, stage, pending });
 let inert = 0;
 const broken = [];
 
-for (const chapter of CHAPTERS) {
+if (!(await page.ready())) {
+  console.log(`the application did not finish loading within ${READY_TIMEOUT} ms`);
+  console.log('');
+  console.log('FAILED: the application never became ready');
+  process.exit(1);
+}
+
+for (const [index, chapter] of CHAPTERS.entries()) {
   // Assigning the hash fires hashchange on its own. Dispatching one as well renders the
   // chapter twice concurrently and produces duplicated controls, which looks exactly
   // like a product bug and is not one.
   dom.window.location.hash = chapter.id;
-  await settle(1400);
+
+  if (!(await page.showing(index))) {
+    unsettled.push(`${chapter.id}: still rendering after ${READY_TIMEOUT} ms`);
+    console.log(`${chapter.id.padEnd(14)} DID NOT SETTLE — not inspected, rather than inspected wrongly`);
+    continue;
+  }
 
   // Did the chapter render at all? That has to be asked separately, and the reason is
   // worth recording. A chapter that throws renders an error banner and no controls, so
@@ -120,8 +141,16 @@ for (const chapter of CHAPTERS) {
     const label = (button.textContent || '').trim().slice(0, 40);
     const before = stage.textContent;
     button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-    await settle();
-    if (stage.textContent === before) dead.push(label);
+
+    // Returns the moment it changes, so a responsive control costs milliseconds rather
+    // than a fixed wait. Only a control that really does nothing spends the deadline,
+    // which is the right way round: the slow path is the one that found a bug.
+    const responded = await page.changedFrom(before);
+
+    // Then let whatever it started finish, so a slow control is not blamed on the button
+    // clicked after it.
+    await page.idle(CLICK_TIMEOUT);
+    if (!responded) dead.push(label);
   }
 
   inert += dead.length;
@@ -144,6 +173,7 @@ const failures = [];
 if (inert) failures.push(`${inert} inert control(s)`);
 if (contentMissing.length) failures.push(`${contentMissing.length} chapter(s) missing content`);
 if (broken.length) failures.push(`${broken.length} chapter(s) failed to render`);
+if (unsettled.length) failures.push(`${unsettled.length} chapter(s) did not settle`);
 if (consoleErrors.length) failures.push(`${consoleErrors.length} console error(s)`);
 
 console.log('');
