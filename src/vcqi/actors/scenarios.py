@@ -37,6 +37,7 @@ from typing import Any
 from vcqi.crypto.dataintegrity import ProofTrace, sign_document
 from vcqi.crypto.xmldsig import C14N_ALGORITHM, SIGNATURE_ALGORITHM
 from vcqi.domain import accreditation as accreditation_registry
+from vcqi.domain import arrangement as arrangement_registry
 from vcqi.domain import kcdb as kcdb_registry
 from vcqi.domain.engine import mu
 from vcqi.domain.instruments import SHARED_REFERENCE_PAIR, instrument_by_id
@@ -799,16 +800,28 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
                 "legalName": sas.legal_name,
                 "url": sas.url,
                 "description": sas.description,
+                # One action per main scope, because a main scope is what the
+                # arrangement actually recognises: an activity paired with the document
+                # it is assessed against. Two of these three share ISO/IEC 17025 and
+                # differ only in activity, so a list of standards could not tell them
+                # apart -- and signatory status for one of them can begin, lapse or be
+                # withdrawn without touching the others.
                 "recognizedTo": [
                     recognized_action(
                         "accredit",
                         "did:web:global-aci.example",
                         description=(
-                            "Accredit conformity assessment bodies against ISO/IEC 17025 "
-                            "and ISO/IEC 17065 under the Global ACI multilateral recognition arrangement."
+                            f"Accredit conformity assessment bodies for "
+                            f"{signatory.main_scope.activity.lower()} against "
+                            f"{signatory.main_scope.standard}, under the Global ACI "
+                            f"multilateral recognition arrangement."
                         ),
-                        valid_from=valid_from,
+                        main_scope=signatory.main_scope.to_json(),
+                        valid_from=f"{signatory.signed_on}T00:00:00Z",
                         valid_until=valid_until,
+                    )
+                    for signatory in arrangement_registry.scopes_for_signatory(
+                        "did:web:sas.example"
                     )
                 ],
             }
@@ -816,7 +829,8 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
         name="Global ACI MRA signatories, 2026 edition",
         description=(
             "Accreditation bodies that are signatories to the Global ACI multilateral "
-            "recognition arrangement, with the standards each signatory is a signatory for."
+            "recognition arrangement, with the main scopes -- an activity and the "
+            "normative document it is assessed against -- each one is a signatory for."
         ),
         credential_status=status_entry(
             GLOBAL_ACI_STATUS, STATUS_INDEX[GLOBAL_ACI_RECOGNITION], purpose="suspension"
@@ -833,6 +847,11 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
     for scope in accreditation_registry.ACCREDITATION_SCOPES:
         actor = actor_by_did(scope.organisation)
         assert actor is not None
+        # The pair this accreditation is granted under, which is what the hop above has
+        # to have recognised the body for. Asserting the standard agrees keeps the two
+        # registries from drifting apart quietly.
+        main_scope = arrangement_registry.main_scope_by_activity(scope.activity)
+        assert main_scope.standard == scope.standard
         accredited.append(
             {
                 "id": scope.organisation,
@@ -855,6 +874,7 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
                             "type": "AccreditationScope",
                             "identifier": scope.identifier,
                         },
+                        main_scope=main_scope.to_json(),
                         valid_from=f"{scope.valid_from}T00:00:00Z",
                         valid_until=f"{scope.valid_until}T23:59:59Z",
                     )

@@ -162,8 +162,15 @@ def sign_document(
         proof_config["challenge"] = challenge
     if domain is not None:
         proof_config["domain"] = domain
-    # The proof configuration repeats the context of the document so that a verifier
-    # cannot be shown the same claims under a different set of term definitions.
+    # The proof configuration repeats the context of the document. Under this suite that
+    # is redundant and it is worth being exact about why, because the obvious reason is
+    # the wrong one: `ecdsa-jcs-2019` canonicalizes the JSON, so `@context` is an ordinary
+    # member of the document and is already inside the document hash. Nothing could show
+    # the same claims under different term definitions without breaking that hash first.
+    # The restatement is kept because it is what an RDF canonicalization suite would need
+    # -- there the context is consumed and discarded before hashing, and the proof
+    # configuration is the only place it survives -- so a document signed here carries the
+    # member a reader of `ecdsa-rdfc-2019` would look for.
     if "@context" in unsecured:
         proof_config["@context"] = unsecured["@context"]
 

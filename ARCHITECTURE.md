@@ -548,6 +548,30 @@ examples of a list of recognised entities. The BIPM credential lists two institu
 the accreditation body lists three organisations, so the array shape is exercised rather
 than assumed.
 
+**And the shape has a cost the specification does not mention.** `credentialStatus` is a
+property of the credential, so there is exactly one status list entry for a roster of
+three. Suspending the accreditation body's recognition of one laboratory is not
+expressible: the only available act suspends the list, and with it the other two
+organisations, neither of which did anything. `suspended-accreditation` in
+`actors/tamper.py` is that act, and its own prose now says both halves -- a suspension
+that reaches every certificate at once without reissuing any of them is the useful half,
+and a suspension that cannot be narrower than the roster is the other.
+
+Nothing here fixes it, and the fix is not local. One credential per recognised entity
+would give each its own status entry at the cost of departing from the shape the
+specification demonstrates; a per-entity status member would keep the shape at the cost of
+inventing vocabulary. Both are governance rather than engineering, and chapter 11 is where
+that belongs.
+
+A second, milder version of the same cost showed up while the arrangement check below was
+being written. Read naively, "does this credential grant anything it is not entitled to
+grant?" is a question about the whole roster, and answering it that way failed chains that
+had nothing to do with the offending entry -- a laboratory's calibration certificate
+rejected because a certification body listed beside it was accredited out of scope. The
+check therefore weighs only the grant the chain it is on actually rests on. That is the
+right answer, and it is worth noticing that the roster shape is what made the wrong one
+available.
+
 ## What the pipeline checks, and why each step exists
 
 | Step | Exists because |
@@ -556,7 +580,7 @@ than assumed.
 | `proof` | signature, *and* that the key's controller is the issuer, *and* that the controller authorised that key for assertions |
 | `validity` | evaluated against the moment of verification, not of issue |
 | `status` | a signature says what was true at issue; only the status list says what is true now |
-| `recognition` | the Recognized Entities contribution: getting from an unknown issuer to a trusted identifier |
+| `recognition` | the Recognized Entities contribution: getting from an unknown issuer to a trusted identifier, and at each hop whether the recognition granted there was the granting body's to grant |
 | `action` | being recognised is not being recognised *for this*, at *this time*, under *this capability* |
 | `output-validation` | the schema the recognition names, pinned by content digest |
 | `scope` | the numeric decision a schema cannot express |
@@ -569,6 +593,62 @@ evaluated reports `skip` rather than passing quietly. `tests/test_pipeline.py` a
 that every failure case is caught by the step that claims it, and that the metrological
 cases pass `proof`, `validity` and `recognition` first — which is the whole
 reason they are worth demonstrating.
+
+### A main scope is a pair, and the pair is what is recognised
+
+An arrangement does not recognise an accreditation body, and does not recognise a
+standard. It recognises a **main scope**: an activity together with the normative document
+that activity is assessed against, granted one at a time and each with its own date of
+signature. Global ACI -- which is what ILAC and IAF became on 1 January 2026, the date
+`RECOGNITION_FROM` already carries -- defines eleven of them, and `domain/arrangement.py`
+lists all eleven beside the three the accreditation body of this world is a signatory for.
+
+The pair is not fastidiousness. **Testing and calibration are two different main scopes
+assessed against the same ISO/IEC 17025.** A recognition recorded as a list of standards
+cannot say that a body is a signatory for one and not the other, so the question "was this
+accreditation the body's to grant?" becomes unanswerable in the one direction where the
+answer is most often no. Two of the three scopes here share a standard precisely so that
+the distinction is exercised rather than asserted, and `tests/test_pipeline.py` pins it.
+
+`recognition` therefore gained a sixth per-hop check, `arrangement-scope`: every main scope
+a recognition credential grants must be one the hop above recognised its issuer for. It
+compares pairs, it weighs only the grant the chain rests on, and where a credential
+recognises nobody it is **not added at all** rather than passing -- a certificate grants
+nothing, and reporting a pass would claim a comparison that never happened.
+
+`domain/arrangement.py` publishes none of this as a retrievable document, which breaks
+the pattern `KcdbCmcEntry` and `AccreditationScope` set and is worth saying why. Those two
+are worth fetching because the party being checked is not the party that published them: a
+laboratory claims a capability and the register that granted it says otherwise. The
+arrangement is not in that position. It is the trust anchor, the main scope travels inside
+the credential it signed, and fetching its unsigned web page to check its signed statement
+would buy a retrieval and no evidence. An unread document in this world is a liability, not
+a courtesy.
+
+What it does not reach: sub-scopes. The arrangement has two further levels beneath the
+main scope, at Levels 4 and 5. Modelling one level is enough to decide whether a body was
+a signatory for the kind of accreditation it granted, and not enough to decide anything
+finer than that.
+
+The standard identifiers are ISO URNs in the form RFC 5141 defines, which makes them the
+one family of identifiers in this demonstration that was not invented for it -- worth
+contrasting with `dc.resistance` and the instrument URNs, both of which chapter 11 has to
+argue for. They do not resolve, so the human title travels beside each one.
+
+### Status answers "now", and the chain asks about "then"
+
+`validity` and `action` both move when the verifier's clock moves: the interface's date
+control reaches them, and `action` compares a recognition window against the issuance date
+of the document it authorised. `status` does not. `check_status` takes no `now` at all, and
+a status list is a claim about the moment it is fetched.
+
+So the pipeline answers "is this accreditation body recognised today", and never "was it
+recognised on the date of that calibration" -- which is the question a traceability chain
+actually raises, since the certificates in it are older than the verification of them.
+Nothing here closes that. The three ways out are dated snapshots of the status list,
+credentials short-lived enough that the window itself answers the question, or an
+append-only log of recognition events beside the list; all three are infrastructure, and
+chapter 11 is where they belong.
 
 ### Following a chain says nothing about what it is about
 

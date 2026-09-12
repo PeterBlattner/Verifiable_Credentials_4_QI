@@ -728,6 +728,83 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "specification."
         ),
     ),
+    HarmonisationItem(
+        key="recognition-history",
+        tier="irreversible",
+        title="Whether a recognition can be asked about in the past",
+        status="open",
+        requirement=(
+            "A way to establish that an accreditation body was recognised, and for the "
+            "right main scope, on the date a calibration was performed — not on the date "
+            "somebody happens to be checking. Dated snapshots of the status list, "
+            "recognitions short-lived enough that the validity window itself answers the "
+            "question, or an append-only log of recognition events beside the list. Which "
+            "of the three has to be one answer, because a verifier cannot try all of them."
+        ),
+        demonstrated=(
+            "Nothing. The clock control moves validity and the recognition window, and "
+            "the status check ignores it entirely — a status list is a claim about the "
+            "moment it is fetched and this one has no history to offer. So the pipeline "
+            "answers is this body recognised today and never was it recognised then, "
+            "which is the question a chain of certificates actually raises."
+        ),
+        exists=(
+            "Bitstring Status List defines no history and is explicit that it describes "
+            "current status. The arrangements publish signatory lists as they stand, and "
+            "announce changes as news items rather than as dated records a machine can "
+            "resolve — which is how the extension of a signatory scope is knowable today "
+            "and not queryable."
+        ),
+        source="https://www.w3.org/TR/vc-bitstring-status-list/",
+        consequence=(
+            "A certificate issued under a recognition that was perfectly good at the "
+            "time fails years later because the body has since been suspended, or worse "
+            "passes because it has since been reinstated. The verdict depends on when "
+            "the question is asked rather than on what was true."
+        ),
+        forum=(
+            "The arrangements, for the record; the credential working group, for the "
+            "mechanism. Neither can do it alone, and the certificates that will need it "
+            "are being issued now."
+        ),
+    ),
+    HarmonisationItem(
+        key="suspension-granularity",
+        tier="irreversible",
+        title="What the unit of suspension is",
+        status="open",
+        requirement=(
+            "An agreement that a recognition can be withdrawn from one organisation "
+            "without being withdrawn from the others recorded beside it — either one "
+            "credential per recognised entity, or a status entry per entity within a "
+            "roster."
+        ),
+        demonstrated=(
+            "A roster: one credential lists three organisations and carries one status "
+            "list entry between them. Suspending the accreditation body's recognition of "
+            "one laboratory suspends all three, which is not what suspending one "
+            "laboratory means. ARCHITECTURE.md records why the roster shape was kept — "
+            "it is the shape the specification demonstrates."
+        ),
+        exists=(
+            "Recognized Entities shows the roster and says nothing about suspending part "
+            "of one. Bitstring Status List binds an entry to a credential, so the "
+            "granularity of suspension follows the granularity of issuance and cannot be "
+            "chosen separately."
+        ),
+        source="https://www.w3.org/TR/vc-recognized-entities-1.0/",
+        consequence=(
+            "An arrangement wanting to suspend one signatory suspends its whole "
+            "published list, or declines to suspend at all. Both are worse than the act "
+            "it meant to perform, and the choice is forced by a shape decided years "
+            "earlier."
+        ),
+        forum=(
+            "The credential working group, and then whoever operates each arrangement. "
+            "Reissuing every recognition in a different shape later is possible; "
+            "reaching back to suspend one entry of a roster already issued is not."
+        ),
+    ),
     # ---------------------------------------------------------------- tier 3
     HarmonisationItem(
         key="digital-si",
