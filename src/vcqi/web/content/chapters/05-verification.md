@@ -24,6 +24,8 @@ This is the demonstration proper. A market surveillance authority in an importin
 
 It runs eleven checks on this document. Four are generic, one walks the recognition chain, and six are about whether the metrology holds up — and a credential that only points at its certificate, rather than carrying one, picks up a twelfth. Expand any step to see what it decided.
 
+One of those checks is not about this document at all. Traceability is verified by fetching what the certificate rests on and running the same sequence again on that, and again on what that rests on, down to the institute that realises the unit. A certificate names its parent by identifier and digest rather than carrying a copy of it, so nothing upstream is taken on trust: reaching a verdict here means verifying four credentials and not one, and the inherited line of the budget is checked against the parent certificate that was actually fetched.
+
 <!-- block: stapled -->
 
 The holder bundled the recognition credentials with the presentation, so the verifier read them from the presentation instead of going out for them. In a real deployment that is the difference between a border check that needs connectivity and one that does not.
