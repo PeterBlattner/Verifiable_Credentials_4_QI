@@ -14,6 +14,9 @@ out/
 # Working notes, not part of the demonstration
 temp/
 
-# Optional UI click harness; see tools/ui-clicks.mjs
+# The jsdom harnesses; see tools/ui-clicks.mjs and tools/page-settled.mjs. The installed
+# tree stays out, the manifest does not: ci.yml runs these harnesses, so the version they
+# run against has to be the version anyone else gets. Nothing that ships needs npm, which
+# is the property that was being protected here and still holds -- this manifest is for
+# two development tools and reaches no wheel, no image and no page.
 tools/node_modules/
-tools/package*.json

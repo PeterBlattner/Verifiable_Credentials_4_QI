@@ -2982,3 +2982,54 @@ documents.
   recognising a standard and recognising an activity assessed against one.
 - The registry entry that was built and then removed is recorded above, because the reason
   for removing it is the same reason this change set exists.
+
+# Change set 17 - what the traceability step actually does
+
+## Context
+
+Asked how the traceability chain is verified for `CPC-2026-0055`, and whether the "76"
+in the infrastructure chapter meant a recipient has to re-check every credential above
+the one in its hands. It does, and the chapter never said so.
+
+`05-verification.md` told the reader the verifier "runs eleven checks on this document"
+and broke those eleven down. It did not say that one of them is not a check on *this*
+document at all: `_step_traceability` (`src/vcqi/vc/verify.py:1174`) fetches each
+referenced credential, checks its canonicalised bytes against the `digestMultibase` in
+the reference, and then calls `verify_credential` on it recursively. For the certificate
+of conformity that is four credentials, each fully checked:
+
+```
+CPC-2026-0055 (cab) -> HTS-2026-3391 (testlab) -> AC-2026-1182 (callab)
+                    -> METAS-2026-0417 (metas) -> ends: mraLogoAsserted
+```
+
+Nothing upstream is summarised into the leaf. The conformity credential is 2 144 bytes
+and its only link downward is a pointer of three fields - `id`, `digestMultibase`,
+`issuer`. The recursion is what makes revocation and time-bounded recognition checkable
+at the moment of verification rather than frozen at issuance.
+
+The "76" was already labelled honestly - `chapters.js:1464` shows "31 distinct documents"
+against "76 retrievals, with no cache", with a callout attributing the 45 repeats to this
+implementation resolving the same DID documents at every hop. Measured again here: 76
+retrievals, 31 distinct, of which 44 are DID documents, `did:web:sas.example` and
+`did:web:global-aci.example` twelve times each. No change needed there.
+
+## Change
+
+```
+src/vcqi/web/content/chapters/05-verification.md    one paragraph in the-scenario
+```
+
+Words only, inside an existing block, so no code moved and nothing was renamed.
+
+An earlier draft said a certificate carries "never the parent's conclusions", which
+contradicts `07-traceability.md`: the budget *does* inherit the parent's result as its
+first line. The wording says instead that the parent is named by identifier and digest
+rather than copied, and that the inherited budget line is checked against the parent
+that was actually fetched - which is the reason the fetch has to happen.
+
+## Verification
+
+- `uv run pytest tests/test_content.py tests/test_web.py` - passes.
+- 76 retrievals across 31 distinct documents from 7 hosts, unchanged: no credential,
+  schema or registry entry was touched.
