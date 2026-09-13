@@ -15,7 +15,29 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["Instrument", "INSTRUMENTS", "instrument_by_id"]
+__all__ = [
+    "Instrument",
+    "INSTRUMENTS",
+    "OBJECT_CATEGORIES",
+    "instrument_by_id",
+]
+
+
+#: Which VIM category each kind of object belongs to.
+#:
+#: A published accreditation scope gives different capabilities to calibrating an
+#: ohmmeter and to calibrating a resistance, because those are different activities on
+#: different kinds of object: a *measuring instrument* (VIM 3.1) and a *material measure*
+#: (VIM 3.6). The distinction belongs to the kind of object rather than to the individual
+#: one, which is why it is a mapping here rather than a member of every instrument.
+#:
+#: A kind that is absent gets no category, and a certificate about it states none -- so a
+#: scope row keyed by category simply will not select for it, which is the right answer
+#: rather than a silent match.
+OBJECT_CATEGORIES: dict[str, str] = {
+    "StandardResistor": "materialMeasure",
+    "DigitalMultimeter": "measuringInstrument",
+}
 
 
 @dataclass(frozen=True)
@@ -44,6 +66,16 @@ class Instrument:
     nominal_value: float | None = None
     unit: str | None = None
 
+    @property
+    def category(self) -> str:
+        """Return the VIM category of this kind of object.
+
+        Returns:
+            ``measuringInstrument``, ``materialMeasure``, or an empty string for a kind
+            that is neither -- a product under test, for instance.
+        """
+        return OBJECT_CATEGORIES.get(self.kind, "")
+
     def to_json(self) -> dict[str, Any]:
         """Return the instrument as it appears inside a credential subject.
 
@@ -58,6 +90,8 @@ class Instrument:
             "model": self.model,
             "serialNumber": self.serial_number,
         }
+        if self.category:
+            document["objectCategory"] = self.category
         if self.nominal_value is not None:
             document["nominalValue"] = self.nominal_value
         if self.unit is not None:

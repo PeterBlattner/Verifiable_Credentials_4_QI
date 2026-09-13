@@ -347,6 +347,7 @@ def calibration_certificate_credential(
     capability_reference: dict[str, Any],
     mra_logo_asserted: bool,
     accredited: bool,
+    condition_quantities: list[dict[str, Any]] | None = None,
     traceable_to: dict[str, Any] | None = None,
     credential_status: dict[str, Any] | None = None,
     representations: list[dict[str, Any]] | None = None,
@@ -373,6 +374,12 @@ def calibration_certificate_credential(
             is stated explicitly so that the claim can be checked rather than inferred
             from the presence of an image.
         accredited: Whether the certificate claims to be accredited work.
+        condition_quantities: The conditions of the calibration stated numerically, as
+            ``{"quantity", "value", "unit"}`` entries -- ``frequency`` at 0 Hz for a
+            direct-current measurement, for instance. The prose in ``conditions`` says
+            the same thing to a reader; this says it to the scope check, which has to
+            choose between two rows of an accreditation scope that differ only by the
+            band they were demonstrated over.
         traceable_to: Reference to the certificate one level up the traceability chain,
             or None when the issuer realises the unit itself.
         credential_status: Optional credentialStatus member.
@@ -400,6 +407,8 @@ def calibration_certificate_credential(
         "mraLogoAsserted": mra_logo_asserted,
         "accredited": accredited,
     }
+    if condition_quantities:
+        calibration["conditionQuantities"] = condition_quantities
     if traceable_to is not None:
         calibration["traceableTo"] = traceable_to
 

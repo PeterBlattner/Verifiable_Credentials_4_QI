@@ -350,7 +350,7 @@ class TestTheSchemaAcceptsEitherCarrier:
         cmc = cmc_by_id("CH-EM-0042")
         assert cmc is not None
         return calibration_certificate_schema(
-            cmc.as_capability(), schema_id="urn:test", title="test"
+            [cmc.as_capability()], schema_id="urn:test", title="test"
         )
 
     def test_it_offers_one_branch_per_carrier(self, schema) -> None:

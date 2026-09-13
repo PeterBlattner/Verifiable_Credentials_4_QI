@@ -27,10 +27,21 @@ reason -- not because the institute may not do it, but because the schema was wr
 before it did. So the generated schema accepts either carrier, and insists on what each
 one must state: a result inside the declared bounds, or a digest of the document that
 holds it.
+
+**A scope is a table, and a schema is a constant.** An accreditation scope covers
+several quantities over rows whose shapes a schema has no way to say: fixed values
+rather than an interval, a strict upper bound, a capability that differs with the
+frequency it was demonstrated at. The schema takes one branch per quantity and, inside a
+branch, the union of its rows -- the widest level any of them touches and the smallest
+uncertainty any of them permits. Every one of those collapses loses something, and they
+all lose it in the permissive direction, which is the safe one: the schema admits claims
+the register will refuse, never the reverse. The consequence is that the richer a scope
+gets, the more of the decision belongs to the register alone.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from vcqi.crypto.jcs import canonicalize
@@ -45,7 +56,7 @@ __all__ = [
 
 
 def calibration_certificate_schema(
-    capability: DeclaredCapability,
+    capabilities: Sequence[DeclaredCapability],
     *,
     schema_id: str,
     title: str,
@@ -53,31 +64,50 @@ def calibration_certificate_schema(
     """Generate the schema a calibration certificate must validate against.
 
     Args:
-        capability: The CMC entry or accreditation scope being expressed.
+        capabilities: The capabilities being expressed -- one for a CMC entry, and one
+            per quantity for an accreditation scope published as a table. The schema
+            admits a certificate matching any of them.
         schema_id: URL the schema is published at.
         title: Human-readable title for the schema.
 
     Returns:
         A JSON Schema draft 2020-12 document.
-    """
-    floor = capability.uncertainty_floor
-    weakest_floor = floor.evaluate(capability.range_minimum)
 
+    Raises:
+        ValueError: If no capability is given. A schema bounding nothing would validate
+            everything, which is worse than having no schema at all.
+    """
+    if not capabilities:
+        raise ValueError("a schema needs at least one capability to bound")
+
+    branches: list[dict[str, Any]] = []
+    for capability in capabilities:
+        span_minimum, _ = capability.coverage.span()
+        weakest_floor = capability.uncertainty_floor.evaluate(span_minimum)
+        branches.append(_carried_result(capability, weakest_floor))
+        branches.append(_referenced_document(capability))
+
+    described = "; ".join(
+        f"{capability.label}, "
+        f"{capability.uncertainty_floor.describe(capability.unit)}"
+        for capability in capabilities
+    )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": schema_id,
         "title": title,
-        "anyOf": [
-            _carried_result(capability, weakest_floor),
-            _referenced_document(capability),
-        ],
+        "anyOf": branches,
         "description": (
-            f"Structural bounds of {capability.label}. The measurand, unit, range and "
-            f"coverage factor are fully expressed here. The uncertainty floor is not: "
-            f"{floor.describe(capability.unit)} varies with the measured level, and "
-            f"only its value at the bottom of the range can be stated as a constant "
-            f"bound. A certificate that validates against this schema is therefore not "
-            f"yet known to be inside scope; the registry entry decides that."
+            f"Structural bounds of {described}. The measurand, unit, span and coverage "
+            f"factor are expressed here. The uncertainty floor is not: it varies with "
+            f"the measured level, and only its value at the bottom of the span can be "
+            f"stated as a constant bound. Neither is the shape of the capability: a "
+            f"scope published as a table collapses here to the widest level any row "
+            f"touches and the smallest uncertainty any row permits, so fixed values, "
+            f"strict bounds and condition bands all disappear. A certificate that "
+            f"validates against this schema is therefore not yet known to be inside "
+            f"scope; the registry entry decides that, and the richer the scope the more "
+            f"of the decision is left to it."
         ),
     }
 
@@ -129,8 +159,8 @@ def _carried_result(
                                     "properties": {
                                         "value": {
                                             "type": "number",
-                                            "minimum": capability.range_minimum,
-                                            "maximum": capability.range_maximum,
+                                            "minimum": capability.coverage.span()[0],
+                                            "maximum": capability.coverage.span()[1],
                                         },
                                         "unit": {"const": capability.unit},
                                         "coverageFactor": {

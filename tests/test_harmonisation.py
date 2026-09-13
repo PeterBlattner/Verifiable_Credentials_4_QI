@@ -168,9 +168,12 @@ class TestTheMeasurandCoincidence:
         # Different organisations publish these two documents.
         assert cmc.institute != scope.body
 
-        # And yet the strings match exactly, which is what chapter 5 depends on.
-        assert cmc.measurand == scope.measurand == "dc.resistance"
-        assert cmc.unit == scope.unit == "ohm"
+        # And yet the strings match exactly, which is what chapter 5 depends on. The
+        # scope says it a row at a time now, which changes nothing about the coincidence:
+        # there are simply more free strings that have to agree by luck.
+        row = next(row for row in scope.as_rows() if row.measurand == "dc.resistance")
+        assert cmc.measurand == row.measurand == "dc.resistance"
+        assert cmc.unit == row.unit == "ohm"
 
     def test_the_measurand_is_not_a_resolvable_identifier(self) -> None:
         """The point of the chapter: this is a free string, not something you can look up."""

@@ -45,6 +45,7 @@ from vcqi.domain.oiml import RECOMMENDATIONS, instrument_type_by_id, recommendat
 from vcqi.domain.dcc import to_dcc_xml
 from vcqi.domain.external_dcc import EXTERNAL_DCC_INDEX, external_dcc_bytes
 from vcqi.domain.gtc_archive import build_gtc_archive
+from vcqi.domain.scope import union_capabilities
 from vcqi.domain.uncertainty import (
     MeasurementResult,
     evaluate,
@@ -97,6 +98,16 @@ METAS_CHECK_A = "https://metas.example/certificates/METAS-2026-0418"
 METAS_CHECK_B = "https://metas.example/certificates/METAS-2026-0419"
 TESTLAB_REPORT = "https://testlab.example/reports/HTS-2026-3391"
 CAB_CERTIFICATE = "https://cab.example/certificates/CPC-2026-0055"
+
+#: Every calibration in this world is a direct-current measurement, and every certificate
+#: says so numerically as well as in prose. The prose tells a reader; this tells the scope
+#: check, which has to choose between two rows of an accreditation scope that differ only
+#: by the frequency band they were demonstrated over. Direct current is a frequency of
+#: zero and not the absence of a frequency, which is why the entry is present rather than
+#: left out.
+DIRECT_CURRENT_CONDITIONS: list[dict[str, Any]] = [
+    {"quantity": "frequency", "value": 0.0, "unit": "Hz"}
+]
 
 OIML_IA_RECOGNITION = "https://oiml.example/recognition/issuing-authorities-2021"
 OIML_TL_RECOGNITION = "https://oiml.example/recognition/test-laboratories-2021"
@@ -473,7 +484,7 @@ def _build_schemas(world: World) -> dict[str, dict[str, Any]]:
     for entry in kcdb_registry.CMC_ENTRIES:
         schema_id = f"{CMC_SCHEMA_BASE}/calibration-certificate-{entry.identifier}.json"
         schema = calibration_certificate_schema(
-            entry.as_capability(),
+            [entry.as_capability()],
             schema_id=schema_id,
             title=f"Calibration certificate within CMC {entry.identifier}",
         )
@@ -484,10 +495,15 @@ def _build_schemas(world: World) -> dict[str, dict[str, Any]]:
     for scope in accreditation_registry.ACCREDITATION_SCOPES:
         slug = scope.identifier.replace(" ", "-")
         schema_id = f"{ACCREDITATION_SCHEMA_BASE}/{slug}.json"
-        capability = scope.as_capability()
-        if capability is not None:
+        # One branch per quantity the scope covers. The rows themselves cannot be
+        # expressed offline -- see the module docstring of `vc/schema.py` -- so what
+        # reaches the schema is their union, and the register keeps the rest.
+        capabilities = union_capabilities(
+            scope.as_rows(), label=f"accreditation {scope.identifier}"
+        )
+        if capabilities:
             schema = calibration_certificate_schema(
-                capability,
+                capabilities,
                 schema_id=schema_id,
                 title=f"Calibration certificate within accreditation {scope.identifier}",
             )
@@ -958,6 +974,7 @@ def _calibration_certificates(world: World) -> None:
         owner={"id": callab.did, "name": callab.legal_name},
         measurand="dc.resistance",
         conditions=cmc.conditions,
+        condition_quantities=DIRECT_CURRENT_CONDITIONS,
         result=metas_result,
         nominal_value=1.0e4,
         capability_reference={
@@ -1018,6 +1035,7 @@ def _calibration_certificates(world: World) -> None:
         owner={"id": testlab.did, "name": testlab.legal_name},
         measurand="dc.resistance",
         conditions=scope.conditions,
+        condition_quantities=DIRECT_CURRENT_CONDITIONS,
         result=callab_result,
         nominal_value=1.0e4,
         capability_reference={
@@ -1131,6 +1149,7 @@ def _shared_reference_pair(world: World, unused: MeasurementResult) -> None:
             owner={"id": callab.did, "name": callab.legal_name},
             measurand="dc.resistance",
             conditions=cmc.conditions,
+            condition_quantities=DIRECT_CURRENT_CONDITIONS,
             result=result,
             nominal_value=1.0e4,
             capability_reference={

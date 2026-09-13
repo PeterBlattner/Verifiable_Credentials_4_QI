@@ -49,9 +49,14 @@ from vcqi.crypto.multibase import verify_digest_multibase, verify_digest_sri
 from vcqi.crypto.xmldsig import verify_enveloped
 from vcqi.domain.scope import (
     DeclaredCapability,
+    Interval,
     MeasurementClaim,
+    RowSelection,
+    ScopeRow,
     UncertaintyFloor,
     evaluate_scope,
+    scope_row_from_json,
+    select_row,
 )
 from vcqi.domain.dcc import parse_dcc_administrative, parse_dcc_result
 from vcqi.domain.uncertainty import parse_input_quantities
@@ -317,13 +322,235 @@ def _capability_from_document(document: dict[str, Any]) -> DeclaredCapability | 
             label=str(document.get("identifier", document.get("id", "capability"))),
             measurand=str(document["measurand"]),
             unit=str(document["unit"]),
-            range_minimum=float(document["rangeMinimum"]),
-            range_maximum=float(document["rangeMaximum"]),
+            coverage=Interval(
+                minimum=float(document["rangeMinimum"]),
+                maximum=float(document["rangeMaximum"]),
+            ),
             conditions=str(document.get("conditions", "")),
             uncertainty_floor=floor,
         )
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _rows_from_document(document: dict[str, Any]) -> tuple[ScopeRow, ...]:
+    """Return the capability table a published scope declares.
+
+    A CMC entry declares none and is one row in itself; an accreditation scope declares
+    a table. A row that cannot be read is dropped rather than guessed at, and the caller
+    sees a shorter table -- which can only make the check refuse things it would
+    otherwise have allowed.
+
+    Args:
+        document: The retrieved registry entry.
+
+    Returns:
+        The rows in register order, empty when the document publishes none.
+    """
+    rows = document.get("rows")
+    if not isinstance(rows, list):
+        return ()
+    parsed = [scope_row_from_json(row) for row in rows]
+    return tuple(row for row in parsed if row is not None)
+
+
+def _condition_quantities(
+    payload: dict[str, Any],
+) -> tuple[dict[str, float], dict[str, str]]:
+    """Return the conditions a certificate states numerically.
+
+    Args:
+        payload: The calibration or testing member of the credential subject.
+
+    Returns:
+        Levels by quantity identifier, and the unit each was stated in. An entry that
+        cannot be read as a number is left out, so an unreadable condition behaves as an
+        unstated one rather than as a satisfied one.
+    """
+    levels: dict[str, float] = {}
+    units: dict[str, str] = {}
+    stated = payload.get("conditionQuantities")
+    if not isinstance(stated, list):
+        return (levels, units)
+    for entry in stated:
+        if not isinstance(entry, dict):
+            continue
+        quantity = entry.get("quantity")
+        if not isinstance(quantity, str):
+            continue
+        try:
+            levels[quantity] = float(entry["value"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        units[quantity] = str(entry.get("unit", ""))
+    return (levels, units)
+
+
+def _claim_from_credential(
+    credential: dict[str, Any], result: dict[str, Any] | None
+) -> tuple[MeasurementClaim | None, str]:
+    """Reduce a certificate to the parts a scope check needs.
+
+    Args:
+        credential: The credential being verified.
+        result: Its first reported result, or None when it reports none.
+
+    Returns:
+        The claim and an empty string, or None and the reason it could not be built.
+    """
+    if result is None:
+        return (None, "the document reports no result")
+    payload = _payload(credential)
+    subject = credential.get("credentialSubject")
+    subject = subject if isinstance(subject, dict) else {}
+    levels, units = _condition_quantities(payload)
+    nominal_source = subject.get("nominalValue", result.get("nominalValue"))
+    try:
+        nominal = None if nominal_source is None else float(nominal_source)
+        return (
+            MeasurementClaim(
+                measurand=str(payload.get("measurand")),
+                unit=str(result.get("unit")),
+                value=float(result["value"]),
+                expanded_uncertainty=float(result["expandedUncertainty"]),
+                coverage_factor=float(result["coverageFactor"]),
+                nominal=nominal,
+                object_category=str(subject.get("objectCategory", "")),
+                conditions=levels,
+                condition_units=units,
+            ),
+            "",
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        return (None, f"the reported result could not be read: {error}")
+
+
+def _row_selection_detail(row: ScopeRow, selection: RowSelection) -> str:
+    """Render why this row was the one that applies.
+
+    Args:
+        row: The selected row.
+        selection: The selection it came from.
+
+    Returns:
+        A human-readable explanation naming the coverage, the object category, the
+        condition band and which level the match was made on.
+    """
+    detail = (
+        f"{row.label} applies: {row.coverage.describe(row.unit)} for a "
+        f"{row.object_category}"
+    )
+    if row.condition is not None:
+        detail += f", {row.condition.describe()}"
+    detail += f" (matched on the {selection.level_source})"
+    if selection.also_covered:
+        detail += (
+            "; the register also covers this claim in "
+            + ", ".join(selection.also_covered)
+            + ", which is an overlap only the accreditation body can resolve"
+        )
+    return detail
+
+
+def _step_scope_by_rows(
+    reference: dict[str, Any], rows: tuple[ScopeRow, ...], claim: MeasurementClaim
+) -> Step:
+    """Adjudicate a claim against a published scope that is a table rather than a row.
+
+    Two decisions, reported separately. First which row of the scope applies, which is a
+    real check with a real failure mode: a laboratory accredited for resistances between
+    1 ohm and 220 kohm at DC has not been accredited for the same resistances at 10 Hz,
+    and a scope reduced to its widest row would say that it had. Then whether the claim
+    fits the row that was selected, which is the check that already existed.
+
+    The remarks are reported and never adjudicated. That is not laziness: the remarks
+    that *restrict* a row have been modelled into the row itself -- fixed values became a
+    coverage of points, frequency bands became conditions -- and what is left is text
+    that extends a scope by an unstated amount. An extension cannot turn a pass into a
+    failure, so the verdict stands and the reader is told that the row which decided it
+    carried words nobody read.
+
+    Args:
+        reference: The capability reference the credential names.
+        rows: The published rows, in register order.
+        claim: The claim stated on the certificate.
+
+    Returns:
+        The step, with one child for the row selection, one per condition evaluated, and
+        one for the remarks when the selected row carries any.
+    """
+    selection = select_row(rows, claim)
+    label = reference.get("identifier", reference["id"])
+
+    if selection.row is None:
+        return Step(
+            id="scope",
+            title="Claim falls inside the declared capability",
+            status=FAIL,
+            detail=f"no row of {label} covers this calibration",
+            evidence={"capability": reference, "selection": selection.to_json()},
+            children=[
+                Step(
+                    id="scope.row",
+                    title="A row of the published scope covers this calibration",
+                    status=FAIL,
+                    detail="; ".join(
+                        f"{rejection.label} {rejection.reason}"
+                        for rejection in selection.rejections
+                    )
+                    or "the scope publishes no rows",
+                )
+            ],
+        )
+
+    row = selection.row
+    verdict = evaluate_scope(row.as_capability(), claim)
+
+    children = [
+        Step(
+            id="scope.row",
+            title="A row of the published scope covers this calibration",
+            status=WARN if selection.also_covered else PASS,
+            detail=_row_selection_detail(row, selection),
+        )
+    ]
+    children.extend(
+        Step(
+            id=f"scope.{check.key}",
+            title=check.title,
+            status=PASS if check.passed else FAIL,
+            detail=check.detail,
+        )
+        for check in verdict.checks
+    )
+    if row.remarks:
+        children.append(
+            Step(
+                id="scope.remarks",
+                title="The row that decided this carries remarks nobody read",
+                status=WARN,
+                detail="; ".join(row.remarks),
+            )
+        )
+
+    return Step(
+        id="scope",
+        title="Claim falls inside the declared capability",
+        status=PASS if verdict.within_scope else FAIL,
+        detail=(
+            f"the reported result is inside {row.label}"
+            if verdict.within_scope
+            else f"the reported result is outside {row.label}: "
+            + "; ".join(check.detail for check in verdict.failures)
+        ),
+        evidence={
+            "capability": reference,
+            "selection": selection.to_json(),
+            "verdict": verdict.to_json(),
+            "remarks": list(row.remarks),
+        },
+        children=children,
+    )
 
 
 def _first_result(credential: dict[str, Any]) -> dict[str, Any] | None:
@@ -660,26 +887,35 @@ def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
             evidence={"capability": reference},
         )
 
-    capability = _capability_from_document(document)
     result = _first_result(credential)
+    claim, unreadable = _claim_from_credential(credential, result)
 
+    # A scope that publishes a table is adjudicated a row at a time. A CMC entry, and an
+    # OIML Recommendation, publish none and are one row in themselves, so they keep the
+    # path below. Both are live: the difference between them is most of what chapter 5
+    # has to show.
+    rows = _rows_from_document(document)
+    if rows:
+        if claim is None:
+            return Step(
+                id="scope",
+                title="Claim falls inside the declared capability",
+                status=FAIL,
+                detail=unreadable,
+                evidence={"capability": reference},
+            )
+        return _step_scope_by_rows(reference, rows, claim)
+
+    capability = _capability_from_document(document)
     if capability is None or result is None:
         return _step_scope_by_method(credential, document, reference)
 
-    try:
-        claim = MeasurementClaim(
-            measurand=str(_payload(credential).get("measurand")),
-            unit=str(result.get("unit")),
-            value=float(result["value"]),
-            expanded_uncertainty=float(result["expandedUncertainty"]),
-            coverage_factor=float(result["coverageFactor"]),
-        )
-    except (KeyError, TypeError, ValueError) as error:
+    if claim is None:
         return Step(
             id="scope",
             title="Claim falls inside the declared capability",
             status=FAIL,
-            detail=f"the reported result could not be read: {error}",
+            detail=unreadable,
             evidence={"capability": reference},
         )
 

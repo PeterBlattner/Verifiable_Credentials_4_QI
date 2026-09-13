@@ -75,7 +75,7 @@ from vcqi.domain.accreditation import ACCREDITATION_SCOPES
 from vcqi.domain.engine import ENGINE, mu
 from vcqi.domain.gtc_archive import GTC_UNAVAILABLE_NOTE, gtc_available
 from vcqi.domain.kcdb import CMC_ENTRIES, cmc_by_id
-from vcqi.domain.scope import MeasurementClaim, evaluate_scope
+from vcqi.domain.scope import MeasurementClaim, evaluate_scope, select_row
 from vcqi.domain.uncertainty import (
     evaluate,
     format_measurement,
@@ -863,12 +863,25 @@ def post_uncertainty(request: BudgetRequest) -> dict[str, Any]:
     )
 
     scope = next(s for s in ACCREDITATION_SCOPES if s.identifier == "SCS 0123")
-    capability = scope.as_capability()
-    assert capability is not None
-    verdict = evaluate_scope(
-        capability,
-        MeasurementClaim("dc.resistance", "ohm", result.value, result.expanded_uncertainty, 2.0),
+    # The budget being recomputed is the laboratory's calibration of the reference
+    # multimeter, so the claim has to say so: which row of the scope applies depends on
+    # the nominal, on the object being a measuring instrument rather than a material
+    # measure, and on the measurement being at direct current.
+    claim = MeasurementClaim(
+        measurand="dc.resistance",
+        unit="ohm",
+        value=result.value,
+        expanded_uncertainty=result.expanded_uncertainty,
+        coverage_factor=2.0,
+        nominal=1.0e4,
+        object_category="measuringInstrument",
+        conditions={"frequency": 0.0},
+        condition_units={"frequency": "Hz"},
     )
+    selection = select_row(scope.as_rows(), claim)
+    assert selection.row is not None
+    capability = selection.row.as_capability()
+    verdict = evaluate_scope(capability, claim)
 
     return {
         "value": result.value,
