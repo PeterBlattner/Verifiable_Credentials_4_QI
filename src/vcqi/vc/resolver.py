@@ -67,11 +67,13 @@ class FetchRecord:
 #:   check passes. There is a regression test for exactly that.
 #: - ``status-list`` is a claim about *now*. A stapled one is stale by construction, and a
 #:   holder who keeps a copy from before its revocation replays it forever.
-#: - ``registry-entry`` -- a CMC or an accreditation scope -- carries no signature and no
-#:   digest, so a copy cannot be checked at all. Accepting one lets a laboratory declare
-#:   its own measurement capability. This is the one entry on this list that is here for a
-#:   reason that could be fixed rather than a reason that is inherent: signing the KCDB
-#:   would move it off.
+#: - ``registry-entry`` -- a CMC, in this world -- carries no signature and no digest, so
+#:   a copy cannot be checked at all. Accepting one lets an institute declare its own
+#:   measurement capability. This is the one entry on this list that is here for a reason
+#:   that could be fixed rather than a reason that is inherent, and the accreditation
+#:   scopes have already been fixed: their body signs them, so they are published as
+#:   ``credential`` and are checkable from any source. The kind did not move; the
+#:   documents did. Signing the KCDB would empty this entry entirely.
 #: - ``presentation`` is what identifier-based discovery dereferences from the issuer's own
 #:   endpoint. Letting the holder supply it means letting the holder choose what the issuer
 #:   says about itself.

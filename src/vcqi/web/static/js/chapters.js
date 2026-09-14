@@ -29,6 +29,9 @@ const CREDENTIAL_LABELS = {
   'bipm-recognition': 'BIPM recognition of national metrology institutes',
   'global-aci-recognition': 'Global ACI recognition of accreditation bodies',
   'sas-recognition': 'Accreditation body recognition of laboratories',
+  'scope-SCS-0123': 'Accreditation scope SCS 0123 (calibration)',
+  'scope-STS-0456': 'Accreditation scope STS 0456 (testing)',
+  'scope-SCESp-0789': 'Accreditation scope SCESp 0789 (certification)',
   'metas-calibration': 'Calibration certificate METAS-2026-0417',
   'callab-calibration': 'Calibration certificate AC-2026-1182',
   'metas-SR10K-0091': 'Calibration certificate METAS-2026-0418 (check standard A)',
@@ -708,6 +711,52 @@ async function chapterVerification(context) {
 
 // ---------------------------------------------------------------- chapter 5
 
+/**
+ * Describe the levels a scope row covers, in whichever grammar the register used.
+ *
+ * Three shapes, and flattening them to a range is exactly the mistake this chapter is
+ * about, so each one is printed as the register writes it.
+ *
+ * @param {object} coverage The coverage member of a published row.
+ * @param {string} unit Unit symbol of the row.
+ * @returns {string} The covered levels, for a table cell.
+ */
+function coverageText(coverage, unit) {
+  if (!coverage) return '—';
+  if (coverage.type === 'Points') {
+    return `${coverage.values.join(' ; ')} ${unit}, fixed values only`;
+  }
+  if (coverage.type === 'Window') {
+    return `(${coverage.nominal} ± ${coverage.tolerance}) ${unit}`;
+  }
+  const low = coverage.lowerBound === 'exclusive' ? `> ${coverage.minimum}` : coverage.minimum;
+  const high = coverage.upperBound === 'exclusive' ? `< ${coverage.maximum}` : coverage.maximum;
+  return `${low} … ${high} ${unit}`;
+}
+
+/**
+ * Render a published accreditation scope as the table it is.
+ *
+ * @param {object} scope The scope document from /api/world.
+ * @returns {Node} The table, or a note when the scope publishes no rows.
+ */
+function scopeRowTable(scope) {
+  const rows = (scope && scope.rows) || [];
+  if (!rows.length) return el('p', { class: 'note', text: 'This scope publishes no capability table.' });
+  return table(
+    ['Row', 'Quantity', 'Object', 'Covers', 'Conditions', 'Best measurement capability', 'Remarks'],
+    rows.map((row) => [
+      row.label.replace(`${scope.identifier} `, ''),
+      row.measurand,
+      row.objectCategory,
+      coverageText(row.coverage, row.unit),
+      row.condition ? row.condition.text : '—',
+      row.bestMeasurementCapability.description,
+      row.remarks && row.remarks.length ? row.remarks.join(' ') : '—',
+    ])
+  );
+}
+
 async function chapterScope(context) {
   // Prose: web/content/chapters/06-scope.md
   const t = context.text('scope');
@@ -777,12 +826,19 @@ async function chapterScope(context) {
   }
 
   const entry = context.world.cmcEntries.find((item) => item.identifier === 'CH-EM-0042');
+  const scope = (context.world.accreditations || []).find(
+    (item) => item.identifier === 'SCS 0123'
+  );
 
   fragment.append(
     el('div', { class: 'split split--wide' }, [
       el('div', {}, [panel(t.text('adjust.title'), t.text('adjust.hint'), [valueSlider, uncertaintySlider]), readout]),
       panel(t.text('entry.title'), t.text('entry.hint'), jsonView(entry, context.inspect, { tall: true })),
     ]),
+    t.prose('rows.body'),
+    panel(t.text('rows.title'), t.text('rows.hint'), scopeRowTable(scope)),
+    t.prose('carried-or-linked'),
+    t.prose('signed-registry'),
     t.callout('schema-vs-registry')
   );
 

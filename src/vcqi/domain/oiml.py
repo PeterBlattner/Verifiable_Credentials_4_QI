@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from vcqi.config import OIML_ORIGIN
-from vcqi.domain.scope import DeclaredCapability, UncertaintyFloor
+from vcqi.domain.scope import DeclaredCapability, Interval, UncertaintyFloor
 
 __all__ = [
     "Recommendation",
@@ -146,8 +146,9 @@ class Recommendation:
             label=f"Recommendation {self.identifier}",
             measurand=self.measurand,
             unit=self.unit,
-            range_minimum=self.range_minimum,
-            range_maximum=self.range_maximum,
+            coverage=Interval(
+                minimum=self.range_minimum, maximum=self.range_maximum
+            ),
             conditions=self.conditions,
             uncertainty_floor=self.evaluation_uncertainty,
         )

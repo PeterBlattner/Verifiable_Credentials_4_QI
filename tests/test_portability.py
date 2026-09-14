@@ -31,6 +31,7 @@ from vcqi.actors.portability import (
 )
 from vcqi.actors.registry import TRUST_ANCHORS, actor_key
 from vcqi.actors.scenarios import DEMO_NOW, build_world
+from vcqi.actors.tamper import tamper_by_key
 from vcqi.crypto.dataintegrity import sign_document
 from vcqi.crypto.keys import build_did_document
 from vcqi.vc.resolver import RESOLVE_ONLY_KINDS, Resolver
@@ -142,6 +143,77 @@ class TestAHolderCannotSupplyTheKeyItIsCheckedAgainst:
         assert resolver.retrieve(url) == world.store.get(url)
         # And `fetch` refuses it too, because the kind is resolve-only.
         assert resolver.fetch(url) == world.store.get(url)
+
+
+class TestTheRegisterThatMoved:
+    """The accreditation scopes left the fourth class, and the rule did not change.
+
+    Nothing here relaxes ``RESOLVE_ONLY_KINDS``. What made a scope unportable was that
+    an unsigned document cannot be checked, and the scopes stopped being unsigned: the
+    body that granted them signs them, and the credentials citing them pin the digest.
+    The kind stayed where it was and the documents moved, which is the only safe way
+    round -- relaxing the kind would have taken the KCDB with it.
+    """
+
+    def test_a_signed_scope_is_published_as_a_credential(self) -> None:
+        """Its store kind is what decides whether it may travel."""
+        world = build_world()
+        assert (
+            world.store.kind_of("https://sas.example/accreditation/SCS-0123")
+            == "credential"
+        )
+
+    def test_the_unportable_class_is_now_only_the_kcdb(self) -> None:
+        """One register signed, one not, and the count is the price of the difference."""
+        audit = portability_audit(
+            build_world(), now=DEMO_NOW, trusted_issuers=TRUST_ANCHORS
+        )
+        not_yet = next(row for row in audit["split"] if row["key"] == "not-yet")
+        assert not_yet["urls"] == ["https://bipm.example/kcdb/cmc/CH-EM-0042"]
+
+    def test_the_rule_itself_is_untouched(self) -> None:
+        """``registry-entry`` is still resolve-only, and must stay so.
+
+        Moving the kind rather than the documents would have let an unsigned CMC entry
+        arrive from the holder, which is the forgery the class exists to stop.
+        """
+        assert "registry-entry" in RESOLVE_ONLY_KINDS
+
+    def test_a_scope_the_holder_supplies_is_used(self) -> None:
+        """The point of signing it: the verifier no longer has to reach the register."""
+        world = build_world()
+        url = "https://sas.example/accreditation/SCS-0123"
+        scope = world.store.get(url)
+        assert scope is not None
+
+        report = verify_credential(
+            world.credentials["callab-calibration"],
+            store=world.store,
+            now=DEMO_NOW,
+            trusted_issuers=TRUST_ANCHORS,
+            presented=[scope],
+        )
+        assert report.outcome == "verified"
+        record = next(entry for entry in report.fetches if entry["url"] == url)
+        assert record["source"] == "presented"
+
+    def test_a_substituted_scope_is_refused_even_from_the_publisher(self) -> None:
+        """The digest pins the version, which is what an unsigned entry could not offer.
+
+        Kept next to the stapled-DID-document exploit because it is the same shape of
+        question -- which document said so -- answered by a different mechanism.
+        """
+        case = tamper_by_key("substituted-scope")
+        assert case is not None
+        result = case.apply()
+        report = verify_credential(
+            result.credential,
+            store=result.world.store,
+            now=result.verify_at,
+            trusted_issuers=TRUST_ANCHORS,
+        )
+        assert report.outcome == "rejected"
+        assert [step.id for step in report.failures] == ["scope"]
 
 
 class TestTheAuditIsAMeasurement:

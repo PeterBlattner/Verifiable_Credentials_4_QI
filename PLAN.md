@@ -3033,3 +3033,144 @@ that was actually fetched - which is the reason the fetch has to happen.
 - `uv run pytest tests/test_content.py tests/test_web.py` - passes.
 - 76 retrievals across 31 distinct documents from 7 hosts, unchanged: no credential,
   schema or registry entry was touched.
+
+# Change set 18 - what a scope really contains, and signing it
+
+## Context
+
+Asked how to decide what a verifiable credential carries in `credentialSubject` directly
+and what it carries as a link into another ecosystem, with two cases: `capabilityReference`
+on `AC-2026-1182`, which is only a link to `SCS 0123`, and the calibration values and
+uncertainties, which are stated in full where a PTB/DKD DCC could hold them instead.
+
+The demonstration answers that question implicitly in a dozen places and states it
+nowhere. Checking one of the implicit answers against a real published accreditation
+scope - `temp/SCS-0050-en.pdf`, a SAS calibration scope - found it wrong.
+
+The link itself was right. A laboratory may not state its own scope, which is why
+`_step_scope` used `resolver.retrieve` and refused the holder's copy. What was wrong was
+the target. `AccreditationScope` held one measurand, one `rangeMinimum`, one
+`rangeMaximum` and one RSS floor. A real scope is a table of roughly forty-five rows, and
+the first page of one contains:
+
+- `19,2 ohm ; 192 ohm` - discrete fixed values, with a remark saying the stated
+  uncertainty is valid at those values only. Not a range.
+- `1 ohm ... < 220 kohm` - an interval whose upper bound is strict.
+- `(22,5 +/- 2,5) uohm` - a nominal with a tolerance.
+- The same quantity over the same levels twice, at two frequency bands, with two
+  different capabilities.
+- Best measurement uncertainty always as a single term - `125.10^-6 R`, `0,2 dB`,
+  `1,2 %` - never the quadrature sum `describe()` was printing back.
+- "Calibration of Ohmmeters" separated from "Resistance calibration": a measuring
+  instrument (VIM 3.1) and a material measure (VIM 3.6), with different capabilities.
+- Remarks that decide scope and resist any model: "Resistances in form of cylindrical
+  rods", "On-site calibration as well with appropriate measurement uncertainty".
+
+The scope check was passing because the scope had been written to fit the check.
+
+## Decisions taken
+
+**A scope check is two decisions.** `select_row` chooses the row; `evaluate_scope`
+adjudicates against it. Kept apart because "no row of your accreditation covers what you
+did" is a different and more useful finding than "your uncertainty is smaller than the
+row permits", and a pipeline reporting both as *outside scope* throws the better half
+away.
+
+**The remarks are reported and never adjudicated.** The ones that narrow a row were
+folded into the row - fixed values became a coverage of points, frequency bands became
+conditions. What is left extends a scope by an unstated amount, and no rule for that
+exists to implement. `scope.remarks` warns, and the parent step still passes: an
+extension cannot turn a pass into a failure, and `_step_mra_logo` reads the parent.
+
+**Sign the scopes, and do not touch `RESOLVE_ONLY_KINDS`.** The accreditation body is the
+authority for what it accredited, so it may state its own scope; the objection that makes
+a laboratory's word insufficient does not apply to the body that granted it. Each scope
+is now an `AccreditationScopeCredential`, pinned by `digestMultibase` wherever it is
+cited, so a copy is checkable from any source and may travel with the holder.
+
+The tempting version of this - removing `registry-entry` from `RESOLVE_ONLY_KINDS` - is
+wrong and was not done. It would let an unsigned KCDB entry arrive from a holder and hand
+an institute its own measurement capability, which is the forgery the class exists to
+stop. The kind stayed; the documents moved. `tests/test_portability.py` passes unchanged,
+and that is the check that this was done the right way round.
+
+**The CMC stays unsigned.** Signing the KCDB is the BIPM's to do. One signed register
+beside one unsigned register makes the difference legible in a single verification's
+retrieval log, which is worth more here than flipping both.
+
+**The offline schema gets weaker as the scope gets richer**, and that is the right
+direction. `union_capabilities` collapses a table into one branch per quantity: the widest
+level any row touches, the smallest uncertainty any row permits. Every loss is permissive,
+so the schema admits claims the register refuses and never the reverse.
+
+## Change
+
+```
+src/vcqi/domain/scope.py          Interval / Points / Window, ConditionBand, ScopeRow,
+                                  select_row, union_capabilit(ies), single-term describe()
+src/vcqi/domain/accreditation.py  rows replace the flat members; language_precedence
+src/vcqi/domain/instruments.py    OBJECT_CATEGORIES, VIM 3.1 against VIM 3.6
+src/vcqi/domain/kcdb.py           as_capability builds an Interval
+src/vcqi/domain/oiml.py           the same
+src/vcqi/vc/model.py              accreditation_scope_credential, capability_reference,
+                                  condition_quantities on a calibration
+src/vcqi/vc/verify.py             _capability_document, _rows_from_document,
+                                  _claim_from_credential, _step_scope_by_rows
+src/vcqi/vc/schema.py             a sequence of capabilities, one branch pair per quantity
+src/vcqi/vc/resolver.py           the registry-entry rationale, now about the KCDB alone
+src/vcqi/actors/scenarios.py      _accreditation_scope_credentials, _scope_reference,
+                                  DIRECT_CURRENT_CONDITIONS
+src/vcqi/actors/portability.py    the fourth class is one register, not two
+src/vcqi/actors/tamper.py         out-of-band-frequency, substituted-scope
+src/vcqi/actors/harmonisation.py  scope-grammar; governing-copy; the KCDB rung
+src/vcqi/web/app.py               /api/combine builds a full claim and selects a row
+src/vcqi/web/static/js/chapters.js  the scope row table, three labels
+content/chapters/06-scope.md      the four tests, the row anatomy, the signed register
+content/chapters/09-break.md      twenty-two
+content/chapters/12-harmonisation.md  one of the open items is technical after all
+ARCHITECTURE.md                   two new sections and the rule they are instances of
+README.md                         16 of 31 travel, not 13; 91 retrievals
+```
+
+## The rule, which is the actual answer to the question
+
+Four tests, none of them about size, all four with evidence already in the repository:
+
+1. **Authority.** Carry what the issuer may assert; point at what another body owns. A
+   restated fact is not a checked fact.
+2. **Then or now.** A signature freezes what it covers. A measured value should be frozen;
+   an accreditation should not, because it is suspended and reduced between certificates.
+3. **Decidability.** Every reference is a check that may not complete. `METAS-2026-0420`
+   already measures that: it points instead of carrying, three checks degrade or skip, and
+   it still returns `verified`.
+4. **Growth.** `INLINE_LIMIT = 4096`. Integrity survives the move to a digest; availability
+   does not.
+
+Plus the trimming rule already in `ARCHITECTURE.md`: an unread document is a liability,
+not a courtesy.
+
+And a fifth that this change set added, cutting across the first: **a reference need not
+be uncheckable.** Sign the register entry and pin it by digest and the reference keeps its
+trust boundary while gaining what a carried fact had.
+
+So for the two cases asked about: the accreditation stays a link, and the measurement
+stays carried. Pushing the measurement into the DCC ecosystem would make the verdict
+conditional on a parser, which this project has already hit - the DKD example states
+`si:valueExpandedMU` where `parse_dcc_result` reads `si:uncertainty`. The way to hold one
+copy rather than two is the one `ARCHITECTURE.md` already favours: make the DCC the
+subject, not point at it from a thin credential.
+
+## Verification
+
+- `uv run pytest -q` - 545 passed, 46 skipped.
+- `tests/test_portability.py` passes **unchanged**. If a future change needs it edited,
+  the change is wrong.
+- World dump deterministic across two runs: 78 documents, `diff -r` clean.
+- All three jsdom harnesses against a running server; two chapter snapshots diff clean.
+- Of 31 documents read by one verification, 16 now travel (was 13); the unportable class
+  is one document.
+
+## Git
+
+Branch `feature/scope-rows-and-signed-scope`, two commits, PR into `develop`. Body in
+`temp/pr-body-scope-rows.md`.

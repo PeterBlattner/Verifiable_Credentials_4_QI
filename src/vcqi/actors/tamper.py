@@ -686,7 +686,94 @@ def _unshared_inputs() -> TamperResult:
     return TamperResult(world, signed, DEMO_NOW)
 
 
+def _out_of_band_frequency() -> TamperResult:
+    """Calibrate at a frequency the accreditation does not cover.
+
+    The laboratory is accredited for direct-current resistance. This certificate reports
+    the same quantity, on the same instrument, at the same level, and states that the
+    measurement was made at 10 Hz. Everything else is untouched: the signature is the
+    laboratory's own, the budget is the real one, the traceability chain is intact, and
+    the uncertainty claimed is comfortably above what the accreditation permits.
+
+    No row of the scope covers it, and until a scope was a table there was no row to
+    fail against. A model holding one range and one prose conditions field would have
+    read the frequency as decoration and returned a pass.
+    """
+    world = build_world()
+    credential = copy.deepcopy(world.credential("callab-calibration"))
+
+    calibration = credential["credentialSubject"]["calibration"]
+    calibration["conditionQuantities"] = [
+        {"quantity": "frequency", "value": 10.0, "unit": "Hz"}
+    ]
+
+    signed = _resign(credential, "did:web:callab.example", DEMO_NOW)
+    _republish(world, "callab-calibration", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
+def _substituted_scope() -> TamperResult:
+    """Serve a different accreditation scope at the address the certificate names.
+
+    The laboratory was accredited for a list of fixed resistance values. Someone
+    republishes the scope with an extra value added, signed with the accreditation
+    body's own key so that nothing about the document itself is wrong: the signature
+    verifies, the issuer really is the body that grants accreditations, the scope is in
+    force and has not been suspended.
+
+    It is simply not the scope the certificate was issued under, and the certificate
+    said which one that was. Before the scopes were signed there was nothing to say it
+    with -- an unsigned register entry could only be named, so a verifier fetched
+    whatever the register was serving today and adjudicated against that. Pinning the
+    digest is what turns "the scope at this address" into "this scope".
+    """
+    world = build_world()
+    scope = copy.deepcopy(world.credential("scope-SCS-0123"))
+    scope["credentialSubject"]["rows"][0]["coverage"]["values"].append(500.0)
+    signed = _resign(scope, "did:web:sas.example", RECOGNITION_FROM)
+    _republish(world, "scope-SCS-0123", signed)
+    return TamperResult(world, world.credential("callab-calibration"), DEMO_NOW)
+
+
 NEW_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="substituted-scope",
+        title="Serve a different accreditation scope at the same address",
+        group="forgery",
+        description=(
+            "The accreditation scope published at the address the certificate names "
+            "has had a value added to it, and was re-signed by the accreditation body "
+            "itself. Signature valid, issuer correct, scope in force and not suspended."
+        ),
+        expected_step="scope",
+        catches=(
+            "The certificate references its accreditation by content digest, which an "
+            "unsigned register entry could never have offered. The address still "
+            "resolves and the document that comes back is perfectly good; it is just "
+            "not the one the certificate was issued under, and the reference says so."
+        ),
+        apply=_substituted_scope,
+    ),
+    TamperCase(
+        key="out-of-band-frequency",
+        title="Calibrate at a frequency the accreditation does not cover",
+        group="metrological",
+        description=(
+            "The same instrument, the same level and an uncertainty well inside what "
+            "the accreditation permits -- but the measurement was made at 10 Hz, and "
+            "the laboratory is accredited for direct current. Signature valid, "
+            "traceability intact, issuer in good standing."
+        ),
+        expected_step="scope.row",
+        catches=(
+            "An accreditation scope is a table, and the conditions are one of the "
+            "columns that decides which row applies. Reduce the table to its widest "
+            "row and this passes: the level is in range and the uncertainty clears the "
+            "floor. The check is only available because the verifier has to choose a "
+            "row before it can adjudicate anything."
+        ),
+        apply=_out_of_band_frequency,
+    ),
     TamperCase(
         key="dependency-disagrees",
         title="Transmit a different uncertainty from the one printed",

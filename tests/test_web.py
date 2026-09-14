@@ -492,6 +492,8 @@ WORD_FOR_NUMBER = {
     "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
     "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
     "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+    "twenty-one": 21, "twenty-two": 22, "twenty-three": 23, "twenty-four": 24,
+    "twenty-five": 25,
 }
 
 
@@ -504,7 +506,7 @@ def test_the_failure_chapter_counts_its_own_cases() -> None:
     compares the two.
     """
     lede = blocks_for("break")["lede"]["text"]
-    match = re.search(r"([A-Za-z]+) ways this can go wrong", lede)
+    match = re.search(r"([A-Za-z-]+) ways this can go wrong", lede)
     assert match, f"could not find the count in the break-it lede: {lede!r}"
     written = WORD_FOR_NUMBER.get(match.group(1).lower())
     assert written is not None, f"unrecognised number word {match.group(1)!r}"
