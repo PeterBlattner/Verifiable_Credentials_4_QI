@@ -583,7 +583,15 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         requirement=(
             "When a calibration exists as both a standardised document and a credential, "
             "one of them has to be the one that counts. Not stating which is a decision "
-            "too, and the worst-behaved one."
+            "too, and the worst-behaved one.\n\nNothing about declaring precedence is "
+            "unfamiliar to this sector, which is worth saying so that the item is not "
+            "mistaken for a novel problem. A published accreditation scope is issued in "
+            "several languages and states which version governs when they disagree; the "
+            "scopes in this demonstration carry such a declaration, copied in form from "
+            "a real one. Registers settle precedence between versions of one document "
+            "routinely. What is unanswered is precedence between two documents governed "
+            "by different communities, and that is a question about who decides rather "
+            "than about how to write it down."
         ),
         demonstrated=(
             f"Every calibration certificate here carries a PTB/DKD DCC "
@@ -951,6 +959,51 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         forum="ISO and IEC, where it is already happening.",
     ),
     HarmonisationItem(
+        key="scope-grammar",
+        tier="floor",
+        title="How a scope says what it covers",
+        status="open",
+        requirement=(
+            "A grammar for the coverage column of an accreditation scope. Not a "
+            "vocabulary for the quantities -- that is the item above -- but a way to "
+            "write down the shapes a scope actually uses, so that two implementations "
+            "reading the same published table select the same row."
+        ),
+        demonstrated=(
+            "SCS 0123 publishes four rows, and they use three different coverage "
+            "grammars between them: a list of fixed values, an interval with a strict "
+            "upper bound, and a nominal with a tolerance. Two of the rows are identical "
+            "except for the frequency band they were demonstrated over, and they carry "
+            "different capabilities. Chapter 5 shows the verifier choosing among them, "
+            "and chapter 8 has the certificate that is refused because no row covers "
+            "the frequency it was measured at.\n\nThe shapes are taken from a published "
+            "calibration scope; the numbers are invented. So is the tolerance that "
+            "decides whether a reading of 19,2003 ohm is the 19,2 ohm fixed value -- no "
+            "register states one, and something has to."
+        ),
+        exists=(
+            "Nothing that reaches the coverage column. Accreditation bodies publish "
+            "scopes as documents for people to read, and the structure that is "
+            "machine-readable in them stops at the identifiers: which body, which "
+            "laboratory, which standard, which dates. What a row covers is a phrase in a "
+            "table cell, and the three grammars above are the first page of one scope in "
+            "one field."
+        ),
+        source="",
+        consequence=(
+            "Every scope check becomes a transcription. Two verifiers reading a row "
+            "whose upper bound of 220 kohm is written as strict will disagree about "
+            "whether 220 kohm itself is covered, and one of them accredits a measurement "
+            "the body deliberately excluded -- a failure that reads like a rounding "
+            "argument and is a scope violation."
+        ),
+        forum=(
+            "ILAC, now the Global ACI arrangement, where the scope-publication rules "
+            "already live. It is the same body that decides what a scope document must "
+            "contain, so this is an extension of existing work rather than a new one."
+        ),
+    ),
+    HarmonisationItem(
         key="uncertainty-transport",
         tier="optional",
         title="How uncertainty travels, dependencies included",
@@ -1088,9 +1141,19 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "Fix the first-tier choices for a region's members. Regional scope is where "
             "this has historically been tractable, and a profile that demonstrably works "
             "regionally is the evidence an international one would otherwise spend years "
-            "arguing about."
+            "arguing about.\n\nA profile has to reach the accreditation side as well, "
+            "and that is the half most easily forgotten: how a scope states the levels a "
+            "row covers is a first-tier choice, and two members reading the same "
+            "published table differently do not interoperate however well their keys "
+            "agree."
         ),
-        unblocks=("cryptosuite", "did-method", "status-meaning", "anchors"),
+        unblocks=(
+            "cryptosuite",
+            "did-method",
+            "status-meaning",
+            "anchors",
+            "scope-grammar",
+        ),
     ),
     NextStep(
         order=5,
@@ -1100,7 +1163,13 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "The CMC data already exists, is already peer reviewed, and now resolves. "
             "What is missing is a signature and a stable content digest over each entry. "
             "This is the highest-value single item on the list, because every scope check "
-            "downstream of it is currently trusting a fetch."
+            "downstream of it is currently trusting a fetch.\n\nThe accreditation half "
+            "of this rung has been taken in the demonstration, which makes it the one "
+            "step here with a worked example rather than an argument: the accreditation "
+            "body signs each scope, the credentials citing one pin it by digest, and the "
+            "scopes moved out of chapter 12's unportable class without the portability "
+            "rule being touched. Nothing about the CMC is harder. It is a different "
+            "organisation, which is the whole difficulty."
         ),
         unblocks=("anchors", "measurands"),
     ),
