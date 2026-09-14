@@ -74,6 +74,35 @@ def test_every_credential_has_a_label_in_the_interface(client: TestClient) -> No
     assert not labelled - served, f"chapters.js labels a credential nobody issues: {sorted(labelled - served)}"
 
 
+def test_the_one_string_panel_finds_both_registers(client: TestClient) -> None:
+    """Chapter 11's clearest example is a pair, and half of it vanished silently.
+
+    The panel offers a chip per register so a reader can fetch both documents and see the
+    same free string in each. It selects them out of ``/api/world`` by looking for the
+    measurand, and when the accreditation scope stopped publishing one at the top level --
+    the rows carry it now -- the second chip simply stopped being created. The hint still
+    said "fetch both". Nothing failed: ``ui-clicks.mjs`` asks whether every control
+    responds, and a control that was never built responds vacuously.
+
+    So this asserts the selection rather than the rendering. Both registers have to be
+    findable in what the server actually serves, by the same route the chapter uses.
+    """
+    data = client.get("/api/world").json()
+
+    cmc = [entry for entry in data["cmcEntries"] if entry.get("measurand") == "dc.resistance"]
+    scopes = [
+        scope
+        for scope in data["accreditations"]
+        if any(row.get("measurand") == "dc.resistance" for row in scope.get("rows", []))
+    ]
+
+    assert cmc, "no CMC entry publishes dc.resistance"
+    assert scopes, "no accreditation scope publishes dc.resistance, so the second chip is gone"
+
+    # The point of the panel is that two different organisations publish the same string.
+    assert cmc[0]["institute"] != scopes[0]["accreditationBody"]
+
+
 def test_graph_edges_are_derived_from_the_credentials(client: TestClient) -> None:
     """Every edge names a credential that really exists.
 
@@ -492,6 +521,8 @@ WORD_FOR_NUMBER = {
     "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
     "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
     "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+    "twenty-one": 21, "twenty-two": 22, "twenty-three": 23, "twenty-four": 24,
+    "twenty-five": 25,
 }
 
 
@@ -504,7 +535,7 @@ def test_the_failure_chapter_counts_its_own_cases() -> None:
     compares the two.
     """
     lede = blocks_for("break")["lede"]["text"]
-    match = re.search(r"([A-Za-z]+) ways this can go wrong", lede)
+    match = re.search(r"([A-Za-z-]+) ways this can go wrong", lede)
     assert match, f"could not find the count in the break-it lede: {lede!r}"
     written = WORD_FOR_NUMBER.get(match.group(1).lower())
     assert written is not None, f"unrecognised number word {match.group(1)!r}"

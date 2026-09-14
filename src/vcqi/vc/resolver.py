@@ -17,7 +17,7 @@ a presentation actually saves.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,7 +25,18 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from vcqi.crypto.keys import public_key_from_multikey
 
-__all__ = ["DocumentStore", "Resolver", "FetchRecord", "did_key_document", "DID_KEY_PREFIX"]
+__all__ = [
+    "DocumentStore",
+    "Resolver",
+    "FetchRecord",
+    "QueryHandler",
+    "did_key_document",
+    "DID_KEY_PREFIX",
+]
+
+#: What answers a question at an endpoint: given the query string, return the document
+#: that answers it, or None when the question cannot be answered.
+QueryHandler = Callable[[str], dict[str, Any] | None]
 
 
 @dataclass(frozen=True)
@@ -67,11 +78,13 @@ class FetchRecord:
 #:   check passes. There is a regression test for exactly that.
 #: - ``status-list`` is a claim about *now*. A stapled one is stale by construction, and a
 #:   holder who keeps a copy from before its revocation replays it forever.
-#: - ``registry-entry`` -- a CMC or an accreditation scope -- carries no signature and no
-#:   digest, so a copy cannot be checked at all. Accepting one lets a laboratory declare
-#:   its own measurement capability. This is the one entry on this list that is here for a
-#:   reason that could be fixed rather than a reason that is inherent: signing the KCDB
-#:   would move it off.
+#: - ``registry-entry`` -- a CMC, in this world -- carries no signature and no digest, so
+#:   a copy cannot be checked at all. Accepting one lets an institute declare its own
+#:   measurement capability. This is the one entry on this list that is here for a reason
+#:   that could be fixed rather than a reason that is inherent, and the accreditation
+#:   scopes have already been fixed: their body signs them, so they are published as
+#:   ``credential`` and are checkable from any source. The kind did not move; the
+#:   documents did. Signing the KCDB would empty this entry entirely.
 #: - ``presentation`` is what identifier-based discovery dereferences from the issuer's own
 #:   endpoint. Letting the holder supply it means letting the holder choose what the issuer
 #:   says about itself.
@@ -139,6 +152,7 @@ class DocumentStore:
         """Create an empty store."""
         self._documents: dict[str, dict[str, Any]] = {}
         self._kinds: dict[str, str] = {}
+        self._endpoints: dict[str, tuple[QueryHandler, str]] = {}
 
     def publish(self, url: str, document: dict[str, Any], kind: str) -> None:
         """Publish a document at an address.
@@ -152,6 +166,26 @@ class DocumentStore:
         self._documents[url] = document
         self._kinds[url] = kind
 
+    def publish_endpoint(
+        self, url: str, handler: QueryHandler, kind: str = "query-answer"
+    ) -> None:
+        """Publish something that answers questions rather than serving a document.
+
+        A register with a table too large to hand over, or one whose rows are rules
+        rather than entries, publishes an endpoint instead. What makes this fit a store
+        addressed by URL is that **the question goes in the address**: one question has
+        one spelling, so an answer has an identifier like anything else, and a signed
+        answer is a document again -- addressable, stapleable, and checkable long after
+        the endpoint has stopped answering.
+
+        Args:
+            url: The base address, without a query string.
+            handler: Answers one question, given the query string.
+            kind: What sort of document the answers are, for the retrieval log and for
+                the portability classification.
+        """
+        self._endpoints[url] = (handler, kind)
+
     def get(self, url: str) -> dict[str, Any] | None:
         """Retrieve a document.
 
@@ -163,6 +197,25 @@ class DocumentStore:
         """
         return self._documents.get(url)
 
+    def answer(self, address: str) -> dict[str, Any] | None:
+        """Ask an endpoint the question carried in an address.
+
+        Args:
+            address: The endpoint with a query string appended.
+
+        Returns:
+            The answer, or None when no endpoint is published there or the question
+            carries no query string at all. A bare endpoint address answers nothing on
+            purpose: this publishes no table, and a request for one should fail rather
+            than quietly return whatever the endpoint would say about nothing.
+        """
+        base, separator, query = address.partition("?")
+        entry = self._endpoints.get(base)
+        if entry is None or not separator:
+            return None
+        handler, _ = entry
+        return handler(query)
+
     def kind_of(self, url: str) -> str:
         """Return what sort of document is published at an address.
 
@@ -170,9 +223,15 @@ class DocumentStore:
             url: The address.
 
         Returns:
-            The kind, or ``unknown`` when nothing is published there.
+            The kind, or ``unknown`` when nothing is published there. An address with a
+            query string takes the kind of the endpoint that answers it, so a query
+            answer is classified like any other document.
         """
-        return self._kinds.get(url, "unknown")
+        if url in self._kinds:
+            return self._kinds[url]
+        base, separator, _ = url.partition("?")
+        entry = self._endpoints.get(base)
+        return entry[1] if entry is not None and separator else "unknown"
 
     def urls_of_kind(self, kind: str) -> list[str]:
         """List every address holding a given sort of document.
@@ -184,6 +243,20 @@ class DocumentStore:
             The matching addresses, in publication order.
         """
         return [url for url, value in self._kinds.items() if value == kind]
+
+    def endpoints(self) -> dict[str, str]:
+        """Return every published endpoint and the kind of answer it gives.
+
+        Kept apart from :meth:`contents` because an endpoint is not a document and
+        counting it as one would lose the distinction that matters most about it: a
+        document can be cached, mirrored and archived by anyone holding a copy, and a
+        service can only be reached. Chapter 10 computes a hosting burden from these two
+        numbers and it has to be able to tell them apart.
+
+        Returns:
+            A mapping from base address to the kind its answers carry.
+        """
+        return {url: kind for url, (_, kind) in self._endpoints.items()}
 
     def contents(self) -> dict[str, dict[str, Any]]:
         """Return every published document.
@@ -286,6 +359,47 @@ class Resolver:
             )
         )
         return document
+
+    def query(self, address: str) -> dict[str, Any] | None:
+        """Ask an endpoint a question, or accept the answer the holder brought.
+
+        This is the third retrieval mode and it is deliberately the same shape as
+        :meth:`fetch`, because once the question is in the address there is nothing left
+        to distinguish them. A holder may supply an answer, and the verifier will use it,
+        for exactly the reason it may supply a credential: the address says which
+        question was asked, and every other property of the answer -- who said it,
+        whether they were entitled to, whether it is still their answer -- is established
+        by checks on the answer itself rather than by where it came from.
+
+        What a holder cannot do is substitute an answer to a *different* question,
+        because it would then be published at a different address and the verifier would
+        not be asking for it. The caller must still confirm that the question echoed
+        inside the answer is the question it asked; see ``_step_scope_by_query``.
+
+        Args:
+            address: The endpoint with the question appended as a query string.
+
+        Returns:
+            The answer, or None when the endpoint does not answer.
+        """
+        kind = self.store.kind_of(address)
+        supplied = self.presented.get(address)
+        if supplied is not None and kind not in RESOLVE_ONLY_KINDS:
+            self.log.append(
+                FetchRecord(url=address, kind=kind, found=True, source="presented")
+            )
+            return supplied
+
+        answer = self.store.answer(address)
+        self.log.append(
+            FetchRecord(
+                url=address,
+                kind=kind,
+                found=answer is not None,
+                source="retrieved",
+            )
+        )
+        return answer
 
     def resolve_did_document(self, did: str) -> dict[str, Any] | None:
         """Resolve an identifier to the document that describes it.

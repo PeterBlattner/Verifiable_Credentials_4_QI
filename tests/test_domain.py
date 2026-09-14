@@ -9,10 +9,18 @@ import pytest
 from vcqi.domain.accreditation import scope_by_id
 from vcqi.domain.kcdb import cmc_by_id
 from vcqi.domain.scope import (
+    ConditionBand,
     DeclaredCapability,
+    Interval,
     MeasurementClaim,
+    Points,
+    ScopeRow,
     UncertaintyFloor,
+    Window,
     evaluate_scope,
+    scope_row_from_json,
+    select_row,
+    union_capabilities,
 )
 from vcqi.domain.uncertainty import (
     evaluate,
@@ -183,17 +191,266 @@ class TestScope:
         cmc = cmc_by_id("CH-EM-0042")
         accreditation = scope_by_id("SCS 0123")
         assert cmc is not None and accreditation is not None
-        laboratory = accreditation.as_capability()
-        assert laboratory is not None
-        assert laboratory.range_maximum > cmc.range_maximum
-        assert laboratory.uncertainty_floor.evaluate(1.0e4) > cmc.uncertainty_floor.evaluate(1.0e4)
+        row = next(
+            row
+            for row in accreditation.as_rows()
+            if row.object_category == "materialMeasure"
+            and row.measurand == "dc.resistance"
+        )
+        assert row.coverage.span()[1] > cmc.range_maximum
+        assert row.floor.evaluate(1.0e4) > cmc.uncertainty_floor.evaluate(1.0e4)
 
     def test_testing_scope_has_no_numeric_capability(self) -> None:
-        """A testing scope states methods rather than a measurand and a range."""
+        """A testing scope bounds itself by method rather than by capability."""
         accreditation = scope_by_id("STS 0456")
         assert accreditation is not None
-        assert accreditation.as_capability() is None
+        assert accreditation.as_rows() == ()
+
+    def test_a_testing_scope_publishes_an_endpoint_and_not_its_table(self) -> None:
+        """The method table is answered, not served, and the document says so.
+
+        A scope whose document carried the table as well would be back to the document
+        pattern with an endpoint bolted on. What is published is the identity of the
+        scope and where to ask about it; what it covers is a question.
+        """
+        accreditation = scope_by_id("STS 0456")
+        assert accreditation is not None
+        assert accreditation.test_rows
+        assert accreditation.query_url is not None
+
+        published = accreditation.to_json()
+        assert published["queryEndpoint"] == accreditation.query_url
+        assert "testRows" not in published
+        assert "methods" not in published
+
+    def test_a_certification_scope_still_publishes_its_methods(self) -> None:
+        """Three registers, three carriage patterns, and this is the third.
+
+        Kept as an assertion because the contrast is the demonstration: if every scope
+        ended up answered by an endpoint, chapter 5 would have nothing to compare.
+        """
+        accreditation = scope_by_id("SCESp 0789")
+        assert accreditation is not None
         assert accreditation.methods
+        assert accreditation.query_url is None
+
+
+class TestScopeRowGrammars:
+    """A published scope says which levels it covers in more than one way."""
+
+    def test_a_strict_upper_bound_excludes_its_own_bound(self) -> None:
+        """``1 ohm ... < 220 kohm`` does not cover 220 kohm.
+
+        A model with inclusive bounds only would grant a laboratory the one level its
+        accreditation body wrote the ``<`` to exclude.
+        """
+        interval = Interval(minimum=1.0, maximum=2.2e5, upper="exclusive")
+        assert interval.covers(2.19999e5)
+        assert not interval.covers(2.2e5)
+        assert Interval(minimum=1.0, maximum=2.2e5).covers(2.2e5)
+
+    def test_fixed_values_do_not_cover_the_gaps_between_them(self) -> None:
+        """A row of fixed values has not declared the interval they span."""
+        points = Points(values=(19.2, 192.0))
+        assert points.covers(19.2)
+        assert points.covers(192.0)
+        assert not points.covers(100.0)
+        assert points.span() == (19.2, 192.0)
+
+    def test_a_fixed_value_tolerates_the_reading_it_produces(self) -> None:
+        """The point is a nominal; the certificate reports what was measured."""
+        points = Points(values=(19.2,), match_tolerance=1.0e-3)
+        assert points.covers(19.2003)
+        assert not points.covers(19.3)
+
+    def test_a_window_is_a_nominal_with_a_tolerance(self) -> None:
+        """``(22,5 +/- 2,5) uohm`` covers its band and nothing outside it."""
+        window = Window(nominal=22.5e-6, tolerance=2.5e-6)
+        assert window.covers(20.0e-6) and window.covers(25.0e-6)
+        assert not window.covers(25.1e-6)
+
+    def test_a_single_term_floor_renders_as_one_term(self) -> None:
+        """A register writing ``125 x 10^-6 R`` did not write a quadrature sum."""
+        assert UncertaintyFloor(0.0, 125.0e-6).describe("ohm") == (
+            "U = 125 x 10^-6 x value, k = 2"
+        )
+        assert UncertaintyFloor(0.2, 0.0).describe("dB") == "U = 0.2 dB, k = 2"
+        assert "sqrt" in UncertaintyFloor(1.0e-3, 5.0e-6).describe("ohm")
+
+    def test_a_row_survives_the_round_trip_through_json(self) -> None:
+        """What the register publishes is what a verifier rebuilds.
+
+        The verifier reads the fetched document rather than its own copy of the domain
+        model, so anything this loses is a check that silently stops happening.
+        """
+        row = ScopeRow(
+            label="row",
+            measurand="dc.resistance",
+            unit="ohm",
+            object_category="materialMeasure",
+            coverage=Interval(minimum=1.0, maximum=2.2e5, upper="exclusive"),
+            floor=UncertaintyFloor(absolute=5.0e-4, relative=2.0e-6),
+            condition=ConditionBand("frequency", 0.0, 0.0, "Hz", "DC"),
+            remarks=("Cylindrical rods only.",),
+        )
+        assert scope_row_from_json(row.to_json()) == row
+
+
+class TestSelectingTheRowThatApplies:
+    """Which row applies is a check of its own, with its own failure."""
+
+    @staticmethod
+    def _claim(**overrides: object) -> MeasurementClaim:
+        """Return a claim against the demonstration calibration scope.
+
+        Args:
+            **overrides: Members to replace on the default claim.
+
+        Returns:
+            The claim.
+        """
+        defaults: dict[str, object] = {
+            "measurand": "dc.resistance",
+            "unit": "ohm",
+            "value": 10000.03,
+            "expanded_uncertainty": 5.2e-2,
+            "coverage_factor": 2.0,
+            "nominal": 1.0e4,
+            "object_category": "measuringInstrument",
+            "conditions": {"frequency": 0.0},
+            "condition_units": {"frequency": "Hz"},
+        }
+        defaults.update(overrides)
+        return MeasurementClaim(**defaults)  # type: ignore[arg-type]
+
+    @pytest.fixture()
+    def rows(self) -> tuple[ScopeRow, ...]:
+        """Return the published rows of the calibration scope.
+
+        Returns:
+            The rows, in register order.
+        """
+        scope = scope_by_id("SCS 0123")
+        assert scope is not None
+        return scope.as_rows()
+
+    def test_the_instrument_row_is_chosen_for_an_instrument(self, rows) -> None:
+        """Calibrating an ohmmeter is not calibrating a resistance."""
+        selection = select_row(rows, self._claim())
+        assert selection.row is not None
+        assert selection.row.object_category == "measuringInstrument"
+        assert selection.level_source == "nominal value"
+
+    def test_a_material_measure_selects_a_different_row(self, rows) -> None:
+        """Same quantity, same level, different row and a different capability."""
+        instrument = select_row(rows, self._claim()).row
+        artefact = select_row(
+            rows, self._claim(object_category="materialMeasure")
+        ).row
+        assert instrument is not None and artefact is not None
+        assert artefact.label != instrument.label
+        assert artefact.floor.evaluate(1.0e4) < instrument.floor.evaluate(1.0e4)
+
+    def test_two_rows_differing_only_by_frequency_are_told_apart(self, rows) -> None:
+        """The case that makes conditions an axis rather than prose."""
+        slow = select_row(
+            rows,
+            self._claim(
+                measurand="ac.resistance",
+                value=0.5,
+                nominal=0.5,
+                object_category="materialMeasure",
+                conditions={"frequency": 1.0},
+            ),
+        ).row
+        fast = select_row(
+            rows,
+            self._claim(
+                measurand="ac.resistance",
+                value=0.5,
+                nominal=0.5,
+                object_category="materialMeasure",
+                conditions={"frequency": 10.0},
+            ),
+        ).row
+        assert slow is not None and fast is not None
+        assert slow.label != fast.label
+        assert slow.floor.relative != fast.floor.relative
+
+    def test_a_certificate_stating_no_condition_matches_no_banded_row(
+        self, rows
+    ) -> None:
+        """Not stating a frequency is not the same as stating direct current."""
+        selection = select_row(
+            rows, self._claim(conditions={}, condition_units={})
+        )
+        assert selection.row is None
+        assert any("states no frequency" in r.reason for r in selection.rejections)
+
+    def test_a_condition_in_another_unit_is_not_compared(self, rows) -> None:
+        """Ten kilohertz is not ten hertz, and nothing here converts it."""
+        selection = select_row(
+            rows,
+            self._claim(
+                measurand="ac.resistance",
+                value=0.5,
+                nominal=0.5,
+                object_category="materialMeasure",
+                conditions={"frequency": 10.0},
+                condition_units={"frequency": "kHz"},
+            ),
+        )
+        assert selection.row is None
+
+    def test_a_level_between_the_fixed_values_selects_nothing(self, rows) -> None:
+        """The failure the old single-row model could not produce."""
+        selection = select_row(rows, self._claim(value=500.0, nominal=500.0))
+        assert selection.row is None
+        assert [r.label for r in selection.rejections] == [row.label for row in rows]
+
+    def test_every_rejection_says_which_row_and_why(self, rows) -> None:
+        """A refusal that does not say which row it looked at is not a finding."""
+        selection = select_row(rows, self._claim(measurand="capacitance", unit="F"))
+        assert selection.row is None
+        assert len(selection.rejections) == len(rows)
+        assert all(rejection.reason for rejection in selection.rejections)
+
+
+class TestCollapsingAScopeForASchema:
+    """What an offline schema can say about a table, and what it loses."""
+
+    def test_one_branch_per_quantity(self) -> None:
+        """A scope covering two quantities cannot be one constant."""
+        scope = scope_by_id("SCS 0123")
+        assert scope is not None
+        capabilities = union_capabilities(scope.as_rows(), label="SCS 0123")
+        assert {capability.measurand for capability in capabilities} == {
+            "dc.resistance",
+            "ac.resistance",
+        }
+
+    def test_the_union_is_permissive_rather_than_strict(self) -> None:
+        """Every collapse has to lose in the direction that admits too much.
+
+        A schema stricter than the register would refuse certificates the accreditation
+        body allows, and the verifier would never get as far as the row that permits
+        them.
+        """
+        scope = scope_by_id("SCS 0123")
+        assert scope is not None
+        capabilities = union_capabilities(scope.as_rows(), label="SCS 0123")
+        direct = next(c for c in capabilities if c.measurand == "dc.resistance")
+        rows = [row for row in scope.as_rows() if row.measurand == "dc.resistance"]
+        assert direct.coverage.span()[1] >= max(row.coverage.span()[1] for row in rows)
+        assert direct.uncertainty_floor.evaluate(1.0e4) <= min(
+            row.floor.evaluate(1.0e4) for row in rows
+        )
+
+    def test_a_scope_with_no_rows_collapses_to_nothing(self) -> None:
+        """A testing scope has no capability table, and gets no calibration schema."""
+        scope = scope_by_id("STS 0456")
+        assert scope is not None
+        assert union_capabilities(scope.as_rows(), label="STS 0456") == ()
 
 
 class TestStatusList:

@@ -29,6 +29,9 @@ const CREDENTIAL_LABELS = {
   'bipm-recognition': 'BIPM recognition of national metrology institutes',
   'global-aci-recognition': 'Global ACI recognition of accreditation bodies',
   'sas-recognition': 'Accreditation body recognition of laboratories',
+  'scope-SCS-0123': 'Accreditation scope SCS 0123 (calibration)',
+  'scope-STS-0456': 'Accreditation scope STS 0456 (testing)',
+  'scope-SCESp-0789': 'Accreditation scope SCESp 0789 (certification)',
   'metas-calibration': 'Calibration certificate METAS-2026-0417',
   'callab-calibration': 'Calibration certificate AC-2026-1182',
   'metas-SR10K-0091': 'Calibration certificate METAS-2026-0418 (check standard A)',
@@ -708,6 +711,52 @@ async function chapterVerification(context) {
 
 // ---------------------------------------------------------------- chapter 5
 
+/**
+ * Describe the levels a scope row covers, in whichever grammar the register used.
+ *
+ * Three shapes, and flattening them to a range is exactly the mistake this chapter is
+ * about, so each one is printed as the register writes it.
+ *
+ * @param {object} coverage The coverage member of a published row.
+ * @param {string} unit Unit symbol of the row.
+ * @returns {string} The covered levels, for a table cell.
+ */
+function coverageText(coverage, unit) {
+  if (!coverage) return '—';
+  if (coverage.type === 'Points') {
+    return `${coverage.values.join(' ; ')} ${unit}, fixed values only`;
+  }
+  if (coverage.type === 'Window') {
+    return `(${coverage.nominal} ± ${coverage.tolerance}) ${unit}`;
+  }
+  const low = coverage.lowerBound === 'exclusive' ? `> ${coverage.minimum}` : coverage.minimum;
+  const high = coverage.upperBound === 'exclusive' ? `< ${coverage.maximum}` : coverage.maximum;
+  return `${low} … ${high} ${unit}`;
+}
+
+/**
+ * Render a published accreditation scope as the table it is.
+ *
+ * @param {object} scope The scope document from /api/world.
+ * @returns {Node} The table, or a note when the scope publishes no rows.
+ */
+function scopeRowTable(scope) {
+  const rows = (scope && scope.rows) || [];
+  if (!rows.length) return el('p', { class: 'note', text: 'This scope publishes no capability table.' });
+  return table(
+    ['Row', 'Quantity', 'Object', 'Covers', 'Conditions', 'Best measurement capability', 'Remarks'],
+    rows.map((row) => [
+      row.label.replace(`${scope.identifier} `, ''),
+      row.measurand,
+      row.objectCategory,
+      coverageText(row.coverage, row.unit),
+      row.condition ? row.condition.text : '—',
+      row.bestMeasurementCapability.description,
+      row.remarks && row.remarks.length ? row.remarks.join(' ') : '—',
+    ])
+  );
+}
+
 async function chapterScope(context) {
   // Prose: web/content/chapters/06-scope.md
   const t = context.text('scope');
@@ -777,12 +826,53 @@ async function chapterScope(context) {
   }
 
   const entry = context.world.cmcEntries.find((item) => item.identifier === 'CH-EM-0042');
+  const scope = (context.world.accreditations || []).find(
+    (item) => item.identifier === 'SCS 0123'
+  );
+
+  // The testing scope publishes no table, so there is nothing to render from the world
+  // payload. What can be shown is the thing that replaced it: the same question put to
+  // the register about two different days, and the two answers it gives.
+  const testing = (context.world.accreditations || []).find(
+    (item) => item.identifier === 'STS 0456'
+  );
+  const askedTwice = el('div', {});
+  if (testing && testing.queryEndpoint) {
+    const today = (context.world.demoNow || '').slice(0, 10);
+    const ask = async (at, label) => {
+      const address = `${testing.queryEndpoint}?at=${encodeURIComponent(at)}&standard=${encodeURIComponent('IEC 62368-1')}`;
+      const { document: answer } = await api.document(address);
+      const verdict = answer.credentialSubject.answer;
+      return [
+        badge(verdict.covered ? 'pass' : 'fail'),
+        label,
+        at,
+        verdict.covered ? 'covered' : 'not covered',
+        verdict.reason,
+      ];
+    };
+    Promise.all([
+      ask('2026-05-06', 'The day the testing was performed'),
+      ask(today, 'Today, which is the question nobody needed'),
+    ]).then((rows) => {
+      clear(askedTwice).append(
+        table(['', 'Asked about', 'Date', 'Answer', 'On what grounds'], rows)
+      );
+    });
+  }
 
   fragment.append(
     el('div', { class: 'split split--wide' }, [
       el('div', {}, [panel(t.text('adjust.title'), t.text('adjust.hint'), [valueSlider, uncertaintySlider]), readout]),
       panel(t.text('entry.title'), t.text('entry.hint'), jsonView(entry, context.inspect, { tall: true })),
     ]),
+    t.prose('rows.body'),
+    panel(t.text('rows.title'), t.text('rows.hint'), scopeRowTable(scope)),
+    t.prose('carried-or-linked'),
+    t.prose('signed-registry'),
+    t.prose('answered-registry'),
+    t.prose('the-date-in-the-question'),
+    panel(t.text('asked.title'), t.text('asked.hint'), askedTwice),
     t.callout('schema-vs-registry')
   );
 
@@ -1517,6 +1607,12 @@ async function chapterInfrastructure(context) {
         callout([profile.posture]),
         el('div', { class: 'stat-row' }, [
           stat(hosting.onlineCount, 'documents it must keep online'),
+          // Shown only where there is one, because a zero here would read as a
+          // reassurance rather than as the absence of an obligation. The one role that
+          // has a service is the one the chapter's opening claim does not cover.
+          ...(hosting.serviceCount
+            ? [stat(hosting.serviceCount, 'services it must keep answering')]
+            : []),
           stat(role.issuedCount, 'credentials it issued'),
           stat(hosting.travellingCount, 'documents that travel, unhosted'),
         ]),
@@ -1532,22 +1628,43 @@ async function chapterInfrastructure(context) {
       panel(
         t.text('reachable.title'),
         t.text('reachable.hint'),
-        hosting.online.map((group) =>
-          el('div', {}, [
-            el('p', { class: 'muted', text: ONLINE_KIND_LABELS[group.kind] || group.kind }),
-            el(
-              'div',
-              { class: 'chips' },
-              group.urls.map((url) =>
-                el('button', {
-                  class: 'chip',
-                  text: url.replace('https://', ''),
-                  onclick: () => context.inspect(url),
-                })
-              )
-            ),
-          ])
-        )
+        hosting.online
+          .map((group) =>
+            el('div', {}, [
+              el('p', { class: 'muted', text: ONLINE_KIND_LABELS[group.kind] || group.kind }),
+              el(
+                'div',
+                { class: 'chips' },
+                group.urls.map((url) =>
+                  el('button', {
+                    class: 'chip',
+                    text: url.replace('https://', ''),
+                    onclick: () => context.inspect(url),
+                  })
+                )
+              ),
+            ])
+          )
+          .concat(
+            // Listed, and deliberately not clickable. Every address above answers the
+            // same way to anyone who asks; this one answers a question, and there is no
+            // question to put to it from here. Showing it as a chip would suggest
+            // otherwise.
+            hosting.services.length
+              ? [
+                  el('div', {}, [
+                    el('p', { class: 'muted', text: 'Answered on demand, not served' }),
+                    el(
+                      'div',
+                      {},
+                      hosting.services.map((url) =>
+                        el('p', { class: 'endpoint', text: url.replace('https://', '') })
+                      )
+                    ),
+                  ]),
+                ]
+              : []
+          )
       ),
 
       panel(t.text('key.title'), null, [
@@ -1624,7 +1741,15 @@ async function chapterHarmonisation(context) {
   fragment.append(t.prose('the-harder-question'));
 
   const cmc = (context.world.cmcEntries || []).find((entry) => entry.measurand === 'dc.resistance');
-  const scope = (context.world.accreditations || []).find((entry) => entry.measurand === 'dc.resistance');
+  // A CMC entry states its measurand at the top level because it is one row. An
+  // accreditation scope is a table, so its measurands live in the rows -- and when they
+  // moved there, this selector went on looking at the top level, found nothing, and the
+  // second chip stopped being rendered. The panel is about a pair of registers and it
+  // offered one, under a hint that still read "fetch both". Nothing failed, because a
+  // control that is never created cannot fail to respond.
+  const scope = (context.world.accreditations || []).find((entry) =>
+    (entry.rows || []).some((row) => row.measurand === 'dc.resistance')
+  );
 
   fragment.append(
     panel(t.text('one-string.title'), t.text('one-string.hint'), [

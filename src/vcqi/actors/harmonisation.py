@@ -389,6 +389,50 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
     ),
     HarmonisationItem(
+        key="reliance-policy",
+        tier="irreversible",
+        title="What a verdict means, and who it is good enough for",
+        status="open",
+        requirement=(
+            "A relying party has to be able to say what it requires, separately from the "
+            "verifier that checks it. Two things have to be agreed for that: a common "
+            "vocabulary of outcomes, and stable identifiers for the checks a policy "
+            "names. Neither is difficult and neither exists, which is why every verifier "
+            "written so far has had to decide the question by building its own rule in."
+        ),
+        demonstrated=(
+            "Eleven checks and two outcomes, with the rule written into the pipeline "
+            "rather than supplied to it: a document is verified when no step failed. "
+            "That rule is a policy, and nobody wrote it down as one.\n\nThe cost is "
+            "visible on one credential. METAS-2026-0420 points at its measurement "
+            "instead of carrying it, so the scope check falls to a warning and two "
+            "others do not run at all -- and it comes out verified, because none of them "
+            "failed. A border authority and a purchaser would reasonably want different "
+            "answers from that same step tree. Neither can express what it wants, and "
+            "the verifier cannot tell them apart."
+        ),
+        exists=(
+            "Nothing at this layer, and the absence is deliberate rather than an "
+            "oversight upstream. The W3C work defines how to establish that a credential "
+            "is authentic and says nothing about whether what it contains is good enough "
+            "for a given purpose, which is the right scope for a data model and leaves "
+            "the question exactly here, with the sector that has purposes."
+        ),
+        source="",
+        consequence=(
+            "Each verifier bakes in its own rule, so two of them reach different verdicts "
+            "on one document and neither can say why in terms the other recognises. A "
+            "policy cannot travel even though the credential can, which puts the decision "
+            "back where the paperwork had it."
+        ),
+        forum=(
+            "Wherever the arrangements meet, which is the rung of the ladder with no "
+            "forum. A relying party is not a member of any of them, and that is the "
+            "difficulty rather than an aside: the parties who need to state a policy are "
+            "the ones with no seat."
+        ),
+    ),
+    HarmonisationItem(
         key="anchors",
         tier="floor",
         title="What the anchors' identifiers are, and how a verifier learns them",
@@ -583,7 +627,15 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         requirement=(
             "When a calibration exists as both a standardised document and a credential, "
             "one of them has to be the one that counts. Not stating which is a decision "
-            "too, and the worst-behaved one."
+            "too, and the worst-behaved one.\n\nNothing about declaring precedence is "
+            "unfamiliar to this sector, which is worth saying so that the item is not "
+            "mistaken for a novel problem. A published accreditation scope is issued in "
+            "several languages and states which version governs when they disagree; the "
+            "scopes in this demonstration carry such a declaration, copied in form from "
+            "a real one. Registers settle precedence between versions of one document "
+            "routinely. What is unanswered is precedence between two documents governed "
+            "by different communities, and that is a question about who decides rather "
+            "than about how to write it down."
         ),
         demonstrated=(
             f"Every calibration certificate here carries a PTB/DKD DCC "
@@ -697,12 +749,17 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
         demonstrated=(
             "Chapter 10 measures this without naming it. Verifying one certificate of "
-            "conformity reads 31 distinct documents from 7 hosts. The credential itself "
-            "travels with its holder and is safe. The other 30 - DID documents, "
-            "accreditation scopes, KCDB entries, validation schemas, status lists, and "
-            "the uncertainty representations published by reference rather than inline - "
-            "are fetched from wherever they live, and every one of them is a way for a "
-            "verification to stop working without anything having been tampered with."
+            "conformity reads 32 distinct documents from 7 hosts. The credential itself "
+            "travels with its holder and is safe. The other 31 - DID documents, "
+            "accreditation scopes, KCDB entries, validation schemas, status lists, the "
+            "uncertainty representations published by reference rather than inline, and "
+            "now an answer from a register that publishes no document at all - are "
+            "fetched from wherever they live, and every one of them is a way for a "
+            "verification to stop working without anything having been tampered with. "
+            "The last of those is the sharpest case on this page: a document can be "
+            "archived by anyone who has a copy, and an endpoint cannot be archived at "
+            "all. Sign its answers and the answers become archivable; leave them "
+            "unsigned and the scope check has a shelf life."
         ),
         exists=(
             "Partly, and unevenly. Watchers cache identifier logs. Content addressing "
@@ -951,6 +1008,103 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         forum="ISO and IEC, where it is already happening.",
     ),
     HarmonisationItem(
+        key="scope-grammar",
+        tier="floor",
+        title="How a scope says what it covers",
+        status="open",
+        requirement=(
+            "A grammar for the coverage column of an accreditation scope. Not a "
+            "vocabulary for the quantities -- that is the item above -- but a way to "
+            "write down the shapes a scope actually uses, so that two implementations "
+            "reading the same published table select the same row."
+        ),
+        demonstrated=(
+            "SCS 0123 publishes four rows, and they use three different coverage "
+            "grammars between them: a list of fixed values, an interval with a strict "
+            "upper bound, and a nominal with a tolerance. Two of the rows are identical "
+            "except for the frequency band they were demonstrated over, and they carry "
+            "different capabilities. Chapter 5 shows the verifier choosing among them, "
+            "and chapter 8 has the certificate that is refused because no row covers "
+            "the frequency it was measured at.\n\nThe shapes are taken from a published "
+            "calibration scope; the numbers are invented. So is the tolerance that "
+            "decides whether a reading of 19,2003 ohm is the 19,2 ohm fixed value -- no "
+            "register states one, and something has to."
+        ),
+        exists=(
+            "Nothing that reaches the coverage column. Accreditation bodies publish "
+            "scopes as documents for people to read, and the structure that is "
+            "machine-readable in them stops at the identifiers: which body, which "
+            "laboratory, which standard, which dates. What a row covers is a phrase in a "
+            "table cell, and the three grammars above are the first page of one scope in "
+            "one field."
+        ),
+        source="",
+        consequence=(
+            "Every scope check becomes a transcription. Two verifiers reading a row "
+            "whose upper bound of 220 kohm is written as strict will disagree about "
+            "whether 220 kohm itself is covered, and one of them accredits a measurement "
+            "the body deliberately excluded -- a failure that reads like a rounding "
+            "argument and is a scope violation."
+        ),
+        forum=(
+            "ILAC, now the Global ACI arrangement, where the scope-publication rules "
+            "already live. It is the same body that decides what a scope document must "
+            "contain, so this is an extension of existing work rather than a new one."
+        ),
+    ),
+    HarmonisationItem(
+        key="scope-query",
+        tier="floor",
+        title="How to ask a register what a scope covers",
+        status="open",
+        requirement=(
+            "A protocol for asking a register whether a scope covered a given standard "
+            "on a given date, and for what the reply has to be. Three things have to be "
+            "agreed and none of them is difficult: that the date being asked about is a "
+            "parameter, that the reply is signed, and that the reply repeats the "
+            "question it answers."
+        ),
+        demonstrated=(
+            "STS 0456 publishes an endpoint instead of its table. The verifier asks "
+            "whether the report's standard was covered on the day the testing was "
+            "performed, and the accreditation body returns a signed answer naming the "
+            "row that decided it. The answer is addressed by the question, which is "
+            "what lets a holder carry it: one question, one spelling, one document.\n\n"
+            "The protocol is called ScopeCoverageQuery/1 and this project invented it "
+            "along with the name, the parameters and the shape of the reply. That is "
+            "the whole of the item."
+        ),
+        exists=(
+            "Directories, and not protocols. Accreditation bodies publish searchable "
+            "registers of who is accredited for what, and they are built for a person "
+            "with a question rather than a verifier with one: no stated parameters, no "
+            "signature over the reply, and no way to ask about a date that is not "
+            "today. The last of those is the one that matters, because a certificate is "
+            "evidence about the day it was issued and a register that only answers "
+            "about now answers the wrong question in the permissive direction."
+        ),
+        source="",
+        consequence=(
+            "Each verifier writes its own client against each body's own directory, "
+            "which is the hub-and-pipe arrangement that portable credentials exist to "
+            "avoid, and the scope check stops working at the border it was built for. "
+            "Where the reply is unsigned it is worse than that: the check cannot be "
+            "repeated afterwards by anybody, so an audit two years later has nothing to "
+            "look at.\n\nThis is an accreditation scope here and it is not only about "
+            "accreditation scopes. The architecture now widely proposed for the quality "
+            "infrastructure is a credential that carries a trust assertion and points at "
+            "an API for the data behind it, which is a good division until the answer "
+            "the API gives is itself part of the decision. At that moment it is inside "
+            "the trust boundary, and an unsigned answer there produces a verdict nobody "
+            "can re-check once the service has moved on."
+        ),
+        forum=(
+            "ILAC, now the Global ACI arrangement, which already decides what a scope "
+            "document must contain and would be deciding what a scope service must "
+            "answer. The same body, one layer out."
+        ),
+    ),
+    HarmonisationItem(
         key="uncertainty-transport",
         tier="optional",
         title="How uncertainty travels, dependencies included",
@@ -1088,9 +1242,20 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "Fix the first-tier choices for a region's members. Regional scope is where "
             "this has historically been tractable, and a profile that demonstrably works "
             "regionally is the evidence an international one would otherwise spend years "
-            "arguing about."
+            "arguing about.\n\nA profile has to reach the accreditation side as well, "
+            "and that is the half most easily forgotten: how a scope states the levels a "
+            "row covers is a first-tier choice, and two members reading the same "
+            "published table differently do not interoperate however well their keys "
+            "agree."
         ),
-        unblocks=("cryptosuite", "did-method", "status-meaning", "anchors"),
+        unblocks=(
+            "cryptosuite",
+            "did-method",
+            "status-meaning",
+            "anchors",
+            "scope-grammar",
+            "scope-query",
+        ),
     ),
     NextStep(
         order=5,
@@ -1100,7 +1265,13 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "The CMC data already exists, is already peer reviewed, and now resolves. "
             "What is missing is a signature and a stable content digest over each entry. "
             "This is the highest-value single item on the list, because every scope check "
-            "downstream of it is currently trusting a fetch."
+            "downstream of it is currently trusting a fetch.\n\nThe accreditation half "
+            "of this rung has been taken in the demonstration, which makes it the one "
+            "step here with a worked example rather than an argument: the accreditation "
+            "body signs each scope, the credentials citing one pin it by digest, and the "
+            "scopes moved out of chapter 12's unportable class without the portability "
+            "rule being touched. Nothing about the CMC is harder. It is a different "
+            "organisation, which is the whole difficulty."
         ),
         unblocks=("anchors", "measurands"),
     ),

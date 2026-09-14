@@ -3033,3 +3033,279 @@ that was actually fetched - which is the reason the fetch has to happen.
 - `uv run pytest tests/test_content.py tests/test_web.py` - passes.
 - 76 retrievals across 31 distinct documents from 7 hosts, unchanged: no credential,
   schema or registry entry was touched.
+
+# Change set 18 - what a scope really contains, and signing it
+
+## Context
+
+Asked how to decide what a verifiable credential carries in `credentialSubject` directly
+and what it carries as a link into another ecosystem, with two cases: `capabilityReference`
+on `AC-2026-1182`, which is only a link to `SCS 0123`, and the calibration values and
+uncertainties, which are stated in full where a PTB/DKD DCC could hold them instead.
+
+The demonstration answers that question implicitly in a dozen places and states it
+nowhere. Checking one of the implicit answers against a real published accreditation
+scope - `temp/SCS-0050-en.pdf`, a SAS calibration scope - found it wrong.
+
+The link itself was right. A laboratory may not state its own scope, which is why
+`_step_scope` used `resolver.retrieve` and refused the holder's copy. What was wrong was
+the target. `AccreditationScope` held one measurand, one `rangeMinimum`, one
+`rangeMaximum` and one RSS floor. A real scope is a table of roughly forty-five rows, and
+the first page of one contains:
+
+- `19,2 ohm ; 192 ohm` - discrete fixed values, with a remark saying the stated
+  uncertainty is valid at those values only. Not a range.
+- `1 ohm ... < 220 kohm` - an interval whose upper bound is strict.
+- `(22,5 +/- 2,5) uohm` - a nominal with a tolerance.
+- The same quantity over the same levels twice, at two frequency bands, with two
+  different capabilities.
+- Best measurement uncertainty always as a single term - `125.10^-6 R`, `0,2 dB`,
+  `1,2 %` - never the quadrature sum `describe()` was printing back.
+- "Calibration of Ohmmeters" separated from "Resistance calibration": a measuring
+  instrument (VIM 3.1) and a material measure (VIM 3.6), with different capabilities.
+- Remarks that decide scope and resist any model: "Resistances in form of cylindrical
+  rods", "On-site calibration as well with appropriate measurement uncertainty".
+
+The scope check was passing because the scope had been written to fit the check.
+
+## Decisions taken
+
+**A scope check is two decisions.** `select_row` chooses the row; `evaluate_scope`
+adjudicates against it. Kept apart because "no row of your accreditation covers what you
+did" is a different and more useful finding than "your uncertainty is smaller than the
+row permits", and a pipeline reporting both as *outside scope* throws the better half
+away.
+
+**The remarks are reported and never adjudicated.** The ones that narrow a row were
+folded into the row - fixed values became a coverage of points, frequency bands became
+conditions. What is left extends a scope by an unstated amount, and no rule for that
+exists to implement. `scope.remarks` warns, and the parent step still passes: an
+extension cannot turn a pass into a failure, and `_step_mra_logo` reads the parent.
+
+**Sign the scopes, and do not touch `RESOLVE_ONLY_KINDS`.** The accreditation body is the
+authority for what it accredited, so it may state its own scope; the objection that makes
+a laboratory's word insufficient does not apply to the body that granted it. Each scope
+is now an `AccreditationScopeCredential`, pinned by `digestMultibase` wherever it is
+cited, so a copy is checkable from any source and may travel with the holder.
+
+The tempting version of this - removing `registry-entry` from `RESOLVE_ONLY_KINDS` - is
+wrong and was not done. It would let an unsigned KCDB entry arrive from a holder and hand
+an institute its own measurement capability, which is the forgery the class exists to
+stop. The kind stayed; the documents moved. `tests/test_portability.py` passes unchanged,
+and that is the check that this was done the right way round.
+
+**The CMC stays unsigned.** Signing the KCDB is the BIPM's to do. One signed register
+beside one unsigned register makes the difference legible in a single verification's
+retrieval log, which is worth more here than flipping both.
+
+**The offline schema gets weaker as the scope gets richer**, and that is the right
+direction. `union_capabilities` collapses a table into one branch per quantity: the widest
+level any row touches, the smallest uncertainty any row permits. Every loss is permissive,
+so the schema admits claims the register refuses and never the reverse.
+
+## Change
+
+```
+src/vcqi/domain/scope.py          Interval / Points / Window, ConditionBand, ScopeRow,
+                                  select_row, union_capabilit(ies), single-term describe()
+src/vcqi/domain/accreditation.py  rows replace the flat members; language_precedence
+src/vcqi/domain/instruments.py    OBJECT_CATEGORIES, VIM 3.1 against VIM 3.6
+src/vcqi/domain/kcdb.py           as_capability builds an Interval
+src/vcqi/domain/oiml.py           the same
+src/vcqi/vc/model.py              accreditation_scope_credential, capability_reference,
+                                  condition_quantities on a calibration
+src/vcqi/vc/verify.py             _capability_document, _rows_from_document,
+                                  _claim_from_credential, _step_scope_by_rows
+src/vcqi/vc/schema.py             a sequence of capabilities, one branch pair per quantity
+src/vcqi/vc/resolver.py           the registry-entry rationale, now about the KCDB alone
+src/vcqi/actors/scenarios.py      _accreditation_scope_credentials, _scope_reference,
+                                  DIRECT_CURRENT_CONDITIONS
+src/vcqi/actors/portability.py    the fourth class is one register, not two
+src/vcqi/actors/tamper.py         out-of-band-frequency, substituted-scope
+src/vcqi/actors/harmonisation.py  scope-grammar; governing-copy; the KCDB rung
+src/vcqi/web/app.py               /api/combine builds a full claim and selects a row
+src/vcqi/web/static/js/chapters.js  the scope row table, three labels
+content/chapters/06-scope.md      the four tests, the row anatomy, the signed register
+content/chapters/09-break.md      twenty-two
+content/chapters/12-harmonisation.md  one of the open items is technical after all
+ARCHITECTURE.md                   two new sections and the rule they are instances of
+README.md                         16 of 31 travel, not 13; 91 retrievals
+```
+
+## The rule, which is the actual answer to the question
+
+Four tests, none of them about size, all four with evidence already in the repository:
+
+1. **Authority.** Carry what the issuer may assert; point at what another body owns. A
+   restated fact is not a checked fact.
+2. **Then or now.** A signature freezes what it covers. A measured value should be frozen;
+   an accreditation should not, because it is suspended and reduced between certificates.
+3. **Decidability.** Every reference is a check that may not complete. `METAS-2026-0420`
+   already measures that: it points instead of carrying, three checks degrade or skip, and
+   it still returns `verified`.
+4. **Growth.** `INLINE_LIMIT = 4096`. Integrity survives the move to a digest; availability
+   does not.
+
+Plus the trimming rule already in `ARCHITECTURE.md`: an unread document is a liability,
+not a courtesy.
+
+And a fifth that this change set added, cutting across the first: **a reference need not
+be uncheckable.** Sign the register entry and pin it by digest and the reference keeps its
+trust boundary while gaining what a carried fact had.
+
+So for the two cases asked about: the accreditation stays a link, and the measurement
+stays carried. Pushing the measurement into the DCC ecosystem would make the verdict
+conditional on a parser, which this project has already hit - the DKD example states
+`si:valueExpandedMU` where `parse_dcc_result` reads `si:uncertainty`. The way to hold one
+copy rather than two is the one `ARCHITECTURE.md` already favours: make the DCC the
+subject, not point at it from a thin credential.
+
+## Verification
+
+- `uv run pytest -q` - 545 passed, 46 skipped.
+- `tests/test_portability.py` passes **unchanged**. If a future change needs it edited,
+  the change is wrong.
+- World dump deterministic across two runs: 78 documents, `diff -r` clean.
+- All three jsdom harnesses against a running server; two chapter snapshots diff clean.
+- Of 31 documents read by one verification, 16 now travel (was 13); the unportable class
+  is one document.
+
+## Git
+
+Branch `feature/scope-rows-and-signed-scope`, two commits, PR into `develop`. Body in
+`temp/pr-body-scope-rows.md`.
+
+# Change set 19 - a scope you query, not a scope you read
+
+## Context
+
+Change set 18 answered the carriage question with four tests and added a fifth: a
+reference need not be uncheckable, because a signed register entry can be pinned by
+digest. The calibration scope took that route.
+
+Asked whether a **testing** laboratory's scope should instead sit behind an API - you
+query which standards its accreditation covers - with `temp/STS-0034-en.pdf` as the real
+example. It should, and reading that document is what settles it. A published testing
+scope is fourteen pages and three columns: product or material group, principle of
+measurement, test methods. Several hundred designations, mostly in equivalent pairs
+(`EN 61000-3-2, IEC 61000-3-2`), with measuring ranges as free text inside the middle
+column. Three properties push it away from the document pattern:
+
+- **Size.** Shipping that to every verifier to answer one bit is absurd.
+- **Shape.** A calibration check is a numeric adjudication and needs the formula in hand.
+  A testing check is a membership test - is this standard covered - which is a query.
+- **Flexibility.** Every page footer declares each row's scope of application: Type A
+  fixed, Types B and C flexible, per SAS-Document 741. A flexible row covers editions
+  that did not exist when the scope was granted. No frozen list can say "and whatever
+  comes next", so the answer is derived rather than stored, and only the body that
+  granted the scope may derive it.
+
+That third one is decisive. The first two are arguments about convenience; the third
+says a document cannot express the scope at all.
+
+## Decisions taken
+
+**The question is the address.** An endpoint should be a step backwards -
+`actors/deployment.py` says verification is a computation and not a conversation, and
+chapter 12's whole portability argument rests on it. What buys it back is composing the
+question into a canonical, sorted, percent-encoded query string and publishing the signed
+answer there. One question, one spelling, one document. It needed no new machinery:
+`DocumentStore` was already keyed by URL, and `Resolver.with_presented` already indexes a
+holder's documents by their own `id` - so a holder structurally cannot file an answer
+under a question it does not answer.
+
+**The answer is a credential.** A reply authenticated only by the connection that carried
+it cannot be stapled, archived, or re-checked once the endpoint is gone. Signed, it is a
+document again and joins the `travels` class. It carries no status entry and no validity
+window on purpose: an answer is superseded rather than withdrawn, and its validity is the
+date inside the question.
+
+**The date is a parameter.** The question asks about `testing.performedOn`, never about
+now. A scope grows, so a register asked the naive question answers honestly about the
+wrong day - and errs permissively. `tested-before-accredited` is that failure, and
+`tests/test_scope_query.py` asserts the counterfactual so the reason the parameter exists
+is demonstrated rather than claimed.
+
+**The scope document does not disappear.** The endpoint replaces the *table*, not the
+document. `STS 0456` still publishes its identity, who granted it and how long it runs,
+signed and pinned, so validity and suspension stay checkable by the machinery that
+already exists. `_capability_document` is reused unchanged.
+
+**The certification scope keeps its methods list.** Three registers, three shapes of
+reference: `SCESp 0789` named, `SCS 0123` pinned, `STS 0456` asked. One verification of
+`CPC-2026-0055` traverses all three.
+
+## Change
+
+```
+src/vcqi/domain/scope_query.py      new - TestScopeRow, CoverageQuestion,
+                                    CoverageAnswer, answer_coverage
+src/vcqi/domain/accreditation.py    test_rows, query_url, QUERY_PROTOCOL;
+                                    STS 0456 reshaped into four rows
+src/vcqi/vc/resolver.py             publish_endpoint, DocumentStore.answer,
+                                    query-aware kind_of, Resolver.query
+src/vcqi/vc/model.py                scope_coverage_answer_credential;
+                                    capability_reference gains queryEndpoint
+src/vcqi/vc/verify.py               _step_scope_by_query and the branch
+src/vcqi/vc/schema.py               test_report_schema stops pinning a standard
+src/vcqi/actors/scenarios.py        _coverage_handler, _accreditation_query_endpoints
+src/vcqi/actors/portability.py      query-answer classified; the audit staples one
+src/vcqi/actors/tamper.py           tested-before-accredited
+src/vcqi/actors/harmonisation.py    scope-query; retrieval recount and a sentence
+src/vcqi/web/app.py                 GET /api/accreditation/{id}/covers;
+                                    /api/document follows a query address
+tests/test_scope_query.py           new - 17 tests in three groups
+content/chapters/06-scope.md        the third pattern, the parameter, the two answers
+content/chapters/12-harmonisation.md  two technical items now, not one
+ARCHITECTURE.md                     the sixth consideration and its section
+README.md                           94 retrievals, 32 documents, 17 travel
+```
+
+The four rows of `STS 0456` each exist to be a different kind of answer: row 1 flexible,
+so it covers a designation it does not list; row 2 fixed, so it does not; row 3 withdrawn
+when its standard was superseded; row 4 added after the test report, which is what makes
+the date part of the question rather than a courtesy.
+
+## What asking costs, and the three checks that pay for it
+
+A document would have needed none of these:
+
+- `scope.query` takes the endpoint from the scope document and refuses if the reference
+  names another. A laboratory that could choose who answers could answer for itself.
+- `scope.answer` verifies the proof, confirms the signer is the body the scope names, and
+  confirms the question echoed inside is the question asked. Addressing keeps a *holder*
+  honest; this keeps a buggy or dishonest *register* honest.
+- `scope.covered` takes the verdict, with the row that decided it and whether flexibility
+  was what let it through.
+
+What it still costs, stated plainly: a query answer is the one document here that nobody
+can archive on the holder's behalf unless the register signs it, and essentially no
+register signs one today.
+
+## Also fixed
+
+`_step_scope_by_method` compared the report's top-level `standard` against the scope's
+`methods` by Python substring containment, and never looked at `results[*].clause`. The
+report states clauses 16.2 and 16.3 while the old `STS 0456` listed clause 16 and clause
+29, and nothing noticed. The query path replaces the substring match with an answered
+question. **Clause-level checking is still not done** - a real testing scope lists
+standards rather than clauses, so checking clauses needs a claim about what a standard
+contains, which is a different register.
+
+## Verification
+
+- `uv run pytest -q` - 566 passed, 46 skipped.
+- `tests/test_portability.py` passes with its exploit and class assertions **unchanged**,
+  as in change set 18.
+- World dump deterministic across two runs: 78 documents, `diff -r` clean. The risk here
+  was signing at query time; `answeredAt` comes from the world's fixed instant.
+- All three jsdom harnesses against a running server, two chapter snapshots diff clean -
+  which also proves `page-settled.mjs` waits for the two live queries chapter 5 now makes.
+- Of 32 documents read by one verification, 17 travel. The unportable class is still one
+  document, the KCDB entry.
+- 23 failure cases, 23 harmonisation items of which 9 open.
+
+## Git
+
+Branch `feature/scope-query-endpoint`, two commits, PR into `develop`. Body in
+`temp/pr-body-scope-query.md`.

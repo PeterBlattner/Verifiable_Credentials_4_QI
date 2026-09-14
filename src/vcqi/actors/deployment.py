@@ -118,15 +118,35 @@ class DeploymentProfile:
 #: The roles that span the range of the burden, from the trust anchor down to the
 #: verifier that operates nothing at all.
 #:
-#: The accreditation body is deliberately left out: operationally it is the trust
-#: anchor's profile at a smaller scale, and a column that says so adds length without
-#: adding an argument. That reasoning would exclude an OIML Issuing Authority too, and
-#: it is here anyway, for one reason the others do not have to answer for. An OIML
-#: certificate is valid for about a decade where a calibration certificate is valid for
-#: a year, so long-term validation -- which the institute's profile already calls the
-#: hardest part -- stops being a caveat and becomes the design constraint. An Issuing
-#: Authority also reviews rather than measures, which puts the hardest part of its
-#: profile upstream, on the laboratory whose evidence it has to be able to re-check.
+#: Each profile has to earn its place by answering something none of the others does,
+#: because a column that restates another column adds length and no argument.
+#:
+#: An OIML Issuing Authority is here for two. An OIML certificate is valid for about a
+#: decade where a calibration certificate is valid for a year, so long-term validation --
+#: which the institute's profile already calls the hardest part -- stops being a caveat
+#: and becomes the design constraint. And an Issuing Authority reviews rather than
+#: measures, which puts the hardest part of its profile upstream, on the laboratory whose
+#: evidence it has to be able to re-check.
+#:
+#: The accreditation body used to be left out on exactly that test, on the grounds that
+#: it was the trust anchor's profile at a smaller scale. That stopped being true when its
+#: testing scope became something to *ask* rather than something to publish. It is now
+#: the only role in this world that operates a service instead of serving files, and it
+#: is therefore the only one whose load rises with the number of people checking rather
+#: than with the number of documents it issues -- which is the claim the whole chapter
+#: opens with, met by the one actor that breaks it.
+#:
+#: The accreditation anchor is a fourth anchor and has the same overlap to overcome. What
+#: it answers is that it is *new*, and new in the way this sector actually produces new
+#: organisations: ``domain/arrangement.py`` records that the two bodies which held this
+#: role stopped operating separately on 1 January 2026 and were replaced. So it is the one
+#: profile whose hardest part looks backwards -- every other worries about a key it will
+#: hold for thirty years, and this one about accreditations granted before it existed.
+#: That is the ``persistence`` harmonisation item with an organisation standing in it
+#: rather than a hypothetical, and no other profile touches it. It is also the floor for
+#: an anchor's hosting, two documents against the BIPM's eight, because it publishes no
+#: register of its own by design and its capability data belongs to its members.
+
 DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
     DeploymentProfile(
         did="did:web:bipm.example",
@@ -217,6 +237,120 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
             "Thousands of certificates a year. A P-256 signature takes well under a "
             "millisecond, so an institute's entire annual output signs in about a "
             "second. Throughput is not a consideration anywhere in this design."
+        ),
+    ),
+    DeploymentProfile(
+        did="did:web:global-aci.example",
+        posture=(
+            "A fourth anchor, and operationally the smallest organisation on this page: "
+            "two documents online and one credential that travels. It is the BIPM's "
+            "profile with the register taken out -- until you ask how old it is. This "
+            "arrangement began on 1 January 2026, when two predecessor bodies stopped "
+            "operating separately, so everything it recognises it "
+            "<strong>inherited</strong>. The hard question here is about the past rather "
+            "than the future."
+        ),
+        custody=(
+            "Root grade, as for any anchor: a hardware security module, split custody, a "
+            "witnessed ceremony and a published rotation procedure. With one thing the "
+            "ceremony cannot settle. A key ceremony establishes who signs from now on, "
+            "and says nothing about the two identifiers this body replaced, or about "
+            "what those identifiers signed before it existed."
+        ),
+        custody_grade="root",
+        availability=(
+            "The same shape as any anchor: while the DID document is unreachable, "
+            "nothing recognised under this arrangement verifies anywhere. It is a static "
+            "file and a long cache lifetime answers it. Two documents is the smallest "
+            "surface on this page, which makes this the cheapest outage to prevent "
+            "rather than a different kind of outage."
+        ),
+        already_runs=(
+            "A web presence at a stable domain, which is all did:web resolution needs.",
+            "The peer evaluation machinery taken over from the two bodies it replaced, "
+            "and the decisions about which body is a signatory for which main scope.",
+            "A published list of signatories. That list is the thing being signed, not a "
+            "new artefact to be produced.",
+        ),
+        must_add=(
+            "An HSM and the ceremony around it.",
+            "A status list, republished whenever a signatory is suspended.",
+            "A statement of what became of the identifiers of the two organisations it "
+            "replaced, and whether what they signed still verifies. No other role on "
+            "this page has to answer that, and this one had to answer it in its first "
+            "month.",
+        ),
+        hardest_part=(
+            "<strong>Succession, not custody.</strong> Every other profile here worries "
+            "about a key it expects to hold for decades. This body was eight months old "
+            "when the demonstration was built, and an accreditation granted in 2025 was "
+            "granted by an organisation that no longer exists. Renaming, merging and "
+            "dissolution are the ordinary life of accreditation bodies rather than the "
+            "exotic case. Chapter 11 files this under what nobody has undertaken: "
+            "did:webvh can carry an identifier through a move or a rename, and nothing "
+            "carries one through a dissolution except somebody agreeing to inherit the "
+            "obligation."
+        ),
+        scale=(
+            "Tens of signatories, reissued on a peer evaluation cycle measured in years. "
+            "Two credentials in this world: one recognising an accreditation body across "
+            "three main scopes, and the status list that says whether it still stands. "
+            "Nothing here is a throughput question. It is an archive question."
+        ),
+    ),
+    DeploymentProfile(
+        did="did:web:sas.example",
+        posture=(
+            "The one role here that has to run a service rather than publish files, and "
+            "the only one whose work rises with the number of people checking. Every "
+            "other profile on this page gets quieter as verification spreads; this one "
+            "gets busier."
+        ),
+        custody=(
+            "Service grade, and with a second obligation none of the others carry. The "
+            "key signs scopes, which are documents and can be signed in a batch when a "
+            "scope changes -- and it also signs answers, one per question, on demand. "
+            "An offline key cannot do the second, so the key has to be available to a "
+            "running service, which is a materially weaker position than a ceremony."
+        ),
+        custody_grade="service",
+        availability=(
+            "This is where the design's usual answer stops working. Its documents "
+            "behave like everyone else's: cache them and a verifier keeps going. Its "
+            "endpoint does not. A question nobody asked before cannot be served from a "
+            "cache, so while the service is down every scope check against it fails -- "
+            "not for one laboratory, but for every certificate issued under any "
+            "accreditation this body granted."
+        ),
+        already_runs=(
+            "A register of accredited bodies and their scopes, published on the web and "
+            "searchable, which is what the endpoint would be built on.",
+            "The assessment process that decides what goes in a scope and when, "
+            "including the dates a row enters and leaves it.",
+            "A stable domain and the ability to publish a file at a fixed path.",
+        ),
+        must_add=(
+            "Signatures over the scopes it already publishes, which is what lets a "
+            "holder carry one instead of every verifier fetching it.",
+            "A query service that answers what a scope covered on a stated date, and "
+            "signs the answer rather than returning bare JSON.",
+            "Retention of when each row entered and left a scope, since a register that "
+            "only knows today's scope cannot answer about the day a report was issued.",
+            "A status list, so a suspension takes effect without reissuing anything.",
+        ),
+        hardest_part=(
+            "Undertaking to still answer. A signed document can be archived by anybody "
+            "who holds a copy, so a register that disappears leaves its documents "
+            "checkable. A service that disappears leaves nothing, and the certificates "
+            "that depended on it stop being verifiable years after anyone could have "
+            "done something about it. Signing the answers is what converts the problem "
+            "back into an archiving problem somebody else can solve."
+        ),
+        scale=(
+            "A few hundred accredited bodies and a few thousand scope rows, which is "
+            "nothing. The number that matters is not this one: it is how many "
+            "verifications happen, and that is a number the accreditation body does not "
+            "control and cannot forecast from its own workload."
         ),
     ),
     DeploymentProfile(
@@ -445,7 +579,12 @@ def host_of(url: str) -> str:
     return url[len("https://") :].split("/", 1)[0]
 
 
-def hosting_burden(kinds: Mapping[str, str], domain: str) -> dict[str, Any]:
+def hosting_burden(
+    kinds: Mapping[str, str],
+    domain: str,
+    *,
+    services: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     """Split what one organisation publishes into what must be online and what travels.
 
     This is the measurement behind the claim that the hosting requirement is small. A
@@ -454,14 +593,26 @@ def hosting_burden(kinds: Mapping[str, str], domain: str) -> dict[str, Any]:
     describe the issuer itself. The ratio between the two is computed here rather than
     asserted, so it stays true as the demonstration world changes.
 
+    Services are counted separately from documents, and the separation is the point
+    rather than a tidiness. Every document in the first count can be put behind a long
+    cache lifetime, mirrored, or archived by anybody who has a copy, so being unreachable
+    is an inconvenience with several remedies. A service has none of those: it has to be
+    *reached*, it is asked a question nobody anticipated, and its load rises with the
+    number of people checking rather than with the number of documents issued. Folding
+    one into the other would report a smaller burden and hide the only part of it that
+    behaves differently.
+
     Args:
         kinds: Mapping from published address to the kind of document published there,
             covering the whole world rather than one organisation.
         domain: The host whose burden to compute, for example ``metas.example``.
+        services: Mapping from endpoint address to the kind of answer it gives, again
+            for the whole world. Omitted for a caller that has none.
 
     Returns:
-        The addresses that must be reachable, grouped by kind, together with the count
-        of documents this organisation issued that need no hosting at all.
+        The addresses that must be reachable, grouped by kind; any endpoints that must
+        answer; and the count of documents this organisation issued that need no hosting
+        at all.
     """
     online: dict[str, list[str]] = {}
     travelling = 0
@@ -473,6 +624,10 @@ def hosting_burden(kinds: Mapping[str, str], domain: str) -> dict[str, Any]:
         else:
             travelling += 1
 
+    answering = sorted(
+        url for url in (services or {}) if host_of(url) == domain
+    )
+
     return {
         "domain": domain,
         "online": [
@@ -480,5 +635,7 @@ def hosting_burden(kinds: Mapping[str, str], domain: str) -> dict[str, Any]:
             for kind, urls in sorted(online.items())
         ],
         "onlineCount": sum(len(urls) for urls in online.values()),
+        "services": answering,
+        "serviceCount": len(answering),
         "travellingCount": travelling,
     }

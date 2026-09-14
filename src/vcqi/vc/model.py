@@ -73,6 +73,9 @@ __all__ = [
     "credential_reference",
     "recognized_entity_credential",
     "recognized_action",
+    "accreditation_scope_credential",
+    "capability_reference",
+    "scope_coverage_answer_credential",
     "calibration_certificate_credential",
     "external_document_credential",
     "test_report_credential",
@@ -221,6 +224,182 @@ def recognized_action(
     return entry
 
 
+def accreditation_scope_credential(
+    *,
+    scope: dict[str, Any],
+    issuer: dict[str, Any],
+    valid_from: str,
+    valid_until: str,
+    credential_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a published accreditation scope as a credential its body has signed.
+
+    Everywhere else in this world a registry entry is an unsigned document, and a
+    verifier has to go and get it from the publisher because a copy cannot be checked.
+    That is the reason ``registry-entry`` is on ``RESOLVE_ONLY_KINDS``, and it is the one
+    reason on that list that could be engineered away rather than being inherent.
+
+    This is the engineering. The accreditation body is the authority for what it
+    accredited, so it may state its own scope -- the objection that makes a laboratory's
+    word insufficient does not apply to the body that granted it. Signing turns the scope
+    into a document that checks itself: a copy from any source is as good as the
+    original, so a holder may carry it and a verifier at a border does not need to reach
+    the register to adjudicate a row.
+
+    What signing does not do is freeze the scope. A scope is suspended and reduced
+    between reissues, and a signature says what was true when it was made. So the
+    credential carries a ``credentialStatus`` and an expiry like any other, and the
+    verifier still asks the publisher about *now* -- it just no longer has to ask the
+    publisher what the scope *says*.
+
+    The CMC entries deliberately do not get this treatment. Signing the KCDB is the
+    BIPM's to do, and leaving one register signed and the other not is what makes the
+    difference between them visible in the pipeline rather than only described.
+
+    Args:
+        scope: The scope document, from ``AccreditationScope.to_json``.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        valid_from: Start of validity, as an XML Schema dateTime.
+        valid_until: End of validity, as an XML Schema dateTime.
+        credential_status: Optional credentialStatus member.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    credential: dict[str, Any] = {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": scope["id"],
+        "type": ["VerifiableCredential", "AccreditationScopeCredential"],
+        "name": f"Accreditation scope {scope['identifier']}",
+        "issuer": issuer,
+        "validFrom": valid_from,
+        "validUntil": valid_until,
+        "credentialSubject": scope,
+    }
+    if credential_status is not None:
+        credential["credentialStatus"] = credential_status
+    return credential
+
+
+def capability_reference(
+    *,
+    url: str,
+    relation: str,
+    identifier: str,
+    credential: dict[str, Any] | None = None,
+    query_endpoint: str | None = None,
+    query_protocol: str | None = None,
+) -> dict[str, Any]:
+    """Reference the capability a document was issued under.
+
+    Three shapes now, and the differences between them are the whole argument.
+
+    A capability published as an **unsigned register entry** can only be named:
+    identifier, type and address, with nothing that would let a verifier check a copy.
+
+    One published as a **signed credential** can be named *and pinned*, so the reference
+    is satisfied only by the exact scope that was in force when the reference was made,
+    wherever the copy came from.
+
+    One that is **answered rather than served** carries an endpoint as well. Its document
+    is still pinned -- the identity of the scope, who granted it and how long it runs are
+    facts, and they travel -- but what it covers is a question, and the reference says
+    where to ask it and under which protocol. The endpoint address is deliberately not
+    digested: there is no document there to digest, and a reference that pretended
+    otherwise would be claiming a guarantee nobody can give.
+
+    Args:
+        url: Address the capability is published at.
+        relation: The type of the referenced capability, for example
+            ``AccreditationScope`` or ``KcdbCmcEntry``. It is read by the logo check, so
+            it names the register rather than the carrier.
+        identifier: The register's own number for it, for example ``SCS 0123``.
+        credential: The signed capability, when there is one. Omit for a register that
+            publishes its entries unsigned, and the reference carries no digest.
+        query_endpoint: Where to ask what this capability covers, for a register that
+            answers questions instead of publishing its table.
+        query_protocol: What may be asked there, and how.
+
+    Returns:
+        The reference, with a ``digestMultibase`` exactly when one can be checked and a
+        ``queryEndpoint`` exactly when there is something to ask.
+    """
+    reference: dict[str, Any] = {"id": url, "type": relation, "identifier": identifier}
+    if credential is not None:
+        reference["digestMultibase"] = credential_reference(
+            credential, relation=relation
+        )["digestMultibase"]
+    if query_endpoint is not None:
+        reference["queryEndpoint"] = query_endpoint
+        if query_protocol is not None:
+            reference["queryProtocol"] = query_protocol
+    return reference
+
+
+def scope_coverage_answer_credential(
+    *,
+    address: str,
+    scope_url: str,
+    identifier: str,
+    protocol: str,
+    issuer: dict[str, Any],
+    question: dict[str, Any],
+    answer: dict[str, Any],
+    answered_at: str,
+) -> dict[str, Any]:
+    """Build a register's signed answer to one question about one scope.
+
+    An answer is a credential, and making it one is what stops an endpoint being a step
+    backwards. A plain JSON reply is authenticated by the connection that carried it: it
+    cannot be stapled, cannot be archived, cannot be re-checked, and is worth nothing the
+    moment it has been copied anywhere. Signed, it is a document like any other -- and it
+    is addressed by the question, so a verifier asking the same thing finds it and a
+    verifier asking something else does not.
+
+    What it deliberately does not carry:
+
+    - **No status entry.** An answer is not withdrawn, it is superseded: ask again and
+      the register answers again. A status list over answers would grow without bound
+      and would say nothing the next answer does not say better.
+    - **No validity window.** Its validity is the date inside the question. An answer
+      about May 2026 does not become wrong in 2030; a verifier asking about 2030 is
+      asking a different question and gets a different answer.
+
+    Args:
+        address: The endpoint with the question appended, which is this credential's
+            identifier. One question, one spelling, one address.
+        scope_url: The scope the question is about.
+        identifier: The register's number for that scope.
+        protocol: The query protocol this answer was given under.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        question: The question as asked, echoed verbatim so that a verifier can confirm
+            it was answered rather than reinterpreted.
+        answer: The verdict and the grounds for it.
+        answered_at: When the register answered, as an XML Schema dateTime. Distinct
+            from the date *inside* the question, which is what is being asked about.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    return {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": address,
+        "type": ["VerifiableCredential", "ScopeCoverageAnswerCredential"],
+        "name": f"Coverage answer for accreditation {identifier}",
+        "issuer": issuer,
+        "validFrom": answered_at,
+        "credentialSubject": {
+            "id": scope_url,
+            "type": "AccreditationScope",
+            "identifier": identifier,
+            "protocol": protocol,
+            "question": question,
+            "answer": answer,
+            "answeredAt": answered_at,
+        },
+    }
+
+
 def recognized_entity_credential(
     *,
     credential_id: str,
@@ -347,6 +526,7 @@ def calibration_certificate_credential(
     capability_reference: dict[str, Any],
     mra_logo_asserted: bool,
     accredited: bool,
+    condition_quantities: list[dict[str, Any]] | None = None,
     traceable_to: dict[str, Any] | None = None,
     credential_status: dict[str, Any] | None = None,
     representations: list[dict[str, Any]] | None = None,
@@ -373,6 +553,12 @@ def calibration_certificate_credential(
             is stated explicitly so that the claim can be checked rather than inferred
             from the presence of an image.
         accredited: Whether the certificate claims to be accredited work.
+        condition_quantities: The conditions of the calibration stated numerically, as
+            ``{"quantity", "value", "unit"}`` entries -- ``frequency`` at 0 Hz for a
+            direct-current measurement, for instance. The prose in ``conditions`` says
+            the same thing to a reader; this says it to the scope check, which has to
+            choose between two rows of an accreditation scope that differ only by the
+            band they were demonstrated over.
         traceable_to: Reference to the certificate one level up the traceability chain,
             or None when the issuer realises the unit itself.
         credential_status: Optional credentialStatus member.
@@ -400,6 +586,8 @@ def calibration_certificate_credential(
         "mraLogoAsserted": mra_logo_asserted,
         "accredited": accredited,
     }
+    if condition_quantities:
+        calibration["conditionQuantities"] = condition_quantities
     if traceable_to is not None:
         calibration["traceableTo"] = traceable_to
 

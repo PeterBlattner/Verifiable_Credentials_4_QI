@@ -27,15 +27,17 @@ Deployment
 
 <!-- block: lede -->
 
-The hosting requirement, computed rather than asserted, and why it is so unevenly spread between a trust anchor, a national institute, a fifteen-person laboratory and a verifier.
+The hosting requirement, computed rather than asserted, and why it is so unevenly spread — from three trust anchors, through a national institute and an accreditation body that answers questions, down to a fifteen-person laboratory and a verifier that publishes nothing at all.
 
 <!-- block: two-properties -->
 
-Two properties of the design settle most of this question, and neither of them is about capacity.
+Two properties of the design settle most of this question, and neither of them is about capacity. One of the two has an exception, and the exception turns out to be worth more than the rule.
 
 **Verification is a computation, not a conversation.** A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier’s behalf, and nothing here grows with the number of people who check. That is a claim about *checking* a credential, and it is true because a credential here travels as a signed file. Chapter 12 measures how far that goes, what a verifier still cannot be handed second-hand, and what it costs to *ask* for a document instead of being given one.
 
 **A credential travels with whoever holds it.** The certificate arrives from the customer, not from the laboratory that wrote it. What an issuer must keep online is therefore only what describes the issuer itself — its key, and which of its credentials it has since withdrawn. The certificates need not be hosted at all.
+
+**And one organisation here breaks the first of those, which is worth more than the rule.** A testing laboratory's accreditation covers hundreds of standards, lists them as sets of equivalent names, and marks some of its rows flexible — so what it covers has to be worked out rather than looked up, and only the body that granted it may do the working out. That body therefore answers a question per verification. Its load rises with the number of people checking, which is precisely what the first property promises cannot happen, and it is the one role below whose obligation cannot be met by putting a file behind a long cache. Pick the accreditation body to see what that costs. The rule holds for everyone who issues a credential; it fails for a register that answers instead of publishing, and knowing which of those you are building is most of the decision. Everything else stays true of it: its scopes are documents and travel like any other, and it is only the answering that is new.
 
 Everything below is computed from what this demonstration actually published, so the figures move if the world does.
 
@@ -57,7 +59,7 @@ A pure verifier publishes nothing. The single document counted here is a DID doc
 
 <!-- block: does-not-grow -->
 
-Note that the first figure does not grow with the second. An institute issuing ten times as many certificates keeps exactly the same documents online.
+Note that the first figure does not grow with the second. An issuer putting out ten times as many documents keeps exactly the same ones online.
 
 <!-- block: reachable.title -->
 
@@ -102,6 +104,8 @@ What is genuinely new, across all of them
 **Long-term validation is the second problem, and it is the one with a deadline.** Signatures have to be timestamped at the moment of issue. A certificate signed today and archived without a timestamp cannot be given one in 2040, when the question of whether P-256 still means anything will be a live one. Almost everything else here can be retrofitted. This cannot.
 
 **And there is a new way to fail.** A paper certificate keeps working when a web server does not. These do not: an unreachable DID document means an unverifiable certificate, and for a trust anchor that is a global outage. Static files behind a long cache lifetime make that a manageable risk rather than an unlikely one — but it is a dependency the present arrangement simply does not have, and it belongs on the other side of the ledger from the benefits in the previous chapter.
+
+**A service fails worse than a file, and the difference is not about uptime.** Everything above can be cached, mirrored, or archived by anybody holding a copy, so a register that vanishes still leaves its documents checkable. A register that answered questions leaves nothing. Nobody can cache an answer to a question they have not been asked, and nobody can archive on the register's behalf — so certificates issued under an accreditation stop being verifiable years after the last person who could have prevented it stopped paying attention. Signing the answers is what converts that back into an archiving problem, because a signed answer is a document and someone else can keep it. It is the single cheapest decision on this page and essentially no register makes it today.
 
 <!-- block: next-chapter -->
 

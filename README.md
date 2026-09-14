@@ -205,7 +205,9 @@ Two things go beyond the specification, because metrology needs them:
 **The CMC decides the logo.** An institute may apply the CIPM MRA logo only to work
 covered by a capability it has published in the KCDB. Here that is an explicit
 machine-checkable claim rather than an image, adjudicated by the recipient against the
-signed registry entry. The bound runs in the direction people new to it get backwards:
+published entry — which the KCDB serves unsigned, so it is the one register here a
+verifier must go and fetch for itself. The bound runs in the direction people new to it
+get backwards:
 a capability states the *smallest* achievable uncertainty, so a certificate claiming a
 *smaller* one is out of scope.
 
@@ -287,7 +289,7 @@ Helvetia ──test report──▶ Confoederatio ──certificate of conformit
 ```
 
 That authority runs eleven checks, and reaches a verified path from the kettle down to
-a national measurement standard, having made 76 retrievals across 31 distinct
+a national measurement standard, having made 94 retrievals across 32 distinct
 documents and known none of the parties in advance.
 
 ## Three arrangements, and where they join
@@ -322,7 +324,7 @@ Two things the OIML-CS branch adds that the other pillars did not need:
   published by somebody else, which is a much stronger thing for a recognition to point
   at. What is still invented is the schema: R 46 is not machine-readable, so the schema
   here is this project's reading of it. The OIML has a sub-group working towards
-  machine-readable Recommendations, and that gap is the last item in chapter 11.
+  machine-readable Recommendations, and that gap is an item in chapter 11.
 - **A certificate that attests without authorising.** An OIML certificate is evidence, not
   permission — a Recommendation is not law. It carries `legalEffect: "none"` and a sentence
   saying so, and the schema makes that a validation requirement, so a certificate that
@@ -342,21 +344,21 @@ them: what distinguishes OIML-CS Scheme A from Scheme B, and what SMART stands f
 5. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
 6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, the same measurement shown four ways including as a PTB/DKD DCC, and what gets said twice as a result
 7. **Why the dependencies matter** — two certificates, one shared standard, and what each way of reporting lets the customer do
-8. **Break it** — 20 failure cases, each naming the check that catches it
+8. **Break it** — 23 failure cases, each naming the check that catches it
 9. **What this would mean in practice** — the argument, and the open questions
 10. **What it would take to run** — the hosting burden computed per role, from the trust anchor down to a fifteen-person laboratory, and what a verifier actually fetches
 11. **What would have to be agreed** — global harmonisation in three tiers, what cannot be decided later, and a ladder of next steps ordered by who is able to act
-12. **How a credential moves** — two architectures that disagree about almost everything. UN/CEFACT's portable model, where the signed document travels and no protocol is needed, measured against VCALM's exchange, where the parties talk. The measurement is the point: of the 31 documents one verification reads, 13 can arrive with the holder, and what cannot be handed over second-hand is each organisation's key and its revocation list
+12. **How a credential moves** — two architectures that disagree about almost everything. UN/CEFACT's portable model, where the signed document travels and no protocol is needed, measured against VCALM's exchange, where the parties talk. The measurement is the point: of the 32 documents one verification reads, 17 can arrive with the holder — three of them accreditation scopes, and one an answer from a register that publishes no document at all, both of which travel only because somebody signed them — and what cannot be handed over second-hand is each organisation's key, its revocation list, and the one register still published unsigned
 
-## The 20 failure cases
+## The 23 failure cases
 
 Grouped by what it takes to notice them.
 
 | Group | Cases | Caught by |
 | --- | --- | --- |
-| **Forgery** | edited value, invented issuer, loosened schema, reissued parent | proof, recognition, output-validation, traceability |
-| **Standing** | expired, suspended accreditation, issuing outside the accredited activity, granting an accreditation the arrangement does not recognise, certifying a type against a Recommendation nobody approved, resting a certificate on an unrecognised laboratory | validity, recognition, action, scope, traceability |
-| **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance, dependency data disagreeing with the printed line, traceability claimed but not inherited, the PTB/DKD DCC contradicting the printed value, the PTB/DKD DCC crediting a different laboratory, a type evaluation made with equipment out of calibration, a chain followed to a certificate about a different object | scope, mra-logo, traceability, traceability.inherited, uncertainty.agreement, traceability.shared-inputs, uncertainty.duplication, traceability.object-identity |
+| **Forgery** | edited value, invented issuer, loosened schema, reissued parent, a different accreditation scope served at the same address | proof, recognition, output-validation, traceability, scope |
+| **Standing** | expired, suspended accreditation, issuing outside the accredited activity, granting an accreditation the arrangement does not recognise, certifying a type against a Recommendation nobody approved, resting a certificate on an unrecognised laboratory, testing against a standard the scope did not yet cover | validity, recognition, action, scope, scope.covered, traceability |
+| **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance, dependency data disagreeing with the printed line, traceability claimed but not inherited, the PTB/DKD DCC contradicting the printed value, the PTB/DKD DCC crediting a different laboratory, a type evaluation made with equipment out of calibration, a chain followed to a certificate about a different object, a calibration at a frequency the accreditation does not cover | scope, scope.row, mra-logo, traceability, traceability.inherited, uncertainty.agreement, traceability.shared-inputs, uncertainty.duplication, traceability.object-identity |
 
 The third group is the interesting one: in every case the signature is valid, the issuer
 is genuinely recognised, and the document is inside its validity period. A system that
@@ -368,8 +370,10 @@ checked only the cryptography would accept all of them.
 src/vcqi/
   crypto/    jcs.py  multibase.py  keys.py  ecdsa_p256.py  dataintegrity.py
   vc/        model.py  checks.py  recognition.py  verify.py  schema.py  status.py  resolver.py
-  domain/    scope.py  kcdb.py  accreditation.py  uncertainty.py  instruments.py
-  actors/    registry.py  scenarios.py  tamper.py
+  domain/    scope.py  scope_query.py  kcdb.py  accreditation.py  arrangement.py
+             oiml.py  uncertainty.py  instruments.py  dcc.py
+  actors/    registry.py  scenarios.py  tamper.py  deployment.py  harmonisation.py
+             portability.py  exchange.py
   web/       app.py  static/
 tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py
              test_domain.py  test_pipeline.py  test_web.py

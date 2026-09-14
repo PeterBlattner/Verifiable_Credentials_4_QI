@@ -92,6 +92,52 @@ prefixes and powers as separate tokens. Ohm is `\ohm`; kilogram is `\kilo\gram`,
 because a certificate quietly stating the wrong unit is worse than one that fails to be
 produced.
 
+### What a credential carries, and what it points at
+
+The two sections after this one are both instances of one decision, and it is worth
+stating the decision once rather than only its consequences. Nothing here is about size.
+
+1. **Authority.** Carry what the issuer is entitled to assert; point at what another body
+   owns. A laboratory may state what it measured and may not state what it is accredited
+   for, which is why `capabilityReference` is a reference and why `_step_scope` will not
+   read a scope out of the credential that names it. A restated fact is not a checked
+   fact.
+2. **Then or now.** A signature freezes what it covers. A measured value should be
+   frozen — a result the issuer can change after signing is not a result. An accreditation
+   should not be, because it is suspended and reduced between certificates. So the scope
+   travels signed and pinned, and `check_status` still goes to the body that granted it.
+3. **Decidability.** Every reference is a check that may not complete, and the cost is
+   measured rather than argued: `METAS-2026-0420` points instead of carrying, and the
+   table further down this file is what the pipeline can no longer decide as a result.
+4. **Growth.** `INLINE_LIMIT = 4096` in `vc/model.py`. A dependency representation with
+   thousands of input quantities cannot travel inside a credential, and a forty-five-row
+   scope should not be copied into every certificate issued under it. Integrity survives
+   the move to a digest; availability does not.
+
+And the rule that trims whatever those four leave, stated in this file already about the
+arrangement: an unread document is a liability, not a courtesy. Add no reference a check
+does not read.
+
+The fifth consideration is the one this project changed its mind about, and it cuts
+across the first: **a reference need not be uncheckable**. An unsigned register entry can
+only be named, so a verifier must fetch it from the publisher and a holder may not carry
+it — which is the entire reason `registry-entry` sits on `RESOLVE_ONLY_KINDS`. Sign the
+entry and pin it by digest, and the reference keeps its trust boundary while gaining
+everything a carried fact had: a copy is checkable from any source. The calibration
+scopes took that step and the CMC entries deliberately did not, so the two registers can
+be compared side by side in one verification. See *A signed register, and one that is
+not* below.
+
+The sixth is where the four tests stop being enough, and a testing scope is what found
+it. Sometimes **there is no document to point at**: a register whose table is too large
+to hand over, lists its entries as sets of equivalents, and derives part of its answer
+from a flexibility rule has nothing to publish that a verifier could read. It has to be
+asked. That should forfeit everything signing just bought, and it does not, because the
+question can be made part of the address — one question, one spelling, one signed answer,
+published where a verifier looking for it will look. See *A register that answers, and
+what that costs* below. So the world carries three registers and three shapes of
+reference: one unsigned and named, one signed and pinned, one asked.
+
 ### Redundancy, and signing once
 
 Putting a standardised document inside a credential duplicates most of it: who
@@ -151,6 +197,13 @@ on any other document in this demonstration, and `tests/test_external_dcc.py` as
 exactly that pairing so it cannot quietly stop being true. Making `outcome` report a
 third value when a step warns would be defensible and was not done: it would change
 every caller for one credential, and the step tree already says it.
+
+That decision is narrower than the question behind it, which is now `reliance-policy` in
+chapter 11. Two outcomes are not the problem; having the rule that produces them written
+into the verifier rather than supplied to it is. A relying party cannot say what it
+requires, so a border authority and a purchaser receive the same word for what ought to be
+two different decisions — and adding a third value would only give them three words they
+had no part in choosing.
 
 The generated `outputValidation` schema grew an `anyOf` to accommodate this, and the
 reason is worth keeping. What a recognition authorises is a measurement, not a JSON
@@ -240,9 +293,10 @@ certificate reports the representation as unavailable rather than publishing som
 that would fail a digest check. Results computed with the software are data; the licence
 restricts distributing the software.
 
-**One difference is real and worth recording.** Four budget lines across the 59
-documents moved by one unit in the last place when the engine changed, which also moved
-the three digests and six signatures that cover them. UncLib computes a budget
+**One difference is real and worth recording.** Four budget lines across the world as it
+then stood -- 59 documents, where the build now dumps 78 -- moved by one unit in the last
+place when the engine changed, which also moved the three digests and six signatures that
+cover them. UncLib computes a budget
 contribution by inverting the dependency matrix, so its rounding depends on the whole
 system; `linprop.py` multiplies the sensitivity by the input's Standard Uncertainty,
 which is the definition. Where they differ this engine is the self-consistent one:
@@ -255,7 +309,7 @@ intermediate value, which the GUM conventions this project follows do not permit
 ### The prose is content, and lives in markdown
 
 The chapter text was string literals inside `chapters.js`, about a hundred and twenty
-paragraphs threaded through 1799 lines of interactive code. Correcting a sentence meant
+paragraphs threaded through some eighteen hundred lines of interactive code. Correcting a sentence meant
 editing JavaScript, which put the words out of reach of everyone except whoever maintains
 that file — an odd property for a demonstration whose purpose is to be read.
 
@@ -288,7 +342,7 @@ literally true, since nothing is generated into the tree and the markdown ships 
 wheel by the same mechanism that ships `app.css`; and editing a file and pressing reload
 is enough, with no restart.
 
-**The renderer is in-repo**, `web/markdown.py`, about two hundred lines. This repository
+**The renderer is in-repo**, `web/markdown.py`, about three hundred lines. This repository
 already does that deliberately for JCS and multibase, for the reasons in the section
 above, and the argument here is the same plus one. A general parser has to be *told* not
 to pass HTML through; this one has no such path, so every character of input is escaped
@@ -470,11 +524,13 @@ Four kinds, three reasons:
 - **`presentation`** is what identifier-based discovery dereferences from the issuer's own
   endpoint, so letting the holder supply it means letting the holder choose what the issuer
   says about itself. Inherent.
-- **`registry-entry`** -- a CMC or an accreditation scope -- carries neither a signature nor
-  a digest, so a copy cannot be checked at all and accepting one would let a laboratory
-  declare its own capability. **Not inherent.** Sign the entries and this kind moves, which
-  is what makes *sign the KCDB* worth its place on the harmonisation ladder, and chapter 12
-  now prices it: four of the thirty-one documents.
+- **`registry-entry`** -- a CMC, now that the accreditation scopes are signed -- carries
+  neither a signature nor a digest, so a copy cannot be checked at all and accepting one
+  would let an institute declare its own capability. **Not inherent**, and the
+  accreditation half has already been collected: the scopes are published as signed
+  credentials and travel, without this list changing at all. What *sign the KCDB* is worth
+  on the harmonisation ladder is now the remainder, and chapter 12 prices it at one of the
+  thirty-two documents.
 
 Everything else -- credentials, schemas, uncertainty data -- either carries its own
 signature or is covered by a `digestMultibase` inside one, so a copy from any source is
@@ -583,7 +639,7 @@ available.
 | `recognition` | the Recognized Entities contribution: getting from an unknown issuer to a trusted identifier, and at each hop whether the recognition granted there was the granting body's to grant |
 | `action` | being recognised is not being recognised *for this*, at *this time*, under *this capability* |
 | `output-validation` | the schema the recognition names, pinned by content digest |
-| `scope` | the numeric decision a schema cannot express |
+| `scope` | the numeric decision a schema cannot express — and, first, which row of a published table that decision is to be taken against |
 | `mra-logo` | whether a claim of international recognition is justified |
 | `uncertainty` | whether the stated U is supported by the budget offered for it, whether every representation matches its recorded digest, and whether the printed line agrees with the dependency data |
 | `traceability` | whether the chain of certificates below it holds, by content digest; whether the influences of the parent are genuinely present in this result; and whether each hop is about the object the next one used |
@@ -593,6 +649,128 @@ evaluated reports `skip` rather than passing quietly. `tests/test_pipeline.py` a
 that every failure case is caught by the step that claims it, and that the metrological
 cases pass `proof`, `validity` and `recognition` first — which is the whole
 reason they are worth demonstrating.
+
+### A scope is a table, and choosing the row is a check
+
+A CMC entry is one row: one quantity, one range, one floor. An accreditation scope is
+not, and modelling it as one was the largest thing this demonstration had simply got
+wrong. A published calibration scope runs to dozens of rows, and its coverage column uses
+three grammars that a minimum and a maximum cannot hold: a list of fixed values, an
+interval with a strict bound, and a nominal with a tolerance. Rows are keyed by more than
+the quantity — by the conditions they were demonstrated under, and by whether the object
+is a *measuring instrument* or a *material measure*, VIM 3.1 and VIM 3.6, which the
+register separates because they are different activities with different capabilities.
+
+`domain/scope.py` therefore splits one decision into two. `select_row` decides which row
+applies and `evaluate_scope` decides whether the claim fits it, and they are kept apart
+because the two failures are different findings: a certificate refused because no row
+covers what it did has been refused for a better reason than one whose uncertainty was
+too small, and a pipeline reporting both as "outside scope" throws the useful half away.
+`scope.row` is the check that did not exist before, and `out-of-band-frequency` in
+`actors/tamper.py` is the certificate it catches — a real measurement, correctly signed,
+at a frequency the accreditation does not cover.
+
+**What is deliberately not modelled** is the remarks column. Remarks that narrow a row
+were folded into the row; what is left extends one by an unstated amount — "on-site
+calibration is also covered, with appropriate measurement uncertainty" — and no rule for
+that exists to implement. So `scope.remarks` warns on every run where the selected row
+carries any, and the parent step still passes: an extension cannot turn a pass into a
+failure, and `_step_mra_logo` reads the parent's status. The one number invented outright
+is `DEFAULT_POINT_TOLERANCE`, which decides whether a reading of 19,2003 ohm is the
+19,2 ohm fixed value. No register states one and something has to, so it is published
+inside the scope document rather than hidden in the module that applies it.
+
+The offline schema gets weaker as the scope gets richer, and that is the right direction.
+`union_capabilities` collapses a table into one branch per quantity, taking the widest
+level any row touches and the smallest uncertainty any row permits. Fixed values, strict
+bounds and condition bands all vanish. Every one of those losses is permissive: the
+schema admits claims the register will refuse and never the reverse, so a certificate can
+fail `scope` after passing `output-validation`, which is exactly what chapter 5 is for.
+
+### A signed register, and one that is not
+
+`RESOLVE_ONLY_KINDS` lists `registry-entry` because an unsigned document cannot be
+checked, and that reason was always described here as removable rather than inherent.
+The accreditation scopes removed it. Each is now an `AccreditationScopeCredential` signed
+by the body that granted it, published at the address it always had, and pinned by
+`digestMultibase` in every credential that cites it.
+
+**The kind did not move; the documents did.** That distinction is the whole of the
+safety argument, and the temptation is to take `registry-entry` off the resolve-only list
+instead — which would let an unsigned KCDB entry arrive from a holder and hand a
+laboratory its own measurement capability. `tests/test_portability.py` passes unchanged
+through this change, and it should stay that way: if a future edit needs that file
+relaxed, the edit is wrong.
+
+What signing buys is exact. A holder may now carry the scope, so `_step_scope` completes
+without reaching the register — chapter 12's residue drops by three documents, and the
+`ifRegistriesWereSigned` projection is half collected rather than entirely hypothetical.
+The reference also pins a *version*: `substituted-scope` serves a different scope at the
+same address, properly signed by the accreditation body and in force, and it is refused
+because it is not the scope the certificate was issued under. An unsigned entry could
+never have been refused for that reason, because a verifier could only ask what the
+register says today.
+
+What signing does not buy is freshness. `_capability_document` verifies the proof, checks
+that the signing issuer is the body the scope names as having granted it, checks the
+validity period, and then goes out to the status list anyway. A signature says what the
+scope was; only the body says whether it still stands.
+
+The CMC entries stay unsigned on purpose. Signing the KCDB is the BIPM's to do, and one
+signed register beside one unsigned register makes the difference legible in a single
+verification's retrieval log — which is worth more here than flipping both and describing
+what used to be true.
+
+### A register that answers, and what that costs
+
+`STS 0456` publishes no table. It publishes an endpoint, and `_step_scope_by_query` asks
+it. Three properties of a real testing scope force this, and only the third is decisive:
+it runs to fourteen pages, it lists its methods as sets of equivalent designations
+(`EN 61000-3-2, IEC 61000-3-2` is one test under two names), and it marks some rows
+**flexible** — Type B or C against Type A — meaning they cover editions of a standard
+that did not exist when the scope was granted. A frozen document cannot say *and whatever
+comes next*. The answer has to be derived, and only the body that granted the scope may
+derive it.
+
+This contradicts `actors/deployment.py`, which says verification is a computation and not
+a conversation, and the contradiction is the reason it is worth having. An endpoint makes
+it a conversation. A reply authenticated by the connection that carried it cannot be
+stapled, archived, or re-checked once the endpoint is gone.
+
+**What buys it back is that the question is the address.** `CoverageQuestion.to_query`
+sorts and percent-encodes its parameters, so one question has exactly one spelling; the
+register signs its answer and publishes it there. That makes an answer a document again
+— addressable, stapleable, checkable in ten years — and it needed no new machinery,
+because `DocumentStore` was already keyed by URL and `Resolver.with_presented` already
+indexes a holder's documents by their own `id`. A holder therefore cannot file an answer
+under a question it does not answer; the addressing does that, not a check.
+
+Three checks are what a document would not have needed:
+
+- **`scope.query`** takes the endpoint from the scope document and refuses if the
+  reference names a different one. A laboratory that could choose who answers could
+  answer for itself, which is the forgery `_step_scope` already refuses in its other
+  form.
+- **`scope.answer`** verifies the reply's proof, confirms the signer is the body the
+  scope names as having granted it, and confirms the question echoed inside is the
+  question that was asked. Addressing keeps a *holder* honest; this keeps a buggy or
+  dishonest *register* honest, and the two are different problems.
+- **`scope.covered`** takes the verdict, which carries the row that decided it and
+  whether flexibility was what let it through.
+
+**The date is a parameter, and that is the whole of the failure case.** The question asks
+about `testing.performedOn`, never about now. A scope grows, so a register asked the
+naive question answers honestly about the wrong day — and errs permissively.
+`tested-before-accredited` is that: a report against a standard the laboratory took on
+seven weeks later, refused because the question carried the date, and
+`tests/test_scope_query.py` asserts the counterfactual so the reason the parameter exists
+is demonstrated rather than claimed.
+
+What this costs, stated plainly: a query answer is the one document in this world that no
+third party can archive on the holder's behalf unless the register signs it, and
+essentially no register signs one today. `harmonisation.scope-query` is that item, and
+`retrieval` gained a sentence because an endpoint cannot be archived the way a document
+can.
 
 ### A main scope is a pair, and the pair is what is recognised
 
@@ -781,8 +959,11 @@ signatures, and a status list compressed with a pinned modification time. Two bu
 produce byte-identical documents, which `tests/test_pipeline.py` asserts and
 `--dump` makes diffable.
 
-That holds within an engine. Across the two, 55 of the 59 documents are byte-identical
-and six differ in the four budget values described above; `VCQI_ENGINE=linprop` forces
-the deployed engine on a licensed machine, so the comparison can be made directly.
+That holds within an engine. Across the two, all but a handful of those documents were
+byte-identical and the rest differed in the four budget values described above;
+`VCQI_ENGINE=linprop` forces the deployed engine on a licensed machine, so the comparison
+can be made directly. The exact split is not restated here because it was measured
+against a smaller world and the arithmetic in the earlier wording did not add up -- it
+wants re-running on a licensed machine rather than repairing on paper.
 
 [dcc]: https://www.ptb.de/dcc/

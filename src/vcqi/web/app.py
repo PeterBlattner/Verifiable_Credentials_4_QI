@@ -56,6 +56,7 @@ from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
 from vcqi.config import (
     ALLOW_INDEXING,
+    SAS_ORIGIN,
     DEFAULT_HOST,
     DEFAULT_PORT,
     MAX_BODY_BYTES,
@@ -71,11 +72,12 @@ from vcqi.crypto.multibase import (
     multibase_decode,
     multibase_encode_base58btc,
 )
-from vcqi.domain.accreditation import ACCREDITATION_SCOPES
+from vcqi.domain.accreditation import ACCREDITATION_SCOPES, scope_by_id
+from vcqi.domain.scope_query import CoverageQuestion
 from vcqi.domain.engine import ENGINE, mu
 from vcqi.domain.gtc_archive import GTC_UNAVAILABLE_NOTE, gtc_available
 from vcqi.domain.kcdb import CMC_ENTRIES, cmc_by_id
-from vcqi.domain.scope import MeasurementClaim, evaluate_scope
+from vcqi.domain.scope import MeasurementClaim, evaluate_scope, select_row
 from vcqi.domain.uncertainty import (
     evaluate,
     format_measurement,
@@ -647,12 +649,57 @@ def get_document(url: str = Query(..., description="Address of the document")) -
     Raises:
         HTTPException: If nothing is published there.
     """
-    document = world().store.get(url)
+    # `answer` as well as `get`, so a reader can follow a query address out of the
+    # retrieval log the same way they follow any other reference. Nothing is published
+    # at a query address until somebody asks; asking is what this route does.
+    document = world().store.get(url) or world().store.answer(url)
     if document is None:
         raise HTTPException(status_code=404, detail=f"nothing published at {url}")
     return JSONResponse(
         {"url": url, "kind": world().store.kind_of(url), "document": document}
     )
+
+
+@app.get("/api/accreditation/{identifier}/covers")
+def get_scope_coverage(
+    identifier: str,
+    standard: str = Query(..., description="The standard designation to ask about"),
+    at: str = Query(..., description="The date to ask about, as an ISO 8601 date"),
+) -> Any:
+    """Answer whether an accreditation covered a standard on a date.
+
+    The one route in this application that is a register answering rather than a server
+    serving. It exists because a testing scope is too large to hand over, lists its
+    methods as sets of equivalent designations, and declares some of its rows flexible --
+    so what it covers is derived, and only the body that granted it may derive it.
+
+    The answer is a signed credential addressed by the question, which is what keeps this
+    from being a step backwards: a reply authenticated only by the connection that
+    carried it cannot be stapled, archived or re-checked, and this one can.
+
+    Args:
+        identifier: The accreditation number as it appears in the address, for example
+            ``STS-0456``.
+        standard: The standard designation the report was issued against.
+        at: The date being asked about -- the day the testing was performed, not today.
+
+    Returns:
+        The signed answer.
+
+    Raises:
+        HTTPException: If no such scope answers questions, or the question is malformed.
+    """
+    scope = scope_by_id(f"{SAS_ORIGIN}/accreditation/{identifier}")
+    if scope is None or scope.query_url is None:
+        raise HTTPException(
+            status_code=404, detail=f"no accreditation {identifier} answers questions"
+        )
+
+    address = CoverageQuestion(standard=standard, at=at).address(scope.query_url)
+    answer = world().store.answer(address)
+    if answer is None:
+        raise HTTPException(status_code=400, detail="the question could not be read")
+    return JSONResponse(answer)
 
 
 class VerifyRequest(BaseModel):
@@ -863,12 +910,25 @@ def post_uncertainty(request: BudgetRequest) -> dict[str, Any]:
     )
 
     scope = next(s for s in ACCREDITATION_SCOPES if s.identifier == "SCS 0123")
-    capability = scope.as_capability()
-    assert capability is not None
-    verdict = evaluate_scope(
-        capability,
-        MeasurementClaim("dc.resistance", "ohm", result.value, result.expanded_uncertainty, 2.0),
+    # The budget being recomputed is the laboratory's calibration of the reference
+    # multimeter, so the claim has to say so: which row of the scope applies depends on
+    # the nominal, on the object being a measuring instrument rather than a material
+    # measure, and on the measurement being at direct current.
+    claim = MeasurementClaim(
+        measurand="dc.resistance",
+        unit="ohm",
+        value=result.value,
+        expanded_uncertainty=result.expanded_uncertainty,
+        coverage_factor=2.0,
+        nominal=1.0e4,
+        object_category="measuringInstrument",
+        conditions={"frequency": 0.0},
+        condition_units={"frequency": "Hz"},
     )
+    selection = select_row(scope.as_rows(), claim)
+    assert selection.row is not None
+    capability = selection.row.as_capability()
+    verdict = evaluate_scope(capability, claim)
 
     return {
         "value": result.value,
@@ -1539,7 +1599,9 @@ def get_infrastructure() -> dict[str, Any]:
             {
                 "actor": actor.to_json(),
                 "profile": profile.to_json(),
-                "hosting": hosting_burden(kinds, actor.domain),
+                "hosting": hosting_burden(
+                    kinds, actor.domain, services=current.store.endpoints()
+                ),
                 "issuedCount": sum(
                     1
                     for credential in current.credentials.values()

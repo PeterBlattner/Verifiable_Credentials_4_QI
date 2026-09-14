@@ -28,10 +28,18 @@ and one is an accident:
    means accepting the holder's opinion about who somebody else is.
 3. **It must be fresh.** A status list is a claim about *now*, and a stapled one is stale
    by construction.
-4. **It cannot travel yet.** A CMC or an accreditation scope carries neither a signature
-   nor a digest, so a copy cannot be checked at all. This is the accident: the reason is
-   removable rather than inherent, and removing it is
-   ``harmonisation.NEXT_STEPS`` step 5, *sign the KCDB*.
+4. **It cannot travel yet.** A CMC entry carries neither a signature nor a digest, so a
+   copy cannot be checked at all. This is the accident: the reason is removable rather
+   than inherent, and removing it is ``harmonisation.NEXT_STEPS`` step 5, *sign the
+   KCDB*.
+
+The fourth class used to hold the accreditation scopes as well, and the fact that it no
+longer does is the most useful thing on this page. Their body signs them now and the
+credentials citing them pin the digest, so they verify wherever they are found and moved
+into the first class without the rule changing. Nothing was relaxed to allow it: what
+made them unportable was that an unsigned document cannot be checked, and they stopped
+being unsigned. The projection below therefore prices one register rather than two, and
+half of what it used to promise has already been collected.
 
 The audit therefore prices that step. It reports what remains after everything that can
 travel has travelled, and then what would remain if the registries were signed too -- and
@@ -109,14 +117,22 @@ PORTABILITY_CLASSES: tuple[PortabilityClass, ...] = (
     PortabilityClass(
         key="travels",
         label="It travels with the holder",
-        kinds=("credential", "schema", "uncertainty-data"),
+        kinds=("credential", "schema", "uncertainty-data", "query-answer"),
         travels=True,
         why=(
             "Either signed in its own right, or covered by a digestMultibase inside "
             "something that is. A copy is checkable whatever hand it arrived in, so "
             "where it came from stops mattering -- which is the whole portable-credential "
             "argument, and the reason a calibration certificate has always been able to "
-            "travel in the box with the instrument."
+            "travel in the box with the instrument.\n\nThe answer from a scope endpoint "
+            "is in this class, and it is the one document here that had to be designed "
+            "into it. An endpoint makes verification a conversation, and a conversation "
+            "is the thing this model exists to avoid. What puts the answer back in the "
+            "box is that the question is its address: the register signs its answer to "
+            "one stated question on one stated date, published at an address that spells "
+            "that question exactly one way. A verifier asking the same thing finds the "
+            "stapled answer; a verifier asking anything else does not, and goes to the "
+            "register. So it travels, and it travels for one question only."
         ),
         removable=False,
     ),
@@ -157,12 +173,13 @@ PORTABILITY_CLASSES: tuple[PortabilityClass, ...] = (
         kinds=("registry-entry",),
         travels=False,
         why=(
-            "A CMC and an accreditation scope carry neither a signature nor a digest, so "
-            "a copy cannot be checked at all and accepting one would let a laboratory "
-            "declare its own measurement capability. Nothing about that is inherent. "
-            "Sign the entries, or digest them from the credential that cites them, and "
-            "every one of these moves into the first class -- which is why the "
-            "harmonisation ladder puts signing the KCDB where it does."
+            "A CMC entry carries neither a signature nor a digest, so a copy cannot be "
+            "checked at all and accepting one would let an institute declare its own "
+            "measurement capability. Nothing about that is inherent, and the "
+            "accreditation scopes have already left this class: their body signs them "
+            "and the credentials citing them pin the digest, so they verify wherever "
+            "they are found. What remains here is the KCDB, which is the BIPM's to "
+            "sign -- and the count below is the price of its not being signed."
         ),
         removable=True,
     ),
@@ -276,7 +293,14 @@ def portability_audit(
             continue
         groups[found.key].append(url)
         if found.travels:
-            document = world.store.get(url)
+            # `answer` as well as `get`, because a query answer is not stored anywhere
+            # until somebody asks for it. Once it exists it is a document like any other
+            # -- signed, addressed by the question it answers -- and a holder who has
+            # been given one can hand it on. Reading only `get` here would have counted
+            # it as portable in the classification and then failed to carry it, which is
+            # the kind of disagreement between a page and its own measurement that this
+            # module exists to prevent.
+            document = world.store.get(url) or world.store.answer(url)
             if document is not None:
                 stapled[url] = document
 

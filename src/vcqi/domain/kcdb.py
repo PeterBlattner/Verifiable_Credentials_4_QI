@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vcqi.config import BIPM_ORIGIN
-from vcqi.domain.scope import DeclaredCapability, UncertaintyFloor
+from vcqi.domain.scope import DeclaredCapability, Interval, UncertaintyFloor
 
 __all__ = ["CmcEntry", "CMC_ENTRIES", "cmc_by_id", "cmc_url", "cmcs_for_institute"]
 
@@ -90,8 +90,9 @@ class CmcEntry:
             label=f"CMC {self.identifier}",
             measurand=self.measurand,
             unit=self.unit,
-            range_minimum=self.range_minimum,
-            range_maximum=self.range_maximum,
+            coverage=Interval(
+                minimum=self.range_minimum, maximum=self.range_maximum
+            ),
             conditions=self.conditions,
             uncertainty_floor=self.uncertainty_floor,
         )
