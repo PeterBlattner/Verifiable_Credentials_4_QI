@@ -135,6 +135,17 @@ class DeploymentProfile:
 #: is therefore the only one whose load rises with the number of people checking rather
 #: than with the number of documents it issues -- which is the claim the whole chapter
 #: opens with, met by the one actor that breaks it.
+#:
+#: The accreditation anchor is a fourth anchor and has the same overlap to overcome. What
+#: it answers is that it is *new*, and new in the way this sector actually produces new
+#: organisations: ``domain/arrangement.py`` records that the two bodies which held this
+#: role stopped operating separately on 1 January 2026 and were replaced. So it is the one
+#: profile whose hardest part looks backwards -- every other worries about a key it will
+#: hold for thirty years, and this one about accreditations granted before it existed.
+#: That is the ``persistence`` harmonisation item with an organisation standing in it
+#: rather than a hypothetical, and no other profile touches it. It is also the floor for
+#: an anchor's hosting, two documents against the BIPM's eight, because it publishes no
+#: register of its own by design and its capability data belongs to its members.
 
 DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
     DeploymentProfile(
@@ -226,6 +237,65 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
             "Thousands of certificates a year. A P-256 signature takes well under a "
             "millisecond, so an institute's entire annual output signs in about a "
             "second. Throughput is not a consideration anywhere in this design."
+        ),
+    ),
+    DeploymentProfile(
+        did="did:web:global-aci.example",
+        posture=(
+            "A fourth anchor, and operationally the smallest organisation on this page: "
+            "two documents online and one credential that travels. It is the BIPM's "
+            "profile with the register taken out -- until you ask how old it is. This "
+            "arrangement began on 1 January 2026, when two predecessor bodies stopped "
+            "operating separately, so everything it recognises it "
+            "<strong>inherited</strong>. The hard question here is about the past rather "
+            "than the future."
+        ),
+        custody=(
+            "Root grade, as for any anchor: a hardware security module, split custody, a "
+            "witnessed ceremony and a published rotation procedure. With one thing the "
+            "ceremony cannot settle. A key ceremony establishes who signs from now on, "
+            "and says nothing about the two identifiers this body replaced, or about "
+            "what those identifiers signed before it existed."
+        ),
+        custody_grade="root",
+        availability=(
+            "The same shape as any anchor: while the DID document is unreachable, "
+            "nothing recognised under this arrangement verifies anywhere. It is a static "
+            "file and a long cache lifetime answers it. Two documents is the smallest "
+            "surface on this page, which makes this the cheapest outage to prevent "
+            "rather than a different kind of outage."
+        ),
+        already_runs=(
+            "A web presence at a stable domain, which is all did:web resolution needs.",
+            "The peer evaluation machinery taken over from the two bodies it replaced, "
+            "and the decisions about which body is a signatory for which main scope.",
+            "A published list of signatories. That list is the thing being signed, not a "
+            "new artefact to be produced.",
+        ),
+        must_add=(
+            "An HSM and the ceremony around it.",
+            "A status list, republished whenever a signatory is suspended.",
+            "A statement of what became of the identifiers of the two organisations it "
+            "replaced, and whether what they signed still verifies. No other role on "
+            "this page has to answer that, and this one had to answer it in its first "
+            "month.",
+        ),
+        hardest_part=(
+            "<strong>Succession, not custody.</strong> Every other profile here worries "
+            "about a key it expects to hold for decades. This body was eight months old "
+            "when the demonstration was built, and an accreditation granted in 2025 was "
+            "granted by an organisation that no longer exists. Renaming, merging and "
+            "dissolution are the ordinary life of accreditation bodies rather than the "
+            "exotic case. Chapter 11 files this under what nobody has undertaken: "
+            "did:webvh can carry an identifier through a move or a rename, and nothing "
+            "carries one through a dissolution except somebody agreeing to inherit the "
+            "obligation."
+        ),
+        scale=(
+            "Tens of signatories, reissued on a peer evaluation cycle measured in years. "
+            "Two credentials in this world: one recognising an accreditation body across "
+            "three main scopes, and the status list that says whether it still stands. "
+            "Nothing here is a throughput question. It is an archive question."
         ),
     ),
     DeploymentProfile(

@@ -27,7 +27,7 @@ Deployment
 
 <!-- block: lede -->
 
-The hosting requirement, computed rather than asserted, and why it is so unevenly spread between a trust anchor, a national institute, an accreditation body that answers questions, a fifteen-person laboratory and a verifier.
+The hosting requirement, computed rather than asserted, and why it is so unevenly spread — from three trust anchors, through a national institute and an accreditation body that answers questions, down to a fifteen-person laboratory and a verifier that publishes nothing at all.
 
 <!-- block: two-properties -->
 
@@ -59,7 +59,7 @@ A pure verifier publishes nothing. The single document counted here is a DID doc
 
 <!-- block: does-not-grow -->
 
-Note that the first figure does not grow with the second. An institute issuing ten times as many certificates keeps exactly the same documents online.
+Note that the first figure does not grow with the second. An issuer putting out ten times as many documents keeps exactly the same ones online.
 
 <!-- block: reachable.title -->
 
