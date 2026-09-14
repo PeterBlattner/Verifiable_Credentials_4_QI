@@ -114,6 +114,40 @@ The CMC entry above is served unsigned, so a copy of it proves nothing and the v
 
 Try *Serve a different accreditation scope at the same address* in chapter 8. The document that comes back is signed by the accreditation body, in force and not suspended, and it is refused anyway, because it is not the scope the certificate was issued under. An unsigned register entry could never have been refused for that reason: a verifier could only ask what the register says today.
 
+<!-- block: answered-registry -->
+
+### A third register, which answers instead of publishing
+
+The calibration scope above is a table that travels. The testing laboratory's scope is a table too, and it cannot be.
+
+A published testing scope runs to fourteen pages and several hundred standard designations. It lists them in sets rather than singly — `EN 61000-3-2, IEC 61000-3-2` in one cell, because the European adoption and the international standard are the same test. And every page declares, in its footer, which of its rows are *fixed* and which are *flexible*: a flexible row covers editions of its standards that did not exist when the scope was granted. That last one settles it. No document can say "and whatever comes next", so the answer has to be worked out rather than looked up, and the only party entitled to work it out is the body that granted the scope.
+
+So `STS 0456` publishes no table. It publishes an address, and the verifier asks.
+
+That should be a step backwards, and this is the demonstration that most sharply contradicts its own argument elsewhere: verification here is meant to be a computation and not a conversation, and a conversation is exactly what an endpoint makes it. An answer is not a document. It cannot be pinned by digest, archived by whoever holds it, or re-checked in ten years when the endpoint has gone.
+
+What buys it back is that **the question is the address**. The register signs its answer to one stated question on one stated date, and publishes it where that question spells out exactly one way. A verifier asking the same thing finds it; a verifier asking anything else does not and goes to the register. So the answer is a document after all — it travels with the holder, it can be archived, and chapter 12 counts it among the things that need not be fetched. Signing the reply is what makes the difference, and essentially no register does it today.
+
+Two things still have to be checked that a document would not have needed. The endpoint is taken from the scope, never from the certificate, because a laboratory that could choose who answers could answer for itself. And the question echoed in the reply has to be the question that was asked, because a register can sign a perfectly good answer to something else.
+
+<!-- block: the-date-in-the-question -->
+
+### The parameter that does the work
+
+The verifier asks whether the standard was covered **on the day the testing was performed** — not today.
+
+That is one parameter, and it is the difference between *is this laboratory accredited* and *was it accredited when it did the work*. A scope grows: rows are added as a laboratory extends what it can do. A register asked the naive question answers honestly and answers about the wrong day, and it fails in the permissive direction, which is the one that matters. Below, the same question is put twice about a standard this laboratory took on in July 2026, seven weeks after it issued the report in chapter 4.
+
+Try *Test against a standard the scope did not yet cover* in chapter 8 to see it refused. Nothing about that report is forged: the signature is the laboratory's own, the equipment is traceable, the accreditation is real and in force. Only the date is wrong.
+
+<!-- block: asked.title -->
+
+The same question, asked about two different days
+
+<!-- block: asked.hint -->
+
+Signed answers from the register, fetched exactly as the verifier fetches them
+
 <!-- block: schema-vs-registry -->
 
 The schema attached to the recognition can express the measurand, the unit and a span, because those are constants. It cannot express the uncertainty floor, which varies with the measured level — and it cannot express the table at all. Fixed values, strict bounds and frequency bands all collapse into the widest level any row touches and the smallest uncertainty any row permits, because that is the only constant true of every row. Every one of those collapses loses in the permissive direction, which is the safe one: the schema admits claims the register will refuse, and never the other way round.

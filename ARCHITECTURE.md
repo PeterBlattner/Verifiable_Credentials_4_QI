@@ -123,10 +123,20 @@ across the first: **a reference need not be uncheckable**. An unsigned register 
 only be named, so a verifier must fetch it from the publisher and a holder may not carry
 it — which is the entire reason `registry-entry` sits on `RESOLVE_ONLY_KINDS`. Sign the
 entry and pin it by digest, and the reference keeps its trust boundary while gaining
-everything a carried fact had: a copy is checkable from any source. The accreditation
+everything a carried fact had: a copy is checkable from any source. The calibration
 scopes took that step and the CMC entries deliberately did not, so the two registers can
 be compared side by side in one verification. See *A signed register, and one that is
 not* below.
+
+The sixth is where the four tests stop being enough, and a testing scope is what found
+it. Sometimes **there is no document to point at**: a register whose table is too large
+to hand over, lists its entries as sets of equivalents, and derives part of its answer
+from a flexibility rule has nothing to publish that a verifier could read. It has to be
+asked. That should forfeit everything signing just bought, and it does not, because the
+question can be made part of the address — one question, one spelling, one signed answer,
+published where a verifier looking for it will look. See *A register that answers, and
+what that costs* below. So the world carries three registers and three shapes of
+reference: one unsigned and named, one signed and pinned, one asked.
 
 ### Redundancy, and signing once
 
@@ -512,7 +522,7 @@ Four kinds, three reasons:
   accreditation half has already been collected: the scopes are published as signed
   credentials and travel, without this list changing at all. What *sign the KCDB* is worth
   on the harmonisation ladder is now the remainder, and chapter 12 prices it at one of the
-  thirty-one documents.
+  thirty-two documents.
 
 Everything else -- credentials, schemas, uncertainty data -- either carries its own
 signature or is covered by a `digestMultibase` inside one, so a copy from any source is
@@ -702,6 +712,57 @@ The CMC entries stay unsigned on purpose. Signing the KCDB is the BIPM's to do, 
 signed register beside one unsigned register makes the difference legible in a single
 verification's retrieval log — which is worth more here than flipping both and describing
 what used to be true.
+
+### A register that answers, and what that costs
+
+`STS 0456` publishes no table. It publishes an endpoint, and `_step_scope_by_query` asks
+it. Three properties of a real testing scope force this, and only the third is decisive:
+it runs to fourteen pages, it lists its methods as sets of equivalent designations
+(`EN 61000-3-2, IEC 61000-3-2` is one test under two names), and it marks some rows
+**flexible** — Type B or C against Type A — meaning they cover editions of a standard
+that did not exist when the scope was granted. A frozen document cannot say *and whatever
+comes next*. The answer has to be derived, and only the body that granted the scope may
+derive it.
+
+This contradicts `actors/deployment.py`, which says verification is a computation and not
+a conversation, and the contradiction is the reason it is worth having. An endpoint makes
+it a conversation. A reply authenticated by the connection that carried it cannot be
+stapled, archived, or re-checked once the endpoint is gone.
+
+**What buys it back is that the question is the address.** `CoverageQuestion.to_query`
+sorts and percent-encodes its parameters, so one question has exactly one spelling; the
+register signs its answer and publishes it there. That makes an answer a document again
+— addressable, stapleable, checkable in ten years — and it needed no new machinery,
+because `DocumentStore` was already keyed by URL and `Resolver.with_presented` already
+indexes a holder's documents by their own `id`. A holder therefore cannot file an answer
+under a question it does not answer; the addressing does that, not a check.
+
+Three checks are what a document would not have needed:
+
+- **`scope.query`** takes the endpoint from the scope document and refuses if the
+  reference names a different one. A laboratory that could choose who answers could
+  answer for itself, which is the forgery `_step_scope` already refuses in its other
+  form.
+- **`scope.answer`** verifies the reply's proof, confirms the signer is the body the
+  scope names as having granted it, and confirms the question echoed inside is the
+  question that was asked. Addressing keeps a *holder* honest; this keeps a buggy or
+  dishonest *register* honest, and the two are different problems.
+- **`scope.covered`** takes the verdict, which carries the row that decided it and
+  whether flexibility was what let it through.
+
+**The date is a parameter, and that is the whole of the failure case.** The question asks
+about `testing.performedOn`, never about now. A scope grows, so a register asked the
+naive question answers honestly about the wrong day — and errs permissively.
+`tested-before-accredited` is that: a report against a standard the laboratory took on
+seven weeks later, refused because the question carried the date, and
+`tests/test_scope_query.py` asserts the counterfactual so the reason the parameter exists
+is demonstrated rather than claimed.
+
+What this costs, stated plainly: a query answer is the one document in this world that no
+third party can archive on the holder's behalf unless the register signs it, and
+essentially no register signs one today. `harmonisation.scope-query` is that item, and
+`retrieval` gained a sentence because an endpoint cannot be archived the way a document
+can.
 
 ### A main scope is a pair, and the pair is what is recognised
 

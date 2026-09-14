@@ -72,7 +72,13 @@ That balance is a correction. The first version of this page filed seven items u
 
 What is left, once the answered items are set aside, is a short list and most of it is not technical: what a document authorises as distinct from what it attests, how three arrangements compose when no two of them share a technical body, which copy of a certificate governs, and whether anyone can undertake that an identifier still means the same organisation in thirty years. The last of those cannot be settled by evidence until something has been running for thirty years. Theories are available. Data is not.
 
-One item on that list is technical, and it is there because a scope was read properly for the first time. An accreditation scope is a table, and its coverage column uses several grammars that no specification defines — a list of fixed values, an interval with a strict bound, a nominal with a tolerance, and a condition band that decides which of two otherwise identical rows applies. Chapter 5 shows the verifier choosing among them. Nothing about that is exotic; it is the first page of one scope in one field. It is unagreed because a scope has always been a document for a person to read, and nobody has had to say what a row means to a machine.
+Two items on that list are technical, and both arrived the same way: somebody read a published accreditation scope properly for the first time.
+
+A **calibration** scope is a table, and its coverage column uses several grammars that no specification defines — a list of fixed values, an interval with a strict bound, a nominal with a tolerance, and a condition band that decides which of two otherwise identical rows applies. Chapter 5 shows the verifier choosing among them.
+
+A **testing** scope is a table that cannot be handed over at all. It runs to fourteen pages, lists its methods as sets of equivalent designations, and marks some of its rows flexible — meaning they cover editions of a standard that did not exist when the scope was granted. That answer has to be derived rather than looked up, so the scope is asked rather than read, and nobody has agreed what asking looks like: not that the reply should be signed, and not that the date being asked about should be a parameter at all. The second of those is the one with teeth. A certificate is evidence about the day it was issued, and a register that only answers about today answers the wrong question in the direction that lets work through.
+
+Nothing about either is exotic. Both are the first page of one scope in one field. They are unagreed because a scope has always been a document for a person to read, and nobody has had to say what a row means to a machine or what a machine may ask about one.
 
 <!-- block: the-ladder -->
 
