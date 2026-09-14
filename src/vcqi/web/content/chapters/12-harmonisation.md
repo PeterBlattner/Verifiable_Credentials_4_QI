@@ -56,6 +56,8 @@ The instinct is to conclude that the metrology vocabularies are missing and woul
 
 What follows is sorted by one test, and anything failing it was left out: **two conforming implementations that differ here cannot interoperate.** That is what separates a harmonisation need from a deployment gap, and chapter 9 has the deployment gaps already. The tiers are meant to be read in order, because the order is the argument.
 
+How a list like this gets made is worth one paragraph, because the obvious method would have missed the newest items on it. The obvious method is to tabulate the recognition relationships across the whole quality infrastructure — who recognises whom, for what, under which arrangement — and read the common vocabulary off the table. That is a good exercise and it should be done. It would also have produced a scope with a quantity, a range and an uncertainty in it, which is exactly the model this demonstration started with and had to throw away. The grammars a real scope uses, and the rows that cannot be written down at all, became visible only when something had to decide a case and could not. A table of relationships and one chain built end to end find different problems, and neither finds the other's.
+
 <!-- block: open.title -->
 
 How much of this is actually open

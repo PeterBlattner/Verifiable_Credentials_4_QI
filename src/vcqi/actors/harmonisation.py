@@ -389,6 +389,50 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
     ),
     HarmonisationItem(
+        key="reliance-policy",
+        tier="irreversible",
+        title="What a verdict means, and who it is good enough for",
+        status="open",
+        requirement=(
+            "A relying party has to be able to say what it requires, separately from the "
+            "verifier that checks it. Two things have to be agreed for that: a common "
+            "vocabulary of outcomes, and stable identifiers for the checks a policy "
+            "names. Neither is difficult and neither exists, which is why every verifier "
+            "written so far has had to decide the question by building its own rule in."
+        ),
+        demonstrated=(
+            "Eleven checks and two outcomes, with the rule written into the pipeline "
+            "rather than supplied to it: a document is verified when no step failed. "
+            "That rule is a policy, and nobody wrote it down as one.\n\nThe cost is "
+            "visible on one credential. METAS-2026-0420 points at its measurement "
+            "instead of carrying it, so the scope check falls to a warning and two "
+            "others do not run at all -- and it comes out verified, because none of them "
+            "failed. A border authority and a purchaser would reasonably want different "
+            "answers from that same step tree. Neither can express what it wants, and "
+            "the verifier cannot tell them apart."
+        ),
+        exists=(
+            "Nothing at this layer, and the absence is deliberate rather than an "
+            "oversight upstream. The W3C work defines how to establish that a credential "
+            "is authentic and says nothing about whether what it contains is good enough "
+            "for a given purpose, which is the right scope for a data model and leaves "
+            "the question exactly here, with the sector that has purposes."
+        ),
+        source="",
+        consequence=(
+            "Each verifier bakes in its own rule, so two of them reach different verdicts "
+            "on one document and neither can say why in terms the other recognises. A "
+            "policy cannot travel even though the credential can, which puts the decision "
+            "back where the paperwork had it."
+        ),
+        forum=(
+            "Wherever the arrangements meet, which is the rung of the ladder with no "
+            "forum. A relying party is not a member of any of them, and that is the "
+            "difficulty rather than an aside: the parties who need to state a policy are "
+            "the ones with no seat."
+        ),
+    ),
+    HarmonisationItem(
         key="anchors",
         tier="floor",
         title="What the anchors' identifiers are, and how a verifier learns them",
@@ -1014,11 +1058,11 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         title="How to ask a register what a scope covers",
         status="open",
         requirement=(
-            "A protocol for asking an accreditation body whether a scope covered a "
-            "given standard on a given date, and for what the reply has to be. Three "
-            "things have to be agreed and none of them is difficult: that the date "
-            "being asked about is a parameter, that the reply is signed, and that the "
-            "reply repeats the question it answers."
+            "A protocol for asking a register whether a scope covered a given standard "
+            "on a given date, and for what the reply has to be. Three things have to be "
+            "agreed and none of them is difficult: that the date being asked about is a "
+            "parameter, that the reply is signed, and that the reply repeats the "
+            "question it answers."
         ),
         demonstrated=(
             "STS 0456 publishes an endpoint instead of its table. The verifier asks "
@@ -1046,7 +1090,13 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "avoid, and the scope check stops working at the border it was built for. "
             "Where the reply is unsigned it is worse than that: the check cannot be "
             "repeated afterwards by anybody, so an audit two years later has nothing to "
-            "look at."
+            "look at.\n\nThis is an accreditation scope here and it is not only about "
+            "accreditation scopes. The architecture now widely proposed for the quality "
+            "infrastructure is a credential that carries a trust assertion and points at "
+            "an API for the data behind it, which is a good division until the answer "
+            "the API gives is itself part of the decision. At that moment it is inside "
+            "the trust boundary, and an unsigned answer there produces a verdict nobody "
+            "can re-check once the service has moved on."
         ),
         forum=(
             "ILAC, now the Global ACI arrangement, which already decides what a scope "
