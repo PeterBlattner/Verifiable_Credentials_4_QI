@@ -55,6 +55,19 @@
 // VCQI_SETTLE is gone with the delays it configured; VCQI_READY_TIMEOUT and
 // VCQI_CLICK_TIMEOUT are deadlines.
 
+//: What counts as a control. Buttons, and the transparent hit paths that make the graph's
+//: edges clickable -- which are not buttons, are the primary interaction of chapter 2, and
+//: went unexercised by this harness for its whole existence. `onSelectEdge` could have
+//: been broken in any release and nothing here would have said a word.
+//:
+//: Be clear about what including them proves. This dispatches a click on the element
+//: directly, so it exercises the wiring: that an edge exists, carries a handler, and that
+//: the handler changes the page. It says nothing about whether a pointer could ever have
+//: landed there, because `dispatchEvent` does not hit-test and jsdom does not lay the
+//: diagram out. The width of the target, the dash gaps and the cursor are all things only
+//: a real browser can answer, which is how they stayed wrong for so long.
+const CONTROLS = 'button, .edge-hit';
+
 // Resolved at run time so the module can come from beside this file or from wherever
 // the operator already has it.
 const { JSDOM } = await import(process.env.VCQI_JSDOM || 'jsdom');
@@ -96,7 +109,7 @@ const MINIMUM_CONTROLS = {
   cautions: 0,
   orientation: 0,
   keys: 8,
-  graph: 4,
+  graph: 20,
   issuing: 17,
   verification: 2,
   scope: 0,
@@ -164,7 +177,7 @@ for (const [index, chapter] of CHAPTERS.entries()) {
     console.log(`${chapter.id.padEnd(14)} MISSING CONTENT — ${missing.join(' ')}`);
   }
 
-  const total = stage.querySelectorAll('button').length;
+  const total = stage.querySelectorAll(CONTROLS).length;
   const floor = MINIMUM_CONTROLS[chapter.id];
   if (floor !== undefined && total < floor) {
     shrunk.push(`${chapter.id}: ${total} controls, expected at least ${floor}`);
@@ -175,11 +188,13 @@ for (const [index, chapter] of CHAPTERS.entries()) {
 
   for (let index = 0; index < total; index += 1) {
     // Re-query each time: a click can rebuild the panel its button lived in.
-    const button = [...stage.querySelectorAll('button')][index];
+    const button = [...stage.querySelectorAll(CONTROLS)][index];
     if (!button) continue;
     if (button.getAttribute('aria-pressed') === 'true') continue;
 
-    const label = (button.textContent || '').trim().slice(0, 40);
+    // An edge carries no text of its own; its <title> is the sibling that names it.
+    const title = button.parentNode && button.parentNode.querySelector('title');
+    const label = ((button.textContent || title?.textContent || '').trim() || 'edge').slice(0, 40);
     const before = stage.textContent;
     button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
