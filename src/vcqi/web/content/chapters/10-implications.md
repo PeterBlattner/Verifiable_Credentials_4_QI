@@ -32,9 +32,9 @@ What actually becomes different
 
 <!-- block: different -->
 
-**The recipient checks, not the issuer.** Today a laboratory receiving a certificate that carries the CIPM MRA logo either takes the logo on trust or opens the KCDB and compares by eye. Here the comparison is made by whoever received the document, at the moment they received it, from the signed registry entry.
+**The recipient checks, not the issuer.** Today a laboratory receiving a certificate that carries the CIPM MRA logo either takes the logo on trust or opens the KCDB and compares by eye. Here the comparison is made by whoever received the document, at the moment they received it, from the register's own published capability — signed, in the case of an accreditation scope, and not yet in the case of the KCDB.
 
-**Scope becomes enforceable rather than declaratory.** An accreditation scope and a CMC both already state exactly what is covered. Making them machine-readable turns them from something published into something checked.
+**Scope becomes enforceable rather than declaratory.** A published scope stops being something a recipient takes on trust and becomes something their software refuses. That much works here, and it was the most expensive claim on this page to make good on. An earlier draft said the scopes "already state exactly what is covered" and only needed making machine-readable; reading two real ones showed otherwise. A scope states what it covers *to a reader*. Its coverage column uses several grammars no specification defines, and a testing scope marks some of its rows flexible — covering editions of a standard that did not exist when the scope was granted, which no document can express at all and only the granting body can work out. Two first-tier items in the next chapter exist because of that, and neither is hard. Both are simply unagreed, because until something had to check a scope, nobody needed a row to mean anything to a machine.
 
 **Suspension takes effect immediately, everywhere.** When an accreditation is suspended, every certificate already issued under it becomes unverifiable at the next check, without any of them being recalled or reissued.
 
