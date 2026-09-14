@@ -27,19 +27,17 @@ Deployment
 
 <!-- block: lede -->
 
-The hosting requirement, computed rather than asserted, and why it is so unevenly spread between a trust anchor, a national institute, a fifteen-person laboratory and a verifier.
+The hosting requirement, computed rather than asserted, and why it is so unevenly spread between a trust anchor, a national institute, an accreditation body that answers questions, a fifteen-person laboratory and a verifier.
 
 <!-- block: two-properties -->
 
-Two properties of the design settle most of this question, and neither of them is about capacity.
+Two properties of the design settle most of this question, and neither of them is about capacity. One of the two has an exception, and the exception turns out to be worth more than the rule.
 
 **Verification is a computation, not a conversation.** A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier’s behalf, and nothing here grows with the number of people who check. That is a claim about *checking* a credential, and it is true because a credential here travels as a signed file. Chapter 12 measures how far that goes, what a verifier still cannot be handed second-hand, and what it costs to *ask* for a document instead of being given one.
 
 **A credential travels with whoever holds it.** The certificate arrives from the customer, not from the laboratory that wrote it. What an issuer must keep online is therefore only what describes the issuer itself — its key, and which of its credentials it has since withdrawn. The certificates need not be hosted at all.
 
-**And one organisation here breaks the first of those, which is worth more than the rule.** A testing laboratory's accreditation covers hundreds of standards, lists them as sets of equivalent names, and marks some of its rows flexible — so what it covers has to be worked out rather than looked up, and only the body that granted it may do the working out. That body therefore answers a question per verification. Its load rises with the number of people checking, which is precisely what the first property promises cannot happen, and it is the one role below whose obligation cannot be met by putting a file behind a long cache. Pick the accreditation body to see what that costs. The rule holds for everyone who issues a credential; it fails for a register that answers instead of publishing, and knowing which of those you are building is most of the decision.
-
-Everything else stays true of it. Its scopes are documents and travel like any other; it is only the answering that is new.
+**And one organisation here breaks the first of those, which is worth more than the rule.** A testing laboratory's accreditation covers hundreds of standards, lists them as sets of equivalent names, and marks some of its rows flexible — so what it covers has to be worked out rather than looked up, and only the body that granted it may do the working out. That body therefore answers a question per verification. Its load rises with the number of people checking, which is precisely what the first property promises cannot happen, and it is the one role below whose obligation cannot be met by putting a file behind a long cache. Pick the accreditation body to see what that costs. The rule holds for everyone who issues a credential; it fails for a register that answers instead of publishing, and knowing which of those you are building is most of the decision. Everything else stays true of it: its scopes are documents and travel like any other, and it is only the answering that is new.
 
 Everything below is computed from what this demonstration actually published, so the figures move if the world does.
 
