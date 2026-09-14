@@ -198,6 +198,13 @@ exactly that pairing so it cannot quietly stop being true. Making `outcome` repo
 third value when a step warns would be defensible and was not done: it would change
 every caller for one credential, and the step tree already says it.
 
+That decision is narrower than the question behind it, which is now `reliance-policy` in
+chapter 11. Two outcomes are not the problem; having the rule that produces them written
+into the verifier rather than supplied to it is. A relying party cannot say what it
+requires, so a border authority and a purchaser receive the same word for what ought to be
+two different decisions — and adding a third value would only give them three words they
+had no part in choosing.
+
 The generated `outputValidation` schema grew an `anyOf` to accommodate this, and the
 reason is worth keeping. What a recognition authorises is a measurement, not a JSON
 shape. A schema naming only the carried form would refuse the pointer form -- not
