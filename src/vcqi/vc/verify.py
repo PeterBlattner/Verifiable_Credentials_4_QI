@@ -333,6 +333,124 @@ def _capability_from_document(document: dict[str, Any]) -> DeclaredCapability | 
         return None
 
 
+def _capability_document(
+    reference: dict[str, Any], resolver: Resolver, now: datetime
+) -> tuple[dict[str, Any] | None, str, Step | None]:
+    """Obtain the published capability a document was issued under.
+
+    Two registers, two retrieval rules, and the difference between them is the reason
+    ``registry-entry`` is on ``RESOLVE_ONLY_KINDS``.
+
+    A **CMC entry** carries no signature and no digest, so a copy cannot be checked at
+    all. Accepting one from the holder would let a laboratory declare its own
+    measurement capability, and the verifier must go to the BIPM for it. That reason is
+    inherent to an unsigned document, and it is why the reference names the entry and
+    cannot pin it.
+
+    An **accreditation scope** here is signed by the body that granted it, and the
+    reference pins it by content digest. Now a copy is as good as the original: the
+    digest says it is the scope the reference meant, the proof says the accreditation
+    body wrote it, and the status list says it has not been suspended since. So the
+    holder may carry it, and a verification that would otherwise have needed the
+    register can be completed without reaching it. What the verifier still cannot take
+    second-hand is the *status*, which is why ``check_status`` goes out on its own.
+
+    Args:
+        reference: The capability reference the credential names.
+        resolver: Used to obtain the document.
+        now: The instant to judge the validity period against.
+
+    Returns:
+        The capability document, how it was obtained, and a failing step when it could
+        not be obtained or did not check out.
+    """
+    address = reference["id"]
+    digest = reference.get("digestMultibase")
+
+    def failure(detail: str) -> tuple[None, str, Step]:
+        """Build the step that reports why no capability could be used.
+
+        Args:
+            detail: What went wrong.
+
+        Returns:
+            No document, no provenance, and the failing step.
+        """
+        return (
+            None,
+            "",
+            Step(
+                id="scope",
+                title="Claim falls inside the declared capability",
+                status=FAIL,
+                detail=detail,
+                evidence={"capability": reference},
+            ),
+        )
+
+    # Whether a copy may be accepted is decided by the reference, not by the register:
+    # a digest is what makes a copy checkable, and without one the document has to come
+    # from the publisher.
+    pinned = isinstance(digest, str)
+    document = resolver.fetch(address) if pinned else resolver.retrieve(address)
+    if document is None:
+        return failure(f"the capability at {address} could not be retrieved")
+    source = resolver.log[-1].source if resolver.log else "retrieved"
+
+    if pinned:
+        unsecured = {name: value for name, value in document.items() if name != "proof"}
+        if not verify_digest_multibase(canonicalize(unsecured), digest):
+            return failure(
+                f"the capability at {address} does not match the content digest "
+                f"recorded in the reference, so it is not the scope that was referenced"
+            )
+
+    subject = document.get("credentialSubject")
+    if not isinstance(subject, dict):
+        # An unsigned register entry, published as the bare document it is.
+        return (document, "retrieved from the register, unsigned and unpinned", None)
+
+    # A signed register entry. Everything asked of any other credential is asked of this
+    # one, because a capability that decides a verdict is not exempt from the checks the
+    # verdict rests on.
+    proof_outcome, _ = check_proof(document, resolver)
+    if not proof_outcome.passed:
+        return failure(
+            f"the capability at {address} is not properly signed: {proof_outcome.detail}"
+        )
+
+    # The body that signed it has to be the body it names as having granted it. Without
+    # this, any issuer whose signature verifies could publish a scope in another body's
+    # name and a reference would happily point at it.
+    granting_body = subject.get("accreditationBody")
+    if isinstance(granting_body, str) and issuer_id(document) != granting_body:
+        return failure(
+            f"the capability at {address} says it was granted by {granting_body} but "
+            f"was signed by {issuer_id(document)}"
+        )
+
+    validity = check_validity_period(document, now)
+    if not validity.passed:
+        return failure(f"the capability at {address} is not in force: {validity.detail}")
+
+    # `check_status` goes to the publisher whatever the holder brought. A signature says
+    # what the scope was at issue; only the status list says whether it still stands.
+    status_outcome = check_status(document, resolver)
+    if not status_outcome.passed:
+        return failure(
+            f"the capability at {address} is no longer in force: {status_outcome.detail}"
+        )
+
+    arrival = "supplied by the holder" if source == "presented" else "retrieved"
+    pinning = "digest matches, " if pinned else "not pinned by the reference, "
+    return (
+        subject,
+        f"{arrival} and checked: {pinning}signed by {issuer_id(document)}, in force, "
+        f"not suspended",
+        None,
+    )
+
+
 def _rows_from_document(document: dict[str, Any]) -> tuple[ScopeRow, ...]:
     """Return the capability table a published scope declares.
 
@@ -453,7 +571,10 @@ def _row_selection_detail(row: ScopeRow, selection: RowSelection) -> str:
 
 
 def _step_scope_by_rows(
-    reference: dict[str, Any], rows: tuple[ScopeRow, ...], claim: MeasurementClaim
+    reference: dict[str, Any],
+    rows: tuple[ScopeRow, ...],
+    claim: MeasurementClaim,
+    provenance: str = "",
 ) -> Step:
     """Adjudicate a claim against a published scope that is a table rather than a row.
 
@@ -474,10 +595,13 @@ def _step_scope_by_rows(
         reference: The capability reference the credential names.
         rows: The published rows, in register order.
         claim: The claim stated on the certificate.
+        provenance: How the scope was obtained and what was checked about it, for the
+            child step that reports where the capability came from.
 
     Returns:
-        The step, with one child for the row selection, one per condition evaluated, and
-        one for the remarks when the selected row carries any.
+        The step, with one child for where the scope came from, one for the row
+        selection, one per condition evaluated, and one for the remarks when the
+        selected row carries any.
     """
     selection = select_row(rows, claim)
     label = reference.get("identifier", reference["id"])
@@ -506,14 +630,24 @@ def _step_scope_by_rows(
     row = selection.row
     verdict = evaluate_scope(row.as_capability(), claim)
 
-    children = [
+    children: list[Step] = []
+    if provenance:
+        children.append(
+            Step(
+                id="scope.source",
+                title="The published scope this was adjudicated against",
+                status=PASS,
+                detail=f"{label} {provenance}",
+            )
+        )
+    children.append(
         Step(
             id="scope.row",
             title="A row of the published scope covers this calibration",
             status=WARN if selection.also_covered else PASS,
             detail=_row_selection_detail(row, selection),
         )
-    ]
+    )
     children.extend(
         Step(
             id=f"scope.{check.key}",
@@ -847,7 +981,9 @@ def _step_output_validation(
     )
 
 
-def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
+def _step_scope(
+    credential: dict[str, Any], resolver: Resolver, now: datetime
+) -> Step:
     """Decide whether what the document claims falls inside its declared capability.
 
     This is the check that has no counterpart in a general purpose credential wallet,
@@ -857,7 +993,8 @@ def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
 
     Args:
         credential: The credential being verified.
-        resolver: Used to retrieve the registry entry.
+        resolver: Used to obtain the published capability.
+        now: The instant to judge a signed capability's validity period against.
 
     Returns:
         The step, with one child per condition evaluated.
@@ -872,20 +1009,12 @@ def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
         )
 
     if _most_specific_type(credential) == "ExternalDocumentCredential":
-        return _step_scope_of_external_document(credential, reference, resolver)
+        return _step_scope_of_external_document(credential, reference, resolver, now)
 
-    # `retrieve`: a CMC or an accreditation scope carries neither a signature nor a
-    # digest, so a copy cannot be checked. Accepting one from the holder would let a
-    # laboratory declare its own capability. Signing the KCDB is what would change this.
-    document = resolver.retrieve(reference["id"])
-    if document is None:
-        return Step(
-            id="scope",
-            title="Claim falls inside the declared capability",
-            status=FAIL,
-            detail=f"the capability at {reference['id']} could not be retrieved",
-            evidence={"capability": reference},
-        )
+    document, provenance, failed = _capability_document(reference, resolver, now)
+    if failed is not None:
+        return failed
+    assert document is not None
 
     result = _first_result(credential)
     claim, unreadable = _claim_from_credential(credential, result)
@@ -904,7 +1033,7 @@ def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
                 detail=unreadable,
                 evidence={"capability": reference},
             )
-        return _step_scope_by_rows(reference, rows, claim)
+        return _step_scope_by_rows(reference, rows, claim, provenance)
 
     capability = _capability_from_document(document)
     if capability is None or result is None:
@@ -946,7 +1075,10 @@ def _step_scope(credential: dict[str, Any], resolver: Resolver) -> Step:
 
 
 def _step_scope_of_external_document(
-    credential: dict[str, Any], reference: dict[str, Any], resolver: Resolver
+    credential: dict[str, Any],
+    reference: dict[str, Any],
+    resolver: Resolver,
+    now: datetime,
 ) -> Step:
     """Judge what can be judged when the measurement is not in the credential.
 
@@ -967,20 +1099,16 @@ def _step_scope_of_external_document(
     Args:
         credential: The credential being verified.
         reference: The capability reference it names.
-        resolver: Used to retrieve the registry entry.
+        resolver: Used to obtain the published capability.
+        now: The instant to judge a signed capability's validity period against.
 
     Returns:
         The step, with one child per condition that could be evaluated.
     """
-    document = resolver.retrieve(reference["id"])
-    if document is None:
-        return Step(
-            id="scope",
-            title="Claim falls inside the declared capability",
-            status=FAIL,
-            detail=f"the capability at {reference['id']} could not be retrieved",
-            evidence={"capability": reference},
-        )
+    document, _, failed = _capability_document(reference, resolver, now)
+    if failed is not None:
+        return failed
+    assert document is not None
 
     capability = _capability_from_document(document)
     if capability is None:
@@ -1656,7 +1784,7 @@ def verify_credential(
     report.steps.append(action_step)
     report.steps.append(_step_output_validation(credential, action, resolver))
 
-    scope_step = _step_scope(credential, resolver)
+    scope_step = _step_scope(credential, resolver, now)
     report.steps.append(scope_step)
     report.steps.append(_step_mra_logo(credential, scope_step))
     # One more top-level step, and the first that is not another view of the same

@@ -73,6 +73,8 @@ __all__ = [
     "credential_reference",
     "recognized_entity_credential",
     "recognized_action",
+    "accreditation_scope_credential",
+    "capability_reference",
     "calibration_certificate_credential",
     "external_document_credential",
     "test_report_credential",
@@ -219,6 +221,99 @@ def recognized_action(
     if valid_until is not None:
         entry["validUntil"] = valid_until
     return entry
+
+
+def accreditation_scope_credential(
+    *,
+    scope: dict[str, Any],
+    issuer: dict[str, Any],
+    valid_from: str,
+    valid_until: str,
+    credential_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a published accreditation scope as a credential its body has signed.
+
+    Everywhere else in this world a registry entry is an unsigned document, and a
+    verifier has to go and get it from the publisher because a copy cannot be checked.
+    That is the reason ``registry-entry`` is on ``RESOLVE_ONLY_KINDS``, and it is the one
+    reason on that list that could be engineered away rather than being inherent.
+
+    This is the engineering. The accreditation body is the authority for what it
+    accredited, so it may state its own scope -- the objection that makes a laboratory's
+    word insufficient does not apply to the body that granted it. Signing turns the scope
+    into a document that checks itself: a copy from any source is as good as the
+    original, so a holder may carry it and a verifier at a border does not need to reach
+    the register to adjudicate a row.
+
+    What signing does not do is freeze the scope. A scope is suspended and reduced
+    between reissues, and a signature says what was true when it was made. So the
+    credential carries a ``credentialStatus`` and an expiry like any other, and the
+    verifier still asks the publisher about *now* -- it just no longer has to ask the
+    publisher what the scope *says*.
+
+    The CMC entries deliberately do not get this treatment. Signing the KCDB is the
+    BIPM's to do, and leaving one register signed and the other not is what makes the
+    difference between them visible in the pipeline rather than only described.
+
+    Args:
+        scope: The scope document, from ``AccreditationScope.to_json``.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        valid_from: Start of validity, as an XML Schema dateTime.
+        valid_until: End of validity, as an XML Schema dateTime.
+        credential_status: Optional credentialStatus member.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    credential: dict[str, Any] = {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": scope["id"],
+        "type": ["VerifiableCredential", "AccreditationScopeCredential"],
+        "name": f"Accreditation scope {scope['identifier']}",
+        "issuer": issuer,
+        "validFrom": valid_from,
+        "validUntil": valid_until,
+        "credentialSubject": scope,
+    }
+    if credential_status is not None:
+        credential["credentialStatus"] = credential_status
+    return credential
+
+
+def capability_reference(
+    *,
+    url: str,
+    relation: str,
+    identifier: str,
+    credential: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Reference the capability a document was issued under.
+
+    Two shapes, and the difference between them is the whole argument. A capability
+    published as an unsigned register entry can only be named: identifier, type and
+    address, with nothing that would let a verifier check a copy. One published as a
+    signed credential can be named *and pinned*, so the reference is satisfied only by
+    the exact scope that was in force when the reference was made, wherever the copy
+    came from.
+
+    Args:
+        url: Address the capability is published at.
+        relation: The type of the referenced capability, for example
+            ``AccreditationScope`` or ``KcdbCmcEntry``. It is read by the logo check, so
+            it names the register rather than the carrier.
+        identifier: The register's own number for it, for example ``SCS 0123``.
+        credential: The signed capability, when there is one. Omit for a register that
+            publishes its entries unsigned, and the reference carries no digest.
+
+    Returns:
+        The reference, with a ``digestMultibase`` exactly when one can be checked.
+    """
+    reference: dict[str, Any] = {"id": url, "type": relation, "identifier": identifier}
+    if credential is not None:
+        reference["digestMultibase"] = credential_reference(
+            credential, relation=relation
+        )["digestMultibase"]
+    return reference
 
 
 def recognized_entity_credential(

@@ -59,6 +59,8 @@ from vcqi.domain.uncertainty import (
 )
 from vcqi.actors.registry import ACTORS, actor_by_did, actor_key, did_document, whois_url
 from vcqi.vc.model import (
+    accreditation_scope_credential,
+    capability_reference,
     CREDENTIAL_CONTEXT,
     artefact_document,
     calibration_certificate_credential,
@@ -149,6 +151,13 @@ STATUS_INDEX = {
     OIML_TL_RECOGNITION: 2,
     OIML_EVALUATION: 6,
     OIML_CERTIFICATE: 4,
+    # The accreditation scopes, on the same suspension list as the recognition that
+    # names them. An accreditation is suspended rather than revoked, and suspending the
+    # scope is the finer instrument: the body stays recognised and the capability it was
+    # recognised for stops being in force.
+    "https://sas.example/accreditation/SCS-0123": 2,
+    "https://sas.example/accreditation/STS-0456": 3,
+    "https://sas.example/accreditation/SCESp-0789": 4,
 }
 
 
@@ -675,8 +684,9 @@ def _publish_registries(world: World) -> None:
         )
     for entry in kcdb_registry.CMC_ENTRIES:
         world.store.publish(entry.url, entry.to_json(), "registry-entry")
-    for scope in accreditation_registry.ACCREDITATION_SCOPES:
-        world.store.publish(scope.url, scope.to_json(), "registry-entry")
+    # The accreditation scopes are not here. They are signed by the body that granted
+    # them and published as credentials in `_accreditation_scope_credentials`, which is
+    # the difference this world exists to show: two registers, one signed and one not.
 
 
 def _publish_did_documents(world: World) -> None:
@@ -728,6 +738,62 @@ def _status_lists(world: World) -> None:
         )
         signed, trace = sign_document(credential, actor_key(did), created=RECOGNITION_FROM)
         world._register(f"status-{actor.domain}", signed, trace, kind="status-list")
+
+
+def _accreditation_scope_credentials(world: World) -> None:
+    """Sign every accreditation scope, so that a copy of one can be checked.
+
+    This is the register that moved. A CMC entry is still served unsigned from the KCDB,
+    so a verifier has to fetch it from the BIPM and may not accept a copy from anyone
+    else. An accreditation scope is now a credential the accreditation body signed, so
+    it verifies wherever it is found -- and the holder may carry it along with the
+    certificate that points at it.
+
+    Both paths stay live on purpose. Chapter 5 shows one certificate adjudicated against
+    a signed scope and another against an unsigned CMC, and the difference in what the
+    verifier had to go and get is the price of not signing a register.
+
+    Args:
+        world: The world being built.
+    """
+    sas = actor_by_did("did:web:sas.example")
+    assert sas is not None
+    for scope in accreditation_registry.ACCREDITATION_SCOPES:
+        credential = accreditation_scope_credential(
+            scope=scope.to_json(),
+            issuer=issuer_reference(
+                "did:web:sas.example",
+                sas.legal_name,
+                recognized_in=GLOBAL_ACI_RECOGNITION,
+            ),
+            valid_from=f"{scope.valid_from}T00:00:00Z",
+            valid_until=f"{scope.valid_until}T23:59:59Z",
+            credential_status=status_entry(
+                SAS_STATUS, STATUS_INDEX[scope.url], purpose="suspension"
+            ),
+        )
+        signed, trace = sign_document(
+            credential, actor_key("did:web:sas.example"), created=RECOGNITION_FROM
+        )
+        world._register(f"scope-{scope.identifier.replace(' ', '-')}", signed, trace)
+
+
+def _scope_reference(world: World, scope: Any) -> dict[str, Any]:
+    """Return the reference a document uses to name the accreditation it was issued under.
+
+    Args:
+        world: The world being built, holding the signed scopes.
+        scope: The accreditation scope being referenced.
+
+    Returns:
+        The reference, pinned by the digest of the signed scope.
+    """
+    return capability_reference(
+        url=scope.url,
+        relation="AccreditationScope",
+        identifier=scope.identifier,
+        credential=world.credentials[f"scope-{scope.identifier.replace(' ', '-')}"],
+    )
 
 
 def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -> None:
@@ -885,11 +951,7 @@ def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -
                             f"{scope.field}, under {scope.standard}."
                         ),
                         output_validation=schema_reference(schemas[scope.identifier]),
-                        capability_reference={
-                            "id": scope.url,
-                            "type": "AccreditationScope",
-                            "identifier": scope.identifier,
-                        },
+                        capability_reference=_scope_reference(world, scope),
                         main_scope=main_scope.to_json(),
                         valid_from=f"{scope.valid_from}T00:00:00Z",
                         valid_until=f"{scope.valid_until}T23:59:59Z",
@@ -1038,11 +1100,7 @@ def _calibration_certificates(world: World) -> None:
         condition_quantities=DIRECT_CURRENT_CONDITIONS,
         result=callab_result,
         nominal_value=1.0e4,
-        capability_reference={
-            "id": scope.url,
-            "type": "AccreditationScope",
-            "identifier": scope.identifier,
-        },
+        capability_reference=_scope_reference(world, scope),
         # A calibration laboratory carries its accreditation symbol, not the CIPM MRA
         # logo. The logo belongs to the institutes that signed the arrangement.
         mra_logo_asserted=False,
@@ -1293,11 +1351,7 @@ def _test_report_and_conformity(world: World) -> None:
                 "verdict": "pass",
             },
         ],
-        capability_reference={
-            "id": testing_scope.url,
-            "type": "AccreditationScope",
-            "identifier": testing_scope.identifier,
-        },
+        capability_reference=_scope_reference(world, testing_scope),
         equipment_traceability=[
             {
                 **credential_reference(
@@ -1329,11 +1383,7 @@ def _test_report_and_conformity(world: World) -> None:
         product=product.to_json(),
         holder={"id": manufacturer.did, "name": manufacturer.legal_name},
         standard="IEC 60335-1",
-        capability_reference={
-            "id": certification_scope.url,
-            "type": "AccreditationScope",
-            "identifier": certification_scope.identifier,
-        },
+        capability_reference=_scope_reference(world, certification_scope),
         test_reports=[
             {
                 **credential_reference(report, relation="TestReportCredential"),
@@ -1674,6 +1724,7 @@ def build_world() -> World:
     _publish_registries(world)
     schemas = _build_schemas(world)
     _status_lists(world)
+    _accreditation_scope_credentials(world)
     _recognition_credentials(world, schemas)
     _calibration_certificates(world)
     _shared_reference_pair(world, world.results['metas-calibration'])

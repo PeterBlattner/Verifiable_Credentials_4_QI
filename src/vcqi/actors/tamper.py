@@ -712,7 +712,48 @@ def _out_of_band_frequency() -> TamperResult:
     return TamperResult(world, signed, DEMO_NOW)
 
 
+def _substituted_scope() -> TamperResult:
+    """Serve a different accreditation scope at the address the certificate names.
+
+    The laboratory was accredited for a list of fixed resistance values. Someone
+    republishes the scope with an extra value added, signed with the accreditation
+    body's own key so that nothing about the document itself is wrong: the signature
+    verifies, the issuer really is the body that grants accreditations, the scope is in
+    force and has not been suspended.
+
+    It is simply not the scope the certificate was issued under, and the certificate
+    said which one that was. Before the scopes were signed there was nothing to say it
+    with -- an unsigned register entry could only be named, so a verifier fetched
+    whatever the register was serving today and adjudicated against that. Pinning the
+    digest is what turns "the scope at this address" into "this scope".
+    """
+    world = build_world()
+    scope = copy.deepcopy(world.credential("scope-SCS-0123"))
+    scope["credentialSubject"]["rows"][0]["coverage"]["values"].append(500.0)
+    signed = _resign(scope, "did:web:sas.example", RECOGNITION_FROM)
+    _republish(world, "scope-SCS-0123", signed)
+    return TamperResult(world, world.credential("callab-calibration"), DEMO_NOW)
+
+
 NEW_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="substituted-scope",
+        title="Serve a different accreditation scope at the same address",
+        group="forgery",
+        description=(
+            "The accreditation scope published at the address the certificate names "
+            "has had a value added to it, and was re-signed by the accreditation body "
+            "itself. Signature valid, issuer correct, scope in force and not suspended."
+        ),
+        expected_step="scope",
+        catches=(
+            "The certificate references its accreditation by content digest, which an "
+            "unsigned register entry could never have offered. The address still "
+            "resolves and the document that comes back is perfectly good; it is just "
+            "not the one the certificate was issued under, and the reference says so."
+        ),
+        apply=_substituted_scope,
+    ),
     TamperCase(
         key="out-of-band-frequency",
         title="Calibrate at a frequency the accreditation does not cover",
