@@ -228,17 +228,29 @@ def _referenced_document(capability: DeclaredCapability) -> dict[str, Any]:
     }
 
 
-def test_report_schema(*, schema_id: str, title: str, standard: str) -> dict[str, Any]:
+def test_report_schema(*, schema_id: str, title: str) -> dict[str, Any]:
     """Generate the schema a test report must validate against.
 
-    A testing scope has no uncertainty floor, so the schema can express essentially all
-    of it: the standard tested against, and the requirement that the equipment used is
-    traceable to a calibration certificate rather than merely asserted to be in order.
+    This one used to pin the standard as a ``const``, and it cannot any more. A testing
+    scope covers hundreds of standards, lists them as sets of equivalent designations,
+    and declares some of its rows flexible -- so it also covers editions that did not
+    exist when the scope was granted. There is no list to write into a constant, and a
+    schema naming one standard would refuse a perfectly good report for any of the
+    others.
+
+    What is left is the shape: a report states some standard, reports some results, and
+    says what equipment it used and where that equipment's calibration can be checked.
+    Which standard, and whether the laboratory was accredited for it on the day, is the
+    question put to the register -- and the register is the only party that can answer
+    it, which is the whole argument for the endpoint.
+
+    The pattern is the one the calibration schema already shows: the richer the scope,
+    the less an offline constant can say about it, and the more of the decision belongs
+    to the register alone.
 
     Args:
         schema_id: URL the schema is published at.
         title: Human-readable title for the schema.
-        standard: The product standard the scope covers.
 
     Returns:
         A JSON Schema draft 2020-12 document.
@@ -248,10 +260,12 @@ def test_report_schema(*, schema_id: str, title: str, standard: str) -> dict[str
         "$id": schema_id,
         "title": title,
         "description": (
-            f"Structural bounds for test reports issued against {standard}. Requires "
-            f"at least one reference to the calibration certificate of the equipment "
-            f"used, so that a report cannot claim accredited status while leaving its "
-            f"traceability unstated."
+            "Structural bounds for test reports issued under this accreditation. "
+            "Requires at least one reference to the calibration certificate of the "
+            "equipment used, so that a report cannot claim accredited status while "
+            "leaving its traceability unstated. It does not bound which standard was "
+            "tested against: the scope is answered by its register rather than "
+            "published as a list, so nothing offline can enumerate what it covers."
         ),
         "type": "object",
         "required": ["type", "credentialSubject"],
@@ -265,7 +279,7 @@ def test_report_schema(*, schema_id: str, title: str, standard: str) -> dict[str
                         "type": "object",
                         "required": ["standard", "results", "equipmentTraceability"],
                         "properties": {
-                            "standard": {"const": standard},
+                            "standard": {"type": "string", "minLength": 1},
                             "results": {"type": "array", "minItems": 1},
                             "equipmentTraceability": {
                                 "type": "array",

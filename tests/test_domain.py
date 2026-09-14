@@ -201,11 +201,38 @@ class TestScope:
         assert row.floor.evaluate(1.0e4) > cmc.uncertainty_floor.evaluate(1.0e4)
 
     def test_testing_scope_has_no_numeric_capability(self) -> None:
-        """A testing scope states methods rather than a table of capabilities."""
+        """A testing scope bounds itself by method rather than by capability."""
         accreditation = scope_by_id("STS 0456")
         assert accreditation is not None
         assert accreditation.as_rows() == ()
+
+    def test_a_testing_scope_publishes_an_endpoint_and_not_its_table(self) -> None:
+        """The method table is answered, not served, and the document says so.
+
+        A scope whose document carried the table as well would be back to the document
+        pattern with an endpoint bolted on. What is published is the identity of the
+        scope and where to ask about it; what it covers is a question.
+        """
+        accreditation = scope_by_id("STS 0456")
+        assert accreditation is not None
+        assert accreditation.test_rows
+        assert accreditation.query_url is not None
+
+        published = accreditation.to_json()
+        assert published["queryEndpoint"] == accreditation.query_url
+        assert "testRows" not in published
+        assert "methods" not in published
+
+    def test_a_certification_scope_still_publishes_its_methods(self) -> None:
+        """Three registers, three carriage patterns, and this is the third.
+
+        Kept as an assertion because the contrast is the demonstration: if every scope
+        ended up answered by an endpoint, chapter 5 would have nothing to compare.
+        """
+        accreditation = scope_by_id("SCESp 0789")
+        assert accreditation is not None
         assert accreditation.methods
+        assert accreditation.query_url is None
 
 
 class TestScopeRowGrammars:

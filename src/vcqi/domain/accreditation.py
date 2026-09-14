@@ -40,14 +40,23 @@ from vcqi.domain.scope import (
     ScopeRow,
     UncertaintyFloor,
 )
+from vcqi.domain.scope_query import TestScopeRow
 
 __all__ = [
     "AccreditationScope",
     "ACCREDITATION_SCOPES",
+    "QUERY_PROTOCOL",
     "scope_by_id",
     "scope_url",
     "scopes_for_organisation",
 ]
+
+
+#: Name and version of the protocol a scope endpoint answers. Written into every scope
+#: document that publishes an endpoint, and into every reference that names one, so that
+#: a verifier knows what it is allowed to ask before it asks. Invented here, and the
+#: harmonisation chapter says so: nobody has agreed one.
+QUERY_PROTOCOL = "ScopeCoverageQuery/1"
 
 
 #: The band a row covering direct current is declared under. Written as its own constant
@@ -78,7 +87,12 @@ class AccreditationScope:
         valid_from: Start of validity, as an ISO 8601 date.
         valid_until: End of validity, as an ISO 8601 date.
         rows: The capability table, in register order, for a calibration scope. Empty
-            for a testing or certification scope, which is bounded by its methods.
+            for a testing or certification scope, which is bounded differently.
+        test_rows: The method table of a testing scope. Deliberately **not** published in
+            ``to_json``: the body answers questions about this table rather than serving
+            it, and ``query_url`` is where the questions go. A real one runs to fourteen
+            pages, and the flexible rows in it cannot be written down at all -- see
+            :mod:`vcqi.domain.scope_query`.
         methods: Standards or methods the scope covers, for testing and certification.
         language_precedence: Which language version governs when the versions of the
             register disagree, or None when the register says nothing. A published scope
@@ -99,6 +113,7 @@ class AccreditationScope:
     valid_from: str
     valid_until: str
     rows: tuple[ScopeRow, ...] = ()
+    test_rows: tuple[TestScopeRow, ...] = ()
     methods: tuple[str, ...] = ()
     language_precedence: str | None = None
 
@@ -110,6 +125,16 @@ class AccreditationScope:
             The URL a credential uses when it references this accreditation.
         """
         return scope_url(self.identifier)
+
+    @property
+    def query_url(self) -> str | None:
+        """Return the address questions about this scope are asked at.
+
+        Returns:
+            The endpoint, or None for a scope whose whole table is published as a
+            document and therefore has nothing to ask.
+        """
+        return f"{self.url}/covers" if self.test_rows else None
 
     def as_rows(self) -> tuple[ScopeRow, ...]:
         """Return the capability table the scope check selects from.
@@ -145,6 +170,13 @@ class AccreditationScope:
         }
         if self.rows:
             document["rows"] = [row.to_json() for row in self.rows]
+        # The method table is not here, and its absence is the point. What this document
+        # publishes about a testing scope is its identity, who granted it, and how long
+        # it runs -- the facts a verifier needs to know the scope exists and still
+        # stands. What it covers is answered at the endpoint, one question at a time.
+        if self.query_url is not None:
+            document["queryEndpoint"] = self.query_url
+            document["queryProtocol"] = QUERY_PROTOCOL
         if self.methods:
             document["methods"] = list(self.methods)
         if self.language_precedence is not None:
@@ -259,9 +291,49 @@ ACCREDITATION_SCOPES: tuple[AccreditationScope, ...] = (
         conditions="Laboratory ambient conditions",
         valid_from="2024-09-01",
         valid_until="2029-08-31",
-        methods=(
-            "IEC 60335-1 clause 16, leakage current and electric strength",
-            "IEC 60335-1 clause 29, insulation resistance",
+        # Four rows, where a real scope has several hundred. Each is here to be a
+        # different kind of answer. Row 1 is flexible, so it covers a designation it does
+        # not list and the answer has to say why. Row 2 is fixed, so it covers nothing it
+        # does not list. Row 3 was withdrawn when the standard it names was superseded.
+        # Row 4 entered the scope after the test report in this world was issued, which
+        # is what makes the date part of the question rather than a courtesy.
+        test_rows=(
+            TestScopeRow(
+                label="STS 0456 row 1",
+                product_group="Household and similar electrical appliances",
+                principle=(
+                    "Part 1: General requirements - leakage current, electric strength "
+                    "and insulation resistance"
+                ),
+                standards=("EN 60335-1:2012", "IEC 60335-1:2010"),
+                flexibility="B",
+                added_on="2024-09-01",
+            ),
+            TestScopeRow(
+                label="STS 0456 row 2",
+                product_group="Luminaires",
+                principle="Part 1: General requirements and tests",
+                standards=("EN 60598-1:2015", "IEC 60598-1:2014"),
+                flexibility="A",
+                added_on="2024-09-01",
+            ),
+            TestScopeRow(
+                label="STS 0456 row 3",
+                product_group="Information technology equipment",
+                principle="Part 1: General requirements for safety",
+                standards=("EN 60950-1:2006", "IEC 60950-1:2005"),
+                flexibility="A",
+                added_on="2024-09-01",
+                withdrawn_on="2026-01-01",
+            ),
+            TestScopeRow(
+                label="STS 0456 row 4",
+                product_group="Audio, video and communication technology equipment",
+                principle="Part 1: Safety requirements",
+                standards=("EN 62368-1:2020", "IEC 62368-1:2018"),
+                flexibility="B",
+                added_on="2026-07-01",
+            ),
         ),
     ),
     AccreditationScope(

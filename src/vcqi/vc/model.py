@@ -75,6 +75,7 @@ __all__ = [
     "recognized_action",
     "accreditation_scope_credential",
     "capability_reference",
+    "scope_coverage_answer_credential",
     "calibration_certificate_credential",
     "external_document_credential",
     "test_report_credential",
@@ -286,15 +287,26 @@ def capability_reference(
     relation: str,
     identifier: str,
     credential: dict[str, Any] | None = None,
+    query_endpoint: str | None = None,
+    query_protocol: str | None = None,
 ) -> dict[str, Any]:
     """Reference the capability a document was issued under.
 
-    Two shapes, and the difference between them is the whole argument. A capability
-    published as an unsigned register entry can only be named: identifier, type and
-    address, with nothing that would let a verifier check a copy. One published as a
-    signed credential can be named *and pinned*, so the reference is satisfied only by
-    the exact scope that was in force when the reference was made, wherever the copy
-    came from.
+    Three shapes now, and the differences between them are the whole argument.
+
+    A capability published as an **unsigned register entry** can only be named:
+    identifier, type and address, with nothing that would let a verifier check a copy.
+
+    One published as a **signed credential** can be named *and pinned*, so the reference
+    is satisfied only by the exact scope that was in force when the reference was made,
+    wherever the copy came from.
+
+    One that is **answered rather than served** carries an endpoint as well. Its document
+    is still pinned -- the identity of the scope, who granted it and how long it runs are
+    facts, and they travel -- but what it covers is a question, and the reference says
+    where to ask it and under which protocol. The endpoint address is deliberately not
+    digested: there is no document there to digest, and a reference that pretended
+    otherwise would be claiming a guarantee nobody can give.
 
     Args:
         url: Address the capability is published at.
@@ -304,16 +316,88 @@ def capability_reference(
         identifier: The register's own number for it, for example ``SCS 0123``.
         credential: The signed capability, when there is one. Omit for a register that
             publishes its entries unsigned, and the reference carries no digest.
+        query_endpoint: Where to ask what this capability covers, for a register that
+            answers questions instead of publishing its table.
+        query_protocol: What may be asked there, and how.
 
     Returns:
-        The reference, with a ``digestMultibase`` exactly when one can be checked.
+        The reference, with a ``digestMultibase`` exactly when one can be checked and a
+        ``queryEndpoint`` exactly when there is something to ask.
     """
     reference: dict[str, Any] = {"id": url, "type": relation, "identifier": identifier}
     if credential is not None:
         reference["digestMultibase"] = credential_reference(
             credential, relation=relation
         )["digestMultibase"]
+    if query_endpoint is not None:
+        reference["queryEndpoint"] = query_endpoint
+        if query_protocol is not None:
+            reference["queryProtocol"] = query_protocol
     return reference
+
+
+def scope_coverage_answer_credential(
+    *,
+    address: str,
+    scope_url: str,
+    identifier: str,
+    protocol: str,
+    issuer: dict[str, Any],
+    question: dict[str, Any],
+    answer: dict[str, Any],
+    answered_at: str,
+) -> dict[str, Any]:
+    """Build a register's signed answer to one question about one scope.
+
+    An answer is a credential, and making it one is what stops an endpoint being a step
+    backwards. A plain JSON reply is authenticated by the connection that carried it: it
+    cannot be stapled, cannot be archived, cannot be re-checked, and is worth nothing the
+    moment it has been copied anywhere. Signed, it is a document like any other -- and it
+    is addressed by the question, so a verifier asking the same thing finds it and a
+    verifier asking something else does not.
+
+    What it deliberately does not carry:
+
+    - **No status entry.** An answer is not withdrawn, it is superseded: ask again and
+      the register answers again. A status list over answers would grow without bound
+      and would say nothing the next answer does not say better.
+    - **No validity window.** Its validity is the date inside the question. An answer
+      about May 2026 does not become wrong in 2030; a verifier asking about 2030 is
+      asking a different question and gets a different answer.
+
+    Args:
+        address: The endpoint with the question appended, which is this credential's
+            identifier. One question, one spelling, one address.
+        scope_url: The scope the question is about.
+        identifier: The register's number for that scope.
+        protocol: The query protocol this answer was given under.
+        issuer: The issuer object, from :func:`issuer_reference`.
+        question: The question as asked, echoed verbatim so that a verifier can confirm
+            it was answered rather than reinterpreted.
+        answer: The verdict and the grounds for it.
+        answered_at: When the register answered, as an XML Schema dateTime. Distinct
+            from the date *inside* the question, which is what is being asked about.
+
+    Returns:
+        The unsecured credential, ready to be signed.
+    """
+    return {
+        "@context": CREDENTIAL_CONTEXT,
+        "id": address,
+        "type": ["VerifiableCredential", "ScopeCoverageAnswerCredential"],
+        "name": f"Coverage answer for accreditation {identifier}",
+        "issuer": issuer,
+        "validFrom": answered_at,
+        "credentialSubject": {
+            "id": scope_url,
+            "type": "AccreditationScope",
+            "identifier": identifier,
+            "protocol": protocol,
+            "question": question,
+            "answer": answer,
+            "answeredAt": answered_at,
+        },
+    }
 
 
 def recognized_entity_credential(

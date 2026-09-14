@@ -830,6 +830,37 @@ async function chapterScope(context) {
     (item) => item.identifier === 'SCS 0123'
   );
 
+  // The testing scope publishes no table, so there is nothing to render from the world
+  // payload. What can be shown is the thing that replaced it: the same question put to
+  // the register about two different days, and the two answers it gives.
+  const testing = (context.world.accreditations || []).find(
+    (item) => item.identifier === 'STS 0456'
+  );
+  const askedTwice = el('div', {});
+  if (testing && testing.queryEndpoint) {
+    const today = (context.world.demoNow || '').slice(0, 10);
+    const ask = async (at, label) => {
+      const address = `${testing.queryEndpoint}?at=${encodeURIComponent(at)}&standard=${encodeURIComponent('IEC 62368-1')}`;
+      const { document: answer } = await api.document(address);
+      const verdict = answer.credentialSubject.answer;
+      return [
+        badge(verdict.covered ? 'pass' : 'fail'),
+        label,
+        at,
+        verdict.covered ? 'covered' : 'not covered',
+        verdict.reason,
+      ];
+    };
+    Promise.all([
+      ask('2026-05-06', 'The day the testing was performed'),
+      ask(today, 'Today, which is the question nobody needed'),
+    ]).then((rows) => {
+      clear(askedTwice).append(
+        table(['', 'Asked about', 'Date', 'Answer', 'On what grounds'], rows)
+      );
+    });
+  }
+
   fragment.append(
     el('div', { class: 'split split--wide' }, [
       el('div', {}, [panel(t.text('adjust.title'), t.text('adjust.hint'), [valueSlider, uncertaintySlider]), readout]),
@@ -839,6 +870,9 @@ async function chapterScope(context) {
     panel(t.text('rows.title'), t.text('rows.hint'), scopeRowTable(scope)),
     t.prose('carried-or-linked'),
     t.prose('signed-registry'),
+    t.prose('answered-registry'),
+    t.prose('the-date-in-the-question'),
+    panel(t.text('asked.title'), t.text('asked.hint'), askedTwice),
     t.callout('schema-vs-registry')
   );
 

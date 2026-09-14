@@ -3174,3 +3174,138 @@ subject, not point at it from a thin credential.
 
 Branch `feature/scope-rows-and-signed-scope`, two commits, PR into `develop`. Body in
 `temp/pr-body-scope-rows.md`.
+
+# Change set 19 - a scope you query, not a scope you read
+
+## Context
+
+Change set 18 answered the carriage question with four tests and added a fifth: a
+reference need not be uncheckable, because a signed register entry can be pinned by
+digest. The calibration scope took that route.
+
+Asked whether a **testing** laboratory's scope should instead sit behind an API - you
+query which standards its accreditation covers - with `temp/STS-0034-en.pdf` as the real
+example. It should, and reading that document is what settles it. A published testing
+scope is fourteen pages and three columns: product or material group, principle of
+measurement, test methods. Several hundred designations, mostly in equivalent pairs
+(`EN 61000-3-2, IEC 61000-3-2`), with measuring ranges as free text inside the middle
+column. Three properties push it away from the document pattern:
+
+- **Size.** Shipping that to every verifier to answer one bit is absurd.
+- **Shape.** A calibration check is a numeric adjudication and needs the formula in hand.
+  A testing check is a membership test - is this standard covered - which is a query.
+- **Flexibility.** Every page footer declares each row's scope of application: Type A
+  fixed, Types B and C flexible, per SAS-Document 741. A flexible row covers editions
+  that did not exist when the scope was granted. No frozen list can say "and whatever
+  comes next", so the answer is derived rather than stored, and only the body that
+  granted the scope may derive it.
+
+That third one is decisive. The first two are arguments about convenience; the third
+says a document cannot express the scope at all.
+
+## Decisions taken
+
+**The question is the address.** An endpoint should be a step backwards -
+`actors/deployment.py` says verification is a computation and not a conversation, and
+chapter 12's whole portability argument rests on it. What buys it back is composing the
+question into a canonical, sorted, percent-encoded query string and publishing the signed
+answer there. One question, one spelling, one document. It needed no new machinery:
+`DocumentStore` was already keyed by URL, and `Resolver.with_presented` already indexes a
+holder's documents by their own `id` - so a holder structurally cannot file an answer
+under a question it does not answer.
+
+**The answer is a credential.** A reply authenticated only by the connection that carried
+it cannot be stapled, archived, or re-checked once the endpoint is gone. Signed, it is a
+document again and joins the `travels` class. It carries no status entry and no validity
+window on purpose: an answer is superseded rather than withdrawn, and its validity is the
+date inside the question.
+
+**The date is a parameter.** The question asks about `testing.performedOn`, never about
+now. A scope grows, so a register asked the naive question answers honestly about the
+wrong day - and errs permissively. `tested-before-accredited` is that failure, and
+`tests/test_scope_query.py` asserts the counterfactual so the reason the parameter exists
+is demonstrated rather than claimed.
+
+**The scope document does not disappear.** The endpoint replaces the *table*, not the
+document. `STS 0456` still publishes its identity, who granted it and how long it runs,
+signed and pinned, so validity and suspension stay checkable by the machinery that
+already exists. `_capability_document` is reused unchanged.
+
+**The certification scope keeps its methods list.** Three registers, three shapes of
+reference: `SCESp 0789` named, `SCS 0123` pinned, `STS 0456` asked. One verification of
+`CPC-2026-0055` traverses all three.
+
+## Change
+
+```
+src/vcqi/domain/scope_query.py      new - TestScopeRow, CoverageQuestion,
+                                    CoverageAnswer, answer_coverage
+src/vcqi/domain/accreditation.py    test_rows, query_url, QUERY_PROTOCOL;
+                                    STS 0456 reshaped into four rows
+src/vcqi/vc/resolver.py             publish_endpoint, DocumentStore.answer,
+                                    query-aware kind_of, Resolver.query
+src/vcqi/vc/model.py                scope_coverage_answer_credential;
+                                    capability_reference gains queryEndpoint
+src/vcqi/vc/verify.py               _step_scope_by_query and the branch
+src/vcqi/vc/schema.py               test_report_schema stops pinning a standard
+src/vcqi/actors/scenarios.py        _coverage_handler, _accreditation_query_endpoints
+src/vcqi/actors/portability.py      query-answer classified; the audit staples one
+src/vcqi/actors/tamper.py           tested-before-accredited
+src/vcqi/actors/harmonisation.py    scope-query; retrieval recount and a sentence
+src/vcqi/web/app.py                 GET /api/accreditation/{id}/covers;
+                                    /api/document follows a query address
+tests/test_scope_query.py           new - 17 tests in three groups
+content/chapters/06-scope.md        the third pattern, the parameter, the two answers
+content/chapters/12-harmonisation.md  two technical items now, not one
+ARCHITECTURE.md                     the sixth consideration and its section
+README.md                           94 retrievals, 32 documents, 17 travel
+```
+
+The four rows of `STS 0456` each exist to be a different kind of answer: row 1 flexible,
+so it covers a designation it does not list; row 2 fixed, so it does not; row 3 withdrawn
+when its standard was superseded; row 4 added after the test report, which is what makes
+the date part of the question rather than a courtesy.
+
+## What asking costs, and the three checks that pay for it
+
+A document would have needed none of these:
+
+- `scope.query` takes the endpoint from the scope document and refuses if the reference
+  names another. A laboratory that could choose who answers could answer for itself.
+- `scope.answer` verifies the proof, confirms the signer is the body the scope names, and
+  confirms the question echoed inside is the question asked. Addressing keeps a *holder*
+  honest; this keeps a buggy or dishonest *register* honest.
+- `scope.covered` takes the verdict, with the row that decided it and whether flexibility
+  was what let it through.
+
+What it still costs, stated plainly: a query answer is the one document here that nobody
+can archive on the holder's behalf unless the register signs it, and essentially no
+register signs one today.
+
+## Also fixed
+
+`_step_scope_by_method` compared the report's top-level `standard` against the scope's
+`methods` by Python substring containment, and never looked at `results[*].clause`. The
+report states clauses 16.2 and 16.3 while the old `STS 0456` listed clause 16 and clause
+29, and nothing noticed. The query path replaces the substring match with an answered
+question. **Clause-level checking is still not done** - a real testing scope lists
+standards rather than clauses, so checking clauses needs a claim about what a standard
+contains, which is a different register.
+
+## Verification
+
+- `uv run pytest -q` - 566 passed, 46 skipped.
+- `tests/test_portability.py` passes with its exploit and class assertions **unchanged**,
+  as in change set 18.
+- World dump deterministic across two runs: 78 documents, `diff -r` clean. The risk here
+  was signing at query time; `answeredAt` comes from the world's fixed instant.
+- All three jsdom harnesses against a running server, two chapter snapshots diff clean -
+  which also proves `page-settled.mjs` waits for the two live queries chapter 5 now makes.
+- Of 32 documents read by one verification, 17 travel. The unportable class is still one
+  document, the KCDB entry.
+- 23 failure cases, 23 harmonisation items of which 9 open.
+
+## Git
+
+Branch `feature/scope-query-endpoint`, two commits, PR into `develop`. Body in
+`temp/pr-body-scope-query.md`.

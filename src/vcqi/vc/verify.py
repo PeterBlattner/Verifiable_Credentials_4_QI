@@ -47,6 +47,7 @@ from jsonschema import Draft202012Validator
 from vcqi.crypto.jcs import canonicalize
 from vcqi.crypto.multibase import verify_digest_multibase, verify_digest_sri
 from vcqi.crypto.xmldsig import verify_enveloped
+from vcqi.domain.scope_query import CoverageQuestion
 from vcqi.domain.scope import (
     DeclaredCapability,
     Interval,
@@ -570,6 +571,196 @@ def _row_selection_detail(row: ScopeRow, selection: RowSelection) -> str:
     return detail
 
 
+def _step_scope_by_query(
+    credential: dict[str, Any],
+    reference: dict[str, Any],
+    document: dict[str, Any],
+    provenance: str,
+    resolver: Resolver,
+) -> Step:
+    """Adjudicate against a scope that answers questions instead of publishing a table.
+
+    A testing scope is too large to hand over, lists its methods as sets of equivalent
+    designations, and declares some of its rows flexible -- so that what it covers is
+    derived rather than stored, and only the body that granted it can derive it. The
+    verifier therefore asks rather than reads.
+
+    Asking is a weaker position than reading, and three checks are what make up the
+    difference.
+
+    **Who is asked.** The endpoint is taken from the scope document, not from the
+    reference. The reference names one too, and they have to agree: a laboratory that
+    could choose the endpoint could answer for itself, which is the same forgery as
+    stating its own scope and is why ``_step_scope`` will not read a scope out of the
+    credential naming it.
+
+    **What was asked.** The date in the question is the date the testing was performed,
+    never the moment of verification. A report from 2026 checked in 2030 has to be judged
+    against the scope as it stood when the work was done; asking about *now* answers a
+    different question, and answers it in the dangerous direction, because a scope that
+    has since been extended will cover work that was outside it at the time.
+
+    **What was answered.** The question echoed inside the answer has to be the question
+    that was asked. Without that check a holder staples an answer to a friendlier
+    question and the endpoint's signature carries it, which is exactly the substituted
+    document forgery in a new costume.
+
+    Args:
+        credential: The credential being verified.
+        reference: The capability reference it names.
+        document: The scope document, already verified by ``_capability_document``.
+        provenance: How that document was obtained, for the reader.
+        resolver: Used to ask the question.
+
+    Returns:
+        The step, with one child for the scope document, one for the question, one for
+        the answer and one for the verdict.
+    """
+    payload = _payload(credential)
+    label = reference.get("identifier", reference["id"])
+    children: list[Step] = []
+    if provenance:
+        children.append(
+            Step(
+                id="scope.source",
+                title="The published scope this was adjudicated against",
+                status=PASS,
+                detail=f"{label} {provenance}",
+            )
+        )
+
+    def refuse(child_id: str, title: str, detail: str) -> Step:
+        """Build the failing step, with the children gathered so far.
+
+        Args:
+            child_id: Identifier of the child that failed.
+            title: Its title.
+            detail: What went wrong.
+
+        Returns:
+            The step.
+        """
+        return Step(
+            id="scope",
+            title="Claim falls inside the declared capability",
+            status=FAIL,
+            detail=detail,
+            evidence={"capability": reference},
+            children=children + [Step(id=child_id, title=title, status=FAIL, detail=detail)],
+        )
+
+    published = document.get("queryEndpoint")
+    endpoint = reference.get("queryEndpoint")
+    if not isinstance(published, str) or published != endpoint:
+        return refuse(
+            "scope.query",
+            "The question was put to the register that granted the scope",
+            f"the certificate says to ask {endpoint}, and {label} publishes "
+            f"{published or 'no endpoint at all'}",
+        )
+
+    standard = payload.get("standard")
+    performed_on = payload.get("performedOn")
+    if not isinstance(standard, str) or not isinstance(performed_on, str):
+        return refuse(
+            "scope.query",
+            "The question was put to the register that granted the scope",
+            "the document does not state both a standard and a date to ask about",
+        )
+
+    question = CoverageQuestion(standard=standard, at=performed_on)
+    address = question.address(published)
+    children.append(
+        Step(
+            id="scope.query",
+            title="The question was put to the register that granted the scope",
+            status=PASS,
+            detail=(
+                f"asked {label} whether {standard} was covered on {performed_on}, the "
+                f"date the testing was performed, at {address}"
+            ),
+        )
+    )
+
+    answer = resolver.query(address)
+    if answer is None:
+        return refuse(
+            "scope.answer",
+            "The answer is signed by the body that granted the scope",
+            f"{label} did not answer the question at {address}",
+        )
+
+    proof_outcome, _ = check_proof(answer, resolver)
+    if not proof_outcome.passed:
+        return refuse(
+            "scope.answer",
+            "The answer is signed by the body that granted the scope",
+            f"the answer from {address} is not properly signed: {proof_outcome.detail}",
+        )
+
+    granting_body = document.get("accreditationBody")
+    if isinstance(granting_body, str) and issuer_id(answer) != granting_body:
+        return refuse(
+            "scope.answer",
+            "The answer is signed by the body that granted the scope",
+            f"{label} was granted by {granting_body} and the answer was signed by "
+            f"{issuer_id(answer)}",
+        )
+
+    subject = answer.get("credentialSubject")
+    subject = subject if isinstance(subject, dict) else {}
+    if answer.get("id") != address or subject.get("question") != question.to_json():
+        return refuse(
+            "scope.answer",
+            "The answer is signed by the body that granted the scope",
+            f"the answer states the question {subject.get('question')} and was asked "
+            f"{question.to_json()}, so it answers something else",
+        )
+
+    children.append(
+        Step(
+            id="scope.answer",
+            title="The answer is signed by the body that granted the scope",
+            status=PASS,
+            detail=(
+                f"signed by {issuer_id(answer)}, and it answers the question that was "
+                f"asked rather than another one"
+            ),
+        )
+    )
+
+    verdict = subject.get("answer")
+    verdict = verdict if isinstance(verdict, dict) else {}
+    covered = verdict.get("covered") is True
+    reason = str(verdict.get("reason", "no grounds were given"))
+    children.append(
+        Step(
+            id="scope.covered",
+            title="The standard was inside the scope on the date of the testing",
+            status=PASS if covered else FAIL,
+            detail=reason,
+        )
+    )
+
+    return Step(
+        id="scope",
+        title="Claim falls inside the declared capability",
+        status=PASS if covered else FAIL,
+        detail=(
+            f"{standard} was covered by {label} on {performed_on}"
+            if covered
+            else f"{standard} was not covered by {label} on {performed_on}: {reason}"
+        ),
+        evidence={
+            "capability": reference,
+            "question": question.to_json(),
+            "answer": verdict,
+            "askedAt": address,
+        },
+        children=children,
+    )
+
+
 def _step_scope_by_rows(
     reference: dict[str, Any],
     rows: tuple[ScopeRow, ...],
@@ -1015,6 +1206,15 @@ def _step_scope(
     if failed is not None:
         return failed
     assert document is not None
+
+    # A scope that answers questions is asked one, rather than read. The reference says
+    # so by carrying an endpoint, and the endpoint it names has to be the one the scope
+    # document publishes -- checked inside, because a laboratory choosing who answers is
+    # a laboratory answering for itself.
+    if isinstance(reference.get("queryEndpoint"), str):
+        return _step_scope_by_query(
+            credential, reference, document, provenance, resolver
+        )
 
     result = _first_result(credential)
     claim, unreadable = _claim_from_credential(credential, result)

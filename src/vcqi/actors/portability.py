@@ -117,14 +117,22 @@ PORTABILITY_CLASSES: tuple[PortabilityClass, ...] = (
     PortabilityClass(
         key="travels",
         label="It travels with the holder",
-        kinds=("credential", "schema", "uncertainty-data"),
+        kinds=("credential", "schema", "uncertainty-data", "query-answer"),
         travels=True,
         why=(
             "Either signed in its own right, or covered by a digestMultibase inside "
             "something that is. A copy is checkable whatever hand it arrived in, so "
             "where it came from stops mattering -- which is the whole portable-credential "
             "argument, and the reason a calibration certificate has always been able to "
-            "travel in the box with the instrument."
+            "travel in the box with the instrument.\n\nThe answer from a scope endpoint "
+            "is in this class, and it is the one document here that had to be designed "
+            "into it. An endpoint makes verification a conversation, and a conversation "
+            "is the thing this model exists to avoid. What puts the answer back in the "
+            "box is that the question is its address: the register signs its answer to "
+            "one stated question on one stated date, published at an address that spells "
+            "that question exactly one way. A verifier asking the same thing finds the "
+            "stapled answer; a verifier asking anything else does not, and goes to the "
+            "register. So it travels, and it travels for one question only."
         ),
         removable=False,
     ),
@@ -285,7 +293,14 @@ def portability_audit(
             continue
         groups[found.key].append(url)
         if found.travels:
-            document = world.store.get(url)
+            # `answer` as well as `get`, because a query answer is not stored anywhere
+            # until somebody asks for it. Once it exists it is a document like any other
+            # -- signed, addressed by the question it answers -- and a holder who has
+            # been given one can hand it on. Reading only `get` here would have counted
+            # it as portable in the classification and then failed to carry it, which is
+            # the kind of disagreement between a page and its own measurement that this
+            # module exists to prevent.
+            document = world.store.get(url) or world.store.answer(url)
             if document is not None:
                 stapled[url] = document
 

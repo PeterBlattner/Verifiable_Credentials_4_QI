@@ -705,12 +705,17 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
         demonstrated=(
             "Chapter 10 measures this without naming it. Verifying one certificate of "
-            "conformity reads 31 distinct documents from 7 hosts. The credential itself "
-            "travels with its holder and is safe. The other 30 - DID documents, "
-            "accreditation scopes, KCDB entries, validation schemas, status lists, and "
-            "the uncertainty representations published by reference rather than inline - "
-            "are fetched from wherever they live, and every one of them is a way for a "
-            "verification to stop working without anything having been tampered with."
+            "conformity reads 32 distinct documents from 7 hosts. The credential itself "
+            "travels with its holder and is safe. The other 31 - DID documents, "
+            "accreditation scopes, KCDB entries, validation schemas, status lists, the "
+            "uncertainty representations published by reference rather than inline, and "
+            "now an answer from a register that publishes no document at all - are "
+            "fetched from wherever they live, and every one of them is a way for a "
+            "verification to stop working without anything having been tampered with. "
+            "The last of those is the sharpest case on this page: a document can be "
+            "archived by anyone who has a copy, and an endpoint cannot be archived at "
+            "all. Sign its answers and the answers become archivable; leave them "
+            "unsigned and the scope check has a shelf life."
         ),
         exists=(
             "Partly, and unevenly. Watchers cache identifier logs. Content addressing "
@@ -1004,6 +1009,52 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
     ),
     HarmonisationItem(
+        key="scope-query",
+        tier="floor",
+        title="How to ask a register what a scope covers",
+        status="open",
+        requirement=(
+            "A protocol for asking an accreditation body whether a scope covered a "
+            "given standard on a given date, and for what the reply has to be. Three "
+            "things have to be agreed and none of them is difficult: that the date "
+            "being asked about is a parameter, that the reply is signed, and that the "
+            "reply repeats the question it answers."
+        ),
+        demonstrated=(
+            "STS 0456 publishes an endpoint instead of its table. The verifier asks "
+            "whether the report's standard was covered on the day the testing was "
+            "performed, and the accreditation body returns a signed answer naming the "
+            "row that decided it. The answer is addressed by the question, which is "
+            "what lets a holder carry it: one question, one spelling, one document.\n\n"
+            "The protocol is called ScopeCoverageQuery/1 and this project invented it "
+            "along with the name, the parameters and the shape of the reply. That is "
+            "the whole of the item."
+        ),
+        exists=(
+            "Directories, and not protocols. Accreditation bodies publish searchable "
+            "registers of who is accredited for what, and they are built for a person "
+            "with a question rather than a verifier with one: no stated parameters, no "
+            "signature over the reply, and no way to ask about a date that is not "
+            "today. The last of those is the one that matters, because a certificate is "
+            "evidence about the day it was issued and a register that only answers "
+            "about now answers the wrong question in the permissive direction."
+        ),
+        source="",
+        consequence=(
+            "Each verifier writes its own client against each body's own directory, "
+            "which is the hub-and-pipe arrangement that portable credentials exist to "
+            "avoid, and the scope check stops working at the border it was built for. "
+            "Where the reply is unsigned it is worse than that: the check cannot be "
+            "repeated afterwards by anybody, so an audit two years later has nothing to "
+            "look at."
+        ),
+        forum=(
+            "ILAC, now the Global ACI arrangement, which already decides what a scope "
+            "document must contain and would be deciding what a scope service must "
+            "answer. The same body, one layer out."
+        ),
+    ),
+    HarmonisationItem(
         key="uncertainty-transport",
         tier="optional",
         title="How uncertainty travels, dependencies included",
@@ -1153,6 +1204,7 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "status-meaning",
             "anchors",
             "scope-grammar",
+            "scope-query",
         ),
     ),
     NextStep(
