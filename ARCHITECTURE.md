@@ -286,9 +286,10 @@ certificate reports the representation as unavailable rather than publishing som
 that would fail a digest check. Results computed with the software are data; the licence
 restricts distributing the software.
 
-**One difference is real and worth recording.** Four budget lines across the 59
-documents moved by one unit in the last place when the engine changed, which also moved
-the three digests and six signatures that cover them. UncLib computes a budget
+**One difference is real and worth recording.** Four budget lines across the world as it
+then stood -- 59 documents, where the build now dumps 78 -- moved by one unit in the last
+place when the engine changed, which also moved the three digests and six signatures that
+cover them. UncLib computes a budget
 contribution by inverting the dependency matrix, so its rounding depends on the whole
 system; `linprop.py` multiplies the sensitivity by the input's Standard Uncertainty,
 which is the definition. Where they differ this engine is the self-consistent one:
@@ -301,7 +302,7 @@ intermediate value, which the GUM conventions this project follows do not permit
 ### The prose is content, and lives in markdown
 
 The chapter text was string literals inside `chapters.js`, about a hundred and twenty
-paragraphs threaded through 1799 lines of interactive code. Correcting a sentence meant
+paragraphs threaded through some eighteen hundred lines of interactive code. Correcting a sentence meant
 editing JavaScript, which put the words out of reach of everyone except whoever maintains
 that file — an odd property for a demonstration whose purpose is to be read.
 
@@ -334,7 +335,7 @@ literally true, since nothing is generated into the tree and the markdown ships 
 wheel by the same mechanism that ships `app.css`; and editing a file and pressing reload
 is enough, with no restart.
 
-**The renderer is in-repo**, `web/markdown.py`, about two hundred lines. This repository
+**The renderer is in-repo**, `web/markdown.py`, about three hundred lines. This repository
 already does that deliberately for JCS and multibase, for the reasons in the section
 above, and the argument here is the same plus one. A general parser has to be *told* not
 to pass HTML through; this one has no such path, so every character of input is escaped
@@ -951,8 +952,11 @@ signatures, and a status list compressed with a pinned modification time. Two bu
 produce byte-identical documents, which `tests/test_pipeline.py` asserts and
 `--dump` makes diffable.
 
-That holds within an engine. Across the two, 55 of the 59 documents are byte-identical
-and six differ in the four budget values described above; `VCQI_ENGINE=linprop` forces
-the deployed engine on a licensed machine, so the comparison can be made directly.
+That holds within an engine. Across the two, all but a handful of those documents were
+byte-identical and the rest differed in the four budget values described above;
+`VCQI_ENGINE=linprop` forces the deployed engine on a licensed machine, so the comparison
+can be made directly. The exact split is not restated here because it was measured
+against a smaller world and the arithmetic in the earlier wording did not add up -- it
+wants re-running on a licensed machine rather than repairing on paper.
 
 [dcc]: https://www.ptb.de/dcc/

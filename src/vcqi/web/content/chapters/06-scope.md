@@ -32,7 +32,7 @@ Move the sliders. The verdict, and with it the legitimacy of the logo, is decide
 
 The same machinery bounds the legal-metrology branch, and there the bound is a better one. An OIML Issuing Authority may certify a type only against a Recommendation it has been approved for, and a Recommendation is a numbered, edition-controlled document published by somebody else — not a declaration the organisation wrote about itself. Try *Certify a type against a Recommendation nobody approved* in chapter 8: the certificate is signed by a genuinely recognised body and rejected anyway, twice over, because the recognition names both the Recommendation and a schema built from it.
 
-What is still missing is that the schema is this project’s reading of R 46 rather than R 46 speaking for itself. The OIML is working towards machine-readable Recommendations; until then, the bound is only as good as whoever transcribed it. That is the last item in chapter 11.
+What is still missing is that the schema is this project’s reading of R 46 rather than R 46 speaking for itself. The OIML is working towards machine-readable Recommendations; until then, the bound is only as good as whoever transcribed it. That is one of the items in chapter 11.
 
 <!-- block: inside.title -->
 

@@ -1607,6 +1607,12 @@ async function chapterInfrastructure(context) {
         callout([profile.posture]),
         el('div', { class: 'stat-row' }, [
           stat(hosting.onlineCount, 'documents it must keep online'),
+          // Shown only where there is one, because a zero here would read as a
+          // reassurance rather than as the absence of an obligation. The one role that
+          // has a service is the one the chapter's opening claim does not cover.
+          ...(hosting.serviceCount
+            ? [stat(hosting.serviceCount, 'services it must keep answering')]
+            : []),
           stat(role.issuedCount, 'credentials it issued'),
           stat(hosting.travellingCount, 'documents that travel, unhosted'),
         ]),
@@ -1622,22 +1628,43 @@ async function chapterInfrastructure(context) {
       panel(
         t.text('reachable.title'),
         t.text('reachable.hint'),
-        hosting.online.map((group) =>
-          el('div', {}, [
-            el('p', { class: 'muted', text: ONLINE_KIND_LABELS[group.kind] || group.kind }),
-            el(
-              'div',
-              { class: 'chips' },
-              group.urls.map((url) =>
-                el('button', {
-                  class: 'chip',
-                  text: url.replace('https://', ''),
-                  onclick: () => context.inspect(url),
-                })
-              )
-            ),
-          ])
-        )
+        hosting.online
+          .map((group) =>
+            el('div', {}, [
+              el('p', { class: 'muted', text: ONLINE_KIND_LABELS[group.kind] || group.kind }),
+              el(
+                'div',
+                { class: 'chips' },
+                group.urls.map((url) =>
+                  el('button', {
+                    class: 'chip',
+                    text: url.replace('https://', ''),
+                    onclick: () => context.inspect(url),
+                  })
+                )
+              ),
+            ])
+          )
+          .concat(
+            // Listed, and deliberately not clickable. Every address above answers the
+            // same way to anyone who asks; this one answers a question, and there is no
+            // question to put to it from here. Showing it as a chip would suggest
+            // otherwise.
+            hosting.services.length
+              ? [
+                  el('div', {}, [
+                    el('p', { class: 'muted', text: 'Answered on demand, not served' }),
+                    el(
+                      'div',
+                      {},
+                      hosting.services.map((url) =>
+                        el('p', { class: 'endpoint', text: url.replace('https://', '') })
+                      )
+                    ),
+                  ]),
+                ]
+              : []
+          )
       ),
 
       panel(t.text('key.title'), null, [
@@ -1714,7 +1741,15 @@ async function chapterHarmonisation(context) {
   fragment.append(t.prose('the-harder-question'));
 
   const cmc = (context.world.cmcEntries || []).find((entry) => entry.measurand === 'dc.resistance');
-  const scope = (context.world.accreditations || []).find((entry) => entry.measurand === 'dc.resistance');
+  // A CMC entry states its measurand at the top level because it is one row. An
+  // accreditation scope is a table, so its measurands live in the rows -- and when they
+  // moved there, this selector went on looking at the top level, found nothing, and the
+  // second chip stopped being rendered. The panel is about a pair of registers and it
+  // offered one, under a hint that still read "fetch both". Nothing failed, because a
+  // control that is never created cannot fail to respond.
+  const scope = (context.world.accreditations || []).find((entry) =>
+    (entry.rows || []).some((row) => row.measurand === 'dc.resistance')
+  );
 
   fragment.append(
     panel(t.text('one-string.title'), t.text('one-string.hint'), [
