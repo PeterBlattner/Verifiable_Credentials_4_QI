@@ -139,20 +139,45 @@ export function renderGraph(graph, options) {
     path.removeAttribute('class');
   });
 
+  // Two paths per edge over one curve, and the invisible one is the one you click.
+  //
+  // A stroked SVG path is hit-testable along its stroke and nowhere else, so an edge drawn
+  // at 1.6 units in a canvas scaled to the column width offered a target about a pixel
+  // across. Worse for two of the three kinds: issuance is dashed and presentation dotted,
+  // and a dash pattern is not painted in the gaps, so most of those edges were not
+  // clickable at all. That is why missing felt arbitrary rather than merely fiddly.
+  //
+  // So the hit path is solid, wide and transparent, and the visible path is made
+  // click-through in CSS. What you can click is then one shape, following the whole curve,
+  // whatever the edge looks like. The arrowhead stays unclickable whatever we do here --
+  // marker content is drawn from a template in `defs` and never receives pointer events --
+  // which is the other reason the target has to be the line rather than its tip.
   const edgeLayer = svg('g', { class: 'edges' });
   for (const edge of edges) {
     const active = highlight.has(edge.credential);
     const kind = active ? 'active' : edge.kind;
     const dimmed = !inBranch(edge.branch);
-    const path = svg('path', {
-      d: edgePath(edge),
-      class: `edge edge--${edge.kind}${active ? ' edge--active' : ''}${dimmed ? ' edge--dimmed' : ''}`,
-      'marker-end': `url(#arrow-${kind})`,
-      style: 'cursor: pointer',
-      onclick: () => settings.onSelectEdge && settings.onSelectEdge(edge),
-    });
-    path.append(svg('title', {}, `${edge.label} — ${edge.credentialId}`));
-    edgeLayer.append(path);
+    const d = edgePath(edge);
+
+    const group = svg(
+      'g',
+      {
+        class: 'edge-group',
+        onclick: () => settings.onSelectEdge && settings.onSelectEdge(edge),
+      },
+      [
+        svg('path', { class: 'edge-hit', d }),
+        svg('path', {
+          d,
+          class: `edge edge--${edge.kind}${active ? ' edge--active' : ''}${dimmed ? ' edge--dimmed' : ''}`,
+          'marker-end': `url(#arrow-${kind})`,
+        }),
+      ]
+    );
+    // On the group rather than the visible path, so the tooltip is reachable wherever the
+    // edge is clickable instead of only on the line itself.
+    group.append(svg('title', {}, `${edge.label} — ${edge.credentialId}`));
+    edgeLayer.append(group);
   }
 
   const nodeLayer = svg('g', { class: 'nodes' });
@@ -167,8 +192,11 @@ export function renderGraph(graph, options) {
     const group = svg(
       'g',
       {
+        // No `style` attribute here or on an edge. A strict Content-Security-Policy
+        // forbids inline styles, so `cursor: pointer` set that way is dropped by a real
+        // browser and only appears to work under jsdom, which does not enforce it. Both
+        // cursors live in the stylesheet; see ui.js for the same trap written down.
         class: classes.join(' '),
-        style: 'cursor: pointer',
         onclick: () => settings.onSelectNode && settings.onSelectNode(node.id),
       },
       [
