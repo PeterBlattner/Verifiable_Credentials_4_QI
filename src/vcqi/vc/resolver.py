@@ -244,6 +244,20 @@ class DocumentStore:
         """
         return [url for url, value in self._kinds.items() if value == kind]
 
+    def endpoints(self) -> dict[str, str]:
+        """Return every published endpoint and the kind of answer it gives.
+
+        Kept apart from :meth:`contents` because an endpoint is not a document and
+        counting it as one would lose the distinction that matters most about it: a
+        document can be cached, mirrored and archived by anyone holding a copy, and a
+        service can only be reached. Chapter 10 computes a hosting burden from these two
+        numbers and it has to be able to tell them apart.
+
+        Returns:
+            A mapping from base address to the kind its answers carry.
+        """
+        return {url: kind for url, (_, kind) in self._endpoints.items()}
+
     def contents(self) -> dict[str, dict[str, Any]]:
         """Return every published document.
 

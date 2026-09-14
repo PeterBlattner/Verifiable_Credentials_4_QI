@@ -50,8 +50,36 @@ class TestHostingBurden:
             "domain": "nobody.example",
             "online": [],
             "onlineCount": 0,
+            "services": [],
+            "serviceCount": 0,
             "travellingCount": 0,
         }
+
+    def test_a_service_is_counted_apart_from_the_documents(self) -> None:
+        """A document can be cached and archived; a service can only be reached.
+
+        Reporting one burden for both would say a smaller number and hide the only part
+        of it that rises with the number of people checking.
+        """
+        burden = hosting_burden(
+            self.KINDS,
+            "lab.example",
+            services={"https://lab.example/scope/covers": "query-answer"},
+        )
+        assert burden["services"] == ["https://lab.example/scope/covers"]
+        assert burden["serviceCount"] == 1
+        assert "https://lab.example/scope/covers" not in [
+            url for row in burden["online"] for url in row["urls"]
+        ]
+
+    def test_another_organisation_s_service_is_not_counted(self) -> None:
+        """The same rule the documents already follow."""
+        burden = hosting_burden(
+            self.KINDS,
+            "lab.example",
+            services={"https://elsewhere.example/scope/covers": "query-answer"},
+        )
+        assert burden["serviceCount"] == 0
 
     def test_every_profile_names_a_real_actor(self) -> None:
         """A profile for an organisation that does not exist would render as nothing."""

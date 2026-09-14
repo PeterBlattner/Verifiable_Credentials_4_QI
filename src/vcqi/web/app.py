@@ -1599,7 +1599,9 @@ def get_infrastructure() -> dict[str, Any]:
             {
                 "actor": actor.to_json(),
                 "profile": profile.to_json(),
-                "hosting": hosting_burden(kinds, actor.domain),
+                "hosting": hosting_burden(
+                    kinds, actor.domain, services=current.store.endpoints()
+                ),
                 "issuedCount": sum(
                     1
                     for credential in current.credentials.values()

@@ -39,6 +39,19 @@
 // deadline instead of reading the page anyway. page-settled.mjs holds that logic and the
 // reasoning behind it, because chapter-snapshot.mjs needs exactly the same thing.
 //
+// A fifth was added after this harness watched a control disappear and said nothing. A
+// panel in chapter 11 offers one chip per register so a reader can fetch both documents
+// and compare the same free string in each; the accreditation scope stopped publishing
+// that string at the top level, the selector went on looking there, and the second chip
+// was never created. "2 controls, all responded" became "1 control, all responded", which
+// is true and is not the point. Every guard above asks whether what is on the page works.
+// None of them asks whether it is all still there.
+//
+// So MINIMUM_CONTROLS records what each chapter had when it was last known good, and a
+// chapter that renders fewer than that fails. It only fires on a decrease, which is the
+// failure mode: adding a control is normal and raising the floor afterwards is a one-line
+// edit with the reason in the diff. Chapters with none record zero and are exempt.
+//
 // VCQI_SETTLE is gone with the delays it configured; VCQI_READY_TIMEOUT and
 // VCQI_CLICK_TIMEOUT are deadlines.
 
@@ -74,6 +87,27 @@ console.error = (...args) => consoleErrors.push(args.map(String).join(' '));
 
 const contentMissing = [];
 const unsettled = [];
+const shrunk = [];
+
+//: The number of controls each chapter had when it was last known good. A floor, not an
+//: expectation: chapters grow, and only a decrease means something went missing. Raise a
+//: number here in the same commit that adds the control, so the diff says why.
+const MINIMUM_CONTROLS = {
+  cautions: 0,
+  orientation: 0,
+  keys: 8,
+  graph: 4,
+  issuing: 17,
+  verification: 2,
+  scope: 0,
+  traceability: 4,
+  dependencies: 5,
+  break: 23,
+  implications: 0,
+  infrastructure: 15,
+  harmonisation: 2,
+  exchange: 5,
+};
 
 // The bytes the server sends, not the ones on disk: see served-modules.mjs for
 // the failure that distinction let through.
@@ -131,6 +165,12 @@ for (const [index, chapter] of CHAPTERS.entries()) {
   }
 
   const total = stage.querySelectorAll('button').length;
+  const floor = MINIMUM_CONTROLS[chapter.id];
+  if (floor !== undefined && total < floor) {
+    shrunk.push(`${chapter.id}: ${total} controls, expected at least ${floor}`);
+    console.log(`${chapter.id.padEnd(14)} LOST CONTROLS — ${total} of at least ${floor}`);
+  }
+
   const dead = [];
 
   for (let index = 0; index < total; index += 1) {
@@ -174,6 +214,7 @@ const failures = [];
 if (inert) failures.push(`${inert} inert control(s)`);
 if (contentMissing.length) failures.push(`${contentMissing.length} chapter(s) missing content`);
 if (broken.length) failures.push(`${broken.length} chapter(s) failed to render`);
+if (shrunk.length) failures.push(`${shrunk.length} chapter(s) lost controls`);
 if (unsettled.length) failures.push(`${unsettled.length} chapter(s) did not settle`);
 if (consoleErrors.length) failures.push(`${consoleErrors.length} console error(s)`);
 
