@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 from vcqi.crypto.dataintegrity import ProofTrace, sign_document
 from vcqi.crypto.xmldsig import C14N_ALGORITHM, SIGNATURE_ALGORITHM
@@ -46,6 +47,7 @@ from vcqi.domain.dcc import to_dcc_xml
 from vcqi.domain.external_dcc import EXTERNAL_DCC_INDEX, external_dcc_bytes
 from vcqi.domain.gtc_archive import build_gtc_archive
 from vcqi.domain.scope import union_capabilities
+from vcqi.domain.scope_query import CoverageQuestion, answer_coverage
 from vcqi.domain.uncertainty import (
     MeasurementResult,
     evaluate,
@@ -61,6 +63,7 @@ from vcqi.actors.registry import ACTORS, actor_by_did, actor_key, did_document, 
 from vcqi.vc.model import (
     accreditation_scope_credential,
     capability_reference,
+    scope_coverage_answer_credential,
     CREDENTIAL_CONTEXT,
     artefact_document,
     calibration_certificate_credential,
@@ -520,7 +523,6 @@ def _build_schemas(world: World) -> dict[str, dict[str, Any]]:
             schema = test_report_schema(
                 schema_id=schema_id,
                 title=f"Test report within accreditation {scope.identifier}",
-                standard="IEC 60335-1",
             )
         else:
             schema = {
@@ -786,14 +788,95 @@ def _scope_reference(world: World, scope: Any) -> dict[str, Any]:
         scope: The accreditation scope being referenced.
 
     Returns:
-        The reference, pinned by the digest of the signed scope.
+        The reference, pinned by the digest of the signed scope, and carrying the query
+        endpoint when the scope answers questions rather than publishing its table.
     """
     return capability_reference(
         url=scope.url,
         relation="AccreditationScope",
         identifier=scope.identifier,
         credential=world.credentials[f"scope-{scope.identifier.replace(' ', '-')}"],
+        query_endpoint=scope.query_url,
+        query_protocol=(
+            accreditation_registry.QUERY_PROTOCOL if scope.query_url else None
+        ),
     )
+
+
+def _coverage_handler(scope: Any, issuer: dict[str, Any]) -> Any:
+    """Build the thing that answers coverage questions about one testing scope.
+
+    In a deployment this is a request handler at the accreditation body, reading its own
+    register and signing what it says. Here it closes over the rows and signs with the
+    body's key, which is the same arrangement with the network taken out.
+
+    The answer is signed at the world's fixed instant rather than at the clock, for the
+    same reason every other signature here is: two runs of this demonstration have to
+    produce identical bytes, and an answer stamped with the real time would make the one
+    document in the world that could not be diffed.
+
+    Args:
+        scope: The accreditation scope being asked about.
+        issuer: The issuer object for the accreditation body.
+
+    Returns:
+        A handler taking a query string and returning the signed answer, or None when
+        the question is malformed. A register that cannot understand a question must not
+        answer it -- an endpoint that guesses is worse than one that refuses.
+    """
+
+    def handle(query: str) -> dict[str, Any] | None:
+        """Answer one coverage question.
+
+        Args:
+            query: The query string, without a leading ``?``.
+
+        Returns:
+            The signed answer, or None when the question is not well formed.
+        """
+        parameters = parse_qs(query, strict_parsing=False)
+        standards = parameters.get("standard", [])
+        dates = parameters.get("at", [])
+        if len(standards) != 1 or len(dates) != 1:
+            return None
+
+        question = CoverageQuestion(standard=standards[0], at=dates[0])
+        verdict = answer_coverage(scope.test_rows, question)
+        credential = scope_coverage_answer_credential(
+            address=question.address(scope.query_url),
+            scope_url=scope.url,
+            identifier=scope.identifier,
+            protocol=accreditation_registry.QUERY_PROTOCOL,
+            issuer=issuer,
+            question=question.to_json(),
+            answer=verdict.to_json(),
+            answered_at=_stamp(DEMO_NOW),
+        )
+        signed, _ = sign_document(
+            credential, actor_key("did:web:sas.example"), created=DEMO_NOW
+        )
+        return signed
+
+    return handle
+
+
+def _accreditation_query_endpoints(world: World) -> None:
+    """Publish the endpoints that answer questions about testing scopes.
+
+    Args:
+        world: The world being built.
+    """
+    sas = actor_by_did("did:web:sas.example")
+    assert sas is not None
+    issuer = issuer_reference(
+        "did:web:sas.example", sas.legal_name, recognized_in=GLOBAL_ACI_RECOGNITION
+    )
+    for scope in accreditation_registry.ACCREDITATION_SCOPES:
+        if scope.query_url is None:
+            continue
+        world.store.publish_endpoint(
+            scope.query_url, _coverage_handler(scope, issuer), kind="query-answer"
+        )
 
 
 def _recognition_credentials(world: World, schemas: dict[str, dict[str, Any]]) -> None:
@@ -1725,6 +1808,7 @@ def build_world() -> World:
     schemas = _build_schemas(world)
     _status_lists(world)
     _accreditation_scope_credentials(world)
+    _accreditation_query_endpoints(world)
     _recognition_credentials(world, schemas)
     _calibration_certificates(world)
     _shared_reference_pair(world, world.results['metas-calibration'])

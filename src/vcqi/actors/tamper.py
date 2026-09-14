@@ -45,6 +45,7 @@ from vcqi.actors.scenarios import (
     OIML_CERTIFICATE_ISSUED,
     OIML_EVALUATION_ISSUED,
     RECOGNITION_FROM,
+    TESTLAB_ISSUED,
     _dcc_for,
     _callab_result,
     DEMO_NOW,
@@ -735,7 +736,56 @@ def _substituted_scope() -> TamperResult:
     return TamperResult(world, world.credential("callab-calibration"), DEMO_NOW)
 
 
+def _tested_before_accredited() -> TamperResult:
+    """Test against a standard the accreditation did not cover on the day.
+
+    The laboratory tested an appliance against IEC 62368-1 on 6 May 2026 and reports it
+    as accredited work. Its accreditation does cover IEC 62368-1 -- the row entered the
+    scope on 1 July 2026, seven weeks after the testing, and it is in force now.
+
+    Nothing about the report is forged. The signature is the laboratory's own, the
+    equipment is traceable, the accreditation is real and unsuspended, and a verifier
+    asking the register today whether IEC 62368-1 is covered is told yes.
+
+    It is caught because the question carries the date the testing was performed rather
+    than the date of the verification. That is one parameter, and it is the difference
+    between asking whether the laboratory *is* accredited and whether it *was*.
+    """
+    world = build_world()
+    report = copy.deepcopy(world.credential("testlab-report"))
+
+    testing = report["credentialSubject"]["testing"]
+    testing["standard"] = "IEC 62368-1"
+    for result in testing["results"]:
+        result["clause"] = result["clause"].replace("IEC 60335-1", "IEC 62368-1")
+
+    signed = _resign(report, "did:web:testlab.example", TESTLAB_ISSUED)
+    _republish(world, "testlab-report", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
 NEW_CASES: tuple[TamperCase, ...] = (
+    TamperCase(
+        key="tested-before-accredited",
+        title="Test against a standard the scope did not yet cover",
+        group="standing",
+        description=(
+            "The laboratory tested against IEC 62368-1 in May 2026 and reports it as "
+            "accredited work. That standard entered its accreditation in July 2026. "
+            "Signature valid, equipment traceable, accreditation in force and not "
+            "suspended -- and a verifier asking the register today is told it is "
+            "covered."
+        ),
+        expected_step="scope.covered",
+        catches=(
+            "A scope is not a fact, it is a fact with a date. The verifier asks the "
+            "register what the accreditation covered on the day the testing was "
+            "performed, not what it covers now, and the two answers differ here. Ask "
+            "the naive question and this passes: the register answers honestly, about "
+            "the wrong day."
+        ),
+        apply=_tested_before_accredited,
+    ),
     TamperCase(
         key="substituted-scope",
         title="Serve a different accreditation scope at the same address",

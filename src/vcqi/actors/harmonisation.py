@@ -705,12 +705,17 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
         demonstrated=(
             "Chapter 10 measures this without naming it. Verifying one certificate of "
-            "conformity reads 31 distinct documents from 7 hosts. The credential itself "
-            "travels with its holder and is safe. The other 30 - DID documents, "
-            "accreditation scopes, KCDB entries, validation schemas, status lists, and "
-            "the uncertainty representations published by reference rather than inline - "
-            "are fetched from wherever they live, and every one of them is a way for a "
-            "verification to stop working without anything having been tampered with."
+            "conformity reads 32 distinct documents from 7 hosts. The credential itself "
+            "travels with its holder and is safe. The other 31 - DID documents, "
+            "accreditation scopes, KCDB entries, validation schemas, status lists, the "
+            "uncertainty representations published by reference rather than inline, and "
+            "now an answer from a register that publishes no document at all - are "
+            "fetched from wherever they live, and every one of them is a way for a "
+            "verification to stop working without anything having been tampered with. "
+            "The last of those is the sharpest case on this page: a document can be "
+            "archived by anyone who has a copy, and an endpoint cannot be archived at "
+            "all. Sign its answers and the answers become archivable; leave them "
+            "unsigned and the scope check has a shelf life."
         ),
         exists=(
             "Partly, and unevenly. Watchers cache identifier logs. Content addressing "
