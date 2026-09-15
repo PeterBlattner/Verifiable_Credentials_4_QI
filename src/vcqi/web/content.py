@@ -1,6 +1,6 @@
 """Chapter prose, read from markdown files rather than compiled into JavaScript.
 
-The twelve chapters used to carry their text as string literals inside `chapters.js`,
+The chapters used to carry their text as string literals inside `chapters.js`,
 1799 lines of interactive code with about a hundred and twenty paragraphs threaded
 through it. Correcting a sentence meant editing JavaScript, which put it out of reach of
 everyone except whoever maintains the file.

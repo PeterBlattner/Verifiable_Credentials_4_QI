@@ -1135,7 +1135,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         source="",
         consequence=(
             "Recipients fall back to the classical statement and the correlation "
-            "information is lost. Chapter 7 measures what that costs, and the answer is "
+            "information is lost. Chapter 6 measures what that costs, and the answer is "
             "not small."
         ),
         forum="The JCGM would be the natural home, alongside the GUM itself.",

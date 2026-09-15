@@ -1190,6 +1190,115 @@ async function representationPanel(context, certificateName) {
 }
 
 
+const OPERATIONS = [
+  { key: 'difference', label: 'R1 − R2', hint: 'checking two standards against each other' },
+  { key: 'ratio', label: 'R1 / R2', hint: 'a resistance ratio' },
+  { key: 'mean', label: '(R1 + R2) / 2', hint: 'averaging two check standards' },
+];
+
+/**
+ * Combine two certified results, with and without the influences they share.
+ *
+ * Its own chapter until the dependency material was folded in here. It belongs beside the
+ * representations rather than after them: the identifiers the unclib tab promises are only
+ * worth carrying if something can be done with them, and this is the something. Two check
+ * standards from one laboratory, both resting on the same national standard, combined once
+ * from the dependency representations and once from the printed numbers alone.
+ */
+async function combiningPanel(context) {
+  // Prose: web/content/chapters/07-traceability.md
+  const t = context.text('traceability');
+  const fragment = document.createDocumentFragment();
+
+  fragment.append(panel(t.text('combining.title'), null, t.prose('shared-standard')));
+
+  const output = el('div', {});
+  const state = { operation: 'difference' };
+
+  const picker = el(
+    'div',
+    { class: 'chips' },
+    OPERATIONS.map((operation) =>
+      el('button', {
+        class: 'chip',
+        text: operation.label,
+        title: operation.hint,
+        'aria-pressed': String(operation.key === state.operation),
+        onclick: () => {
+          state.operation = operation.key;
+          picker.querySelectorAll('.chip').forEach((chip, index) =>
+            chip.setAttribute('aria-pressed', String(OPERATIONS[index].key === state.operation))
+          );
+          run();
+        },
+      })
+    )
+  );
+
+  async function run() {
+    clear(output).append(el('p', { class: 'spinner', text: 'Combining…' }));
+    const data = await api.combine({ operation: state.operation });
+
+    const understates = data.direction === 'understates';
+    clear(output).append(
+      el('div', { class: 'split' }, [
+        panel(t.text('tracked.title'), t.text('tracked.hint'), [
+          el('div', { class: 'stat__value', text: data.tracked.reported }),
+          el('p', { class: 'muted', text: data.tracked.basis }),
+        ]),
+        panel(t.text('naive.title'), t.text('naive.hint'), [
+          el('div', { class: 'stat__value', text: data.naive.reported }),
+          el('p', { class: 'muted', text: data.naive.basis }),
+        ]),
+      ]),
+      el('div', { class: `verdict verdict--${understates ? 'fail' : 'pass'}` }, [
+        el('div', { class: 'verdict__mark', text: understates ? '!' : '✓' }),
+        el('div', { class: 'verdict__text' }, [
+          el('strong', {
+            text: `Classical reporting ${data.direction} the uncertainty of ${data.expression} by ${data.factor.toFixed(2)}×`,
+          }),
+          el('span', {
+            text: understates
+              ? t.text('optimistic')
+              : `The two results are correlated at r = ${data.correlation.toFixed(3)} because they share ${data.sharedInfluences.length} input quantities. That correlation is recoverable from the dependency representations and from nothing else.`,
+          }),
+        ]),
+      ]),
+      panel(
+        t.text('shared.title'),
+        t.text('shared.hint'),
+        table(
+          ['Identifier', 'Influence'],
+          data.sharedInfluences.map((influence) => [
+            el('span', { class: 'hash', text: influence.id }),
+            influence.description,
+          ])
+        )
+      ),
+      panel(t.text('inputs.title'), null, table(
+        ['Certificate', 'As reported'],
+        data.inputs.map((input) => [
+          el('button', {
+            class: 'chip',
+            text: input.certificate.split('/').pop(),
+            onclick: () => context.inspect(input.certificate),
+          }),
+          input.reported,
+        ])
+      ))
+    );
+  }
+
+  fragment.append(
+    panel(t.text('question.title'), null, picker),
+    output,
+    t.callout('the-cost')
+  );
+
+  await run();
+  return fragment;
+}
+
 async function chapterTraceability(context) {
   // Prose: web/content/chapters/07-traceability.md
   const t = context.text('traceability');
@@ -1250,6 +1359,7 @@ async function chapterTraceability(context) {
   }
 
   fragment.append(await representationPanel(context, 'metas-calibration'));
+  fragment.append(await combiningPanel(context));
 
   const live = el('div', {});
   const state = {
@@ -1335,100 +1445,278 @@ async function chapterTraceability(context) {
 
 // ---------------------------------------------------------------- chapter 7
 
-const OPERATIONS = [
-  { key: 'difference', label: 'R1 − R2', hint: 'checking two standards against each other' },
-  { key: 'ratio', label: 'R1 / R2', hint: 'a resistance ratio' },
-  { key: 'mean', label: '(R1 + R2) / 2', hint: 'averaging two check standards' },
-];
+/**
+ * Draw one editable field as whatever control its kind calls for.
+ *
+ * Numbers and text commit on change rather than on input: a report here runs from twenty
+ * kilobytes to four hundred, and a request per keystroke would be megabytes to say
+ * nothing. Toggles and selects commit immediately, because there is nothing to finish
+ * typing.
+ *
+ * Passing null back means "put it back": a reader who types the pristine value again has
+ * not edited anything, and the page should stop saying they have.
+ */
+function editableField(field, pristine, current, onChange) {
+  const value = current === undefined ? pristine : current;
+  const edited = current !== undefined;
+  let control;
 
-async function chapterDependencies(context) {
-  // Prose: web/content/chapters/08-dependencies.md
-  const t = context.text('dependencies');
+  if (field.kind === 'boolean') {
+    control = el('button', {
+      class: 'action',
+      text: value ? 'asserted' : 'not asserted',
+      'aria-pressed': String(Boolean(value)),
+      onclick: () => onChange(!value === pristine ? null : !value),
+    });
+  } else if (field.kind === 'choice') {
+    control = el(
+      'select',
+      {
+        onchange: (event) =>
+          onChange(event.target.value === String(pristine) ? null : event.target.value),
+      },
+      field.choices.map((choice) =>
+        el('option', { value: choice, selected: choice === value, text: choice })
+      )
+    );
+  } else if (field.kind === 'date') {
+    control = el('input', {
+      type: 'date',
+      value: String(value).slice(0, 10),
+      onchange: (event) =>
+        onChange(
+          event.target.value && event.target.value !== String(pristine).slice(0, 10)
+            ? event.target.value
+            : null
+        ),
+    });
+  } else if (field.kind === 'number') {
+    control = el('input', {
+      type: 'number',
+      // `any` rather than a granularity of its own: a certified value carries every digit
+      // it was computed with, and any step would mark the pristine document invalid.
+      step: 'any',
+      min: field.minimum,
+      max: field.maximum,
+      value: String(value),
+      onchange: (event) => {
+        const raw = Number(event.target.value);
+        onChange(event.target.value === '' || raw === pristine ? null : raw);
+      },
+    });
+  } else {
+    control = el('input', {
+      type: 'text',
+      value: String(value),
+      onchange: (event) =>
+        onChange(event.target.value === String(pristine) ? null : event.target.value),
+    });
+  }
+
+  return el('label', { class: `field${edited ? ' field--edited' : ''}`, title: field.note }, [
+    el('span', { text: field.unit ? `${field.label} (${field.unit})` : field.label }),
+    control,
+  ]);
+}
+
+/** Stage a plausible change to one field, for a reader who would rather not choose one. */
+function perturb(field, pristine) {
+  if (field.kind === 'boolean') return !pristine;
+  if (field.kind === 'choice') {
+    const others = field.choices.filter((choice) => choice !== pristine);
+    return others[Math.floor(Math.random() * others.length)];
+  }
+  if (field.kind === 'date') {
+    const moved = new Date(pristine);
+    moved.setFullYear(moved.getFullYear() - 2 - Math.floor(Math.random() * 4));
+    return moved.toISOString().slice(0, 10);
+  }
+  if (field.kind === 'number') {
+    const factors = [0.1, 0.5, 0.9, 1.1, 2, 100];
+    const moved = pristine === 0
+      // A pristine zero cannot be scaled, and the one field where that happens -- the
+      // frequency the measurement was made at -- is exactly the one where any non-zero
+      // value is the interesting move.
+      ? 10
+      : pristine * factors[Math.floor(Math.random() * factors.length)];
+    const floor = field.minimum === null ? moved : Math.max(field.minimum, moved);
+    return field.maximum === null ? floor : Math.min(field.maximum, floor);
+  }
+  // A digest or an identifier: change one character of it near the end and nothing else.
+  const text = String(pristine);
+  const at = Math.max(0, text.length - 4);
+  return `${text.slice(0, at)}${text[at] === 'x' ? 'y' : 'x'}${text.slice(at + 1)}`;
+}
+
+async function chapterTamper(context) {
+  // Prose: web/content/chapters/08-tamper.md
+  const t = context.text('tamper');
   const fragment = document.createDocumentFragment();
+  fragment.append(t.prose('by-hand'));
 
-  fragment.append(t.prose('shared-standard'));
+  const documents = context.world.editableDocuments || [];
+  const state = { name: documents[0].name, edits: {}, resign: true };
+  const chosen = () => documents.find((item) => item.name === state.name);
 
+  const fields = el('div', { class: 'controls controls--fields' });
+  const staged = el('div', {});
   const output = el('div', {});
-  const state = { operation: 'difference' };
 
   const picker = el(
     'div',
     { class: 'chips' },
-    OPERATIONS.map((operation) =>
+    documents.map((item) =>
       el('button', {
         class: 'chip',
-        text: operation.label,
-        title: operation.hint,
-        'aria-pressed': String(operation.key === state.operation),
+        text: item.title,
+        title: item.type,
+        'aria-pressed': String(item.name === state.name),
         onclick: () => {
-          state.operation = operation.key;
+          state.name = item.name;
+          state.edits = {};
           picker.querySelectorAll('.chip').forEach((chip, index) =>
-            chip.setAttribute('aria-pressed', String(OPERATIONS[index].key === state.operation))
+            chip.setAttribute('aria-pressed', String(documents[index].name === state.name))
           );
+          drawFields();
           run();
         },
       })
     )
   );
 
-  async function run() {
-    clear(output).append(el('p', { class: 'spinner', text: 'Combining…' }));
-    const data = await api.combine({ operation: state.operation });
+  function stage(field, value) {
+    if (value === null) delete state.edits[field.key];
+    else state.edits[field.key] = value;
+    drawFields();
+    drawStaged();
+  }
 
-    const understates = data.direction === 'understates';
-    clear(output).append(
-      el('div', { class: 'split' }, [
-        panel(t.text('tracked.title'), t.text('tracked.hint'), [
-          el('div', { class: 'stat__value', text: data.tracked.reported }),
-          el('p', { class: 'muted', text: data.tracked.basis }),
-        ]),
-        panel(t.text('naive.title'), t.text('naive.hint'), [
-          el('div', { class: 'stat__value', text: data.naive.reported }),
-          el('p', { class: 'muted', text: data.naive.basis }),
-        ]),
-      ]),
-      el('div', { class: `verdict verdict--${understates ? 'fail' : 'pass'}` }, [
-        el('div', { class: 'verdict__mark', text: understates ? '!' : '✓' }),
-        el('div', { class: 'verdict__text' }, [
-          el('strong', {
-            text: `Classical reporting ${data.direction} the uncertainty of ${data.expression} by ${data.factor.toFixed(2)}×`,
-          }),
-          el('span', {
-            text: understates
-              ? t.text('optimistic')
-              : `The two results are correlated at r = ${data.correlation.toFixed(3)} because they share ${data.sharedInfluences.length} input quantities. That correlation is recoverable from the dependency representations and from nothing else.`,
-          }),
-        ]),
-      ]),
-      panel(
-        t.text('shared.title'),
-        t.text('shared.hint'),
-        table(
-          ['Identifier', 'Influence'],
-          data.sharedInfluences.map((influence) => [
-            el('span', { class: 'hash', text: influence.id }),
-            influence.description,
-          ])
+  function drawFields() {
+    const item = chosen();
+    clear(fields).append(
+      ...item.fields.map((field) =>
+        editableField(field, item.pristine[field.key], state.edits[field.key], (value) =>
+          stage(field, value)
         )
-      ),
-      panel(t.text('inputs.title'), null, table(
-        ['Certificate', 'As reported'],
-        data.inputs.map((input) => [
-          el('button', {
-            class: 'chip',
-            text: input.certificate.split('/').pop(),
-            onclick: () => context.inspect(input.certificate),
-          }),
-          input.reported,
-        ])
-      ))
+      )
     );
   }
 
+  // Changing a field does not verify. The gap between editing and running is the point of
+  // the chapter -- a document is wrong the moment it is written and stays wrong until
+  // somebody checks -- so what an edit does immediately is say what is now pending.
+  function drawStaged() {
+    const item = chosen();
+    const pending = item.fields.filter((field) => field.key in state.edits);
+    clear(staged);
+    if (!pending.length) return;
+    staged.append(
+      el('p', {
+        class: 'muted',
+        text:
+          `Not verified yet: ${pending.map((field) => field.label).join(', ')}. ` +
+          `Press "Verify it" to run the pipeline over the document you just wrote.`,
+      }),
+      el('p', { class: 'muted', text: pending[pending.length - 1].note })
+    );
+  }
+
+  async function run() {
+    clear(staged);
+    clear(output).append(el('p', { class: 'spinner', text: 'Verifying the document you wrote…' }));
+    const result = await api.edit({
+      document: state.name,
+      edits: state.edits,
+      resign: state.resign,
+    });
+
+    const caught = result.caughtByExpectedStep;
+    const said = [];
+    if (result.applied.length) {
+      said.push(
+        panel(t.text('changed.title'), null, table(
+          ['Field', 'Was', 'Is now'],
+          result.applied.map((change) => [
+            el('span', {}, [change.label, el('div', { class: 'muted', text: change.path })]),
+            el('span', { class: 'hash', text: String(change.from) }),
+            el('span', { class: 'hash', text: String(change.to) }),
+          ])
+        )),
+        keyValues([
+          [
+            'Signed again by the issuer',
+            badge(
+              result.resigned ? 'pass' : 'skip',
+              result.resigned ? 'yes, so the proof is genuine' : 'no, so the proof is stale'
+            ),
+          ],
+          [
+            'Expected to be caught by',
+            el('code', {
+              text: result.expectedSteps.join(', ') || 'nothing — this one is not checked',
+            }),
+          ],
+          ['Actually failed at', el('code', { text: result.failedSteps.join(', ') || 'nothing' })],
+          [
+            'Outcome',
+            caught === null
+              ? badge('warn', 'nothing was expected to catch it, and nothing did')
+              : badge(caught ? 'pass' : 'fail', caught ? 'caught as expected' : 'not caught'),
+          ],
+        ])
+      );
+    }
+
+    clear(output).append(
+      ...said,
+      verdictBanner(result.report),
+      stepTree(result.report.steps, 0)
+    );
+  }
+
+  const actions = el('div', { class: 'controls' }, [
+    el('button', {
+      class: 'action',
+      text: 'Change one at random',
+      onclick: () => {
+        // Only fields something is supposed to catch. A random pick landing on one of the
+        // three that nothing checks would read as the page failing rather than as the
+        // lesson those three exist to teach.
+        const candidates = chosen().fields.filter((field) => field.expectedStep);
+        const field = candidates[Math.floor(Math.random() * candidates.length)];
+        stage(field, perturb(field, chosen().pristine[field.key]));
+      },
+    }),
+    el('button', { class: 'action action--primary', text: 'Verify it', onclick: () => run() }),
+    el('button', {
+      class: 'action',
+      text: 'Put it back',
+      onclick: () => {
+        state.edits = {};
+        drawFields();
+        run();
+      },
+    }),
+    el('button', {
+      class: 'action',
+      text: 'The issuer signs it again',
+      'aria-pressed': String(state.resign),
+      onclick: (event) => {
+        state.resign = !state.resign;
+        event.currentTarget.setAttribute('aria-pressed', String(state.resign));
+        run();
+      },
+    }),
+  ]);
+
+  drawFields();
   fragment.append(
-    panel(t.text('question.title'), null, picker),
+    panel(t.text('document.title'), t.text('document.hint'), picker),
+    panel(t.text('fields.title'), t.text('fields.hint'), [fields, actions, staged]),
+    t.callout('resign.note'),
     output,
-    t.callout('the-cost')
+    t.callout('inert-note'),
+    t.callout('catalogue-next')
   );
 
   await run();
@@ -2179,9 +2467,9 @@ export const CHAPTERS = [
     render: chapterTraceability,
   },
   {
-    // Heading text comes from web/content/chapters/08-dependencies.md
-    id: 'dependencies',
-    render: chapterDependencies,
+    // Heading text comes from web/content/chapters/08-tamper.md
+    id: 'tamper',
+    render: chapterTamper,
   },
   {
     // Heading text comes from web/content/chapters/09-break.md

@@ -24,7 +24,7 @@ Every chapter is here.
 | 4 | Verification and recognition discovery | [`05-verification.md`](src/vcqi/web/content/chapters/05-verification.md) |
 | 5 | The CMC decides the logo | [`06-scope.md`](src/vcqi/web/content/chapters/06-scope.md) |
 | 6 | Traceability and uncertainty | [`07-traceability.md`](src/vcqi/web/content/chapters/07-traceability.md) |
-| 7 | Why the dependencies matter | [`08-dependencies.md`](src/vcqi/web/content/chapters/08-dependencies.md) |
+| 7 | Break it yourself | [`08-tamper.md`](src/vcqi/web/content/chapters/08-tamper.md) |
 | 8 | Break it | [`09-break.md`](src/vcqi/web/content/chapters/09-break.md) |
 | 9 | What this would mean in practice | [`10-implications.md`](src/vcqi/web/content/chapters/10-implications.md) |
 | 10 | What it would take to run | [`11-infrastructure.md`](src/vcqi/web/content/chapters/11-infrastructure.md) |

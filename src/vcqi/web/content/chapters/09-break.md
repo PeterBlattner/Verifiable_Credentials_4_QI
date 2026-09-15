@@ -9,7 +9,12 @@
      The twenty-three cases themselves -- their titles, what each one does and the check it
      is meant to trip -- are in src/vcqi/actors/tamper.py. They are records rather than
      prose, and the verifier reads the same records, so moving them here would split one
-     fact across two files. Only the three group headings and their notes are here. -->
+     fact across two files. Only the three group headings and their notes are here.
+
+     The chapter before this one is the same argument with the reader's hand on the
+     document. What earns this one its own chapter is that most of these cases change the
+     world around the certificate rather than the certificate, which editing one document
+     cannot do. -->
 
 <!-- block: title -->
 
@@ -26,6 +31,8 @@ Twenty-three ways this can go wrong, and the check that catches each. The intere
 <!-- block: why-break-it -->
 
 A demonstration where everything always passes teaches very little. Each case below is a specific thing that can go wrong, and each names in advance the single check that is supposed to notice it.
+
+The previous chapter put the document in your hands. These go further than one document can: an accreditation suspended after the certificate was issued, a schema loosened after recognition was granted, a parent certificate reissued after it had been referenced. None of those is a change to the certificate being presented, and none of them could be made by editing it.
 
 The third group is the one worth dwelling on. In every case there, the signature is valid, the issuer is genuinely recognised, and the document is inside its validity period.
 

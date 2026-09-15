@@ -39,6 +39,12 @@ from pydantic import BaseModel, Field
 from starlette.middleware.gzip import GZipMiddleware
 
 from vcqi.actors.deployment import DEPLOYMENT_PROFILES, host_of, hosting_burden
+from vcqi.actors.edit import (
+    EDITABLE_DOCUMENTS,
+    apply_edits,
+    fields_for,
+    read_path,
+)
 from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS
 from vcqi.actors.exchange import (
     EXCHANGE_TTL_SECONDS,
@@ -51,7 +57,13 @@ from vcqi.actors.exchange import (
     workflow_by_id,
 )
 from vcqi.actors.portability import PORTABILITY_CLASSES, portability_audit
-from vcqi.actors.registry import ACTORS, TRUST_ANCHORS, actor_by_did, did_document
+from vcqi.actors.registry import (
+    ACTORS,
+    TRUST_ANCHORS,
+    actor_by_did,
+    actor_key,
+    did_document,
+)
 from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
 from vcqi.config import (
@@ -528,12 +540,11 @@ def get_world() -> dict[str, Any]:
     current = world()
     credentials = []
     for name, credential in current.credentials.items():
-        types = [t for t in credential_types(credential) if t != "VerifiableCredential"]
         credentials.append(
             {
                 "name": name,
                 "id": credential["id"],
-                "type": types[0] if types else "VerifiableCredential",
+                "type": _most_specific_type_of(credential),
                 "title": credential.get("name") or credential.get("description", name),
                 "issuer": issuer_id(credential),
                 "validFrom": credential.get("validFrom"),
@@ -547,6 +558,7 @@ def get_world() -> dict[str, Any]:
         "cmcEntries": [entry.to_json() for entry in CMC_ENTRIES],
         "accreditations": [scope.to_json() for scope in ACCREDITATION_SCOPES],
         "tamperCases": [case.to_json() for case in TAMPER_CASES],
+        "editableDocuments": _editable_documents(),
         "demoNow": DEMO_NOW.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "documentCount": len(current.store.contents()),
     }
@@ -802,6 +814,145 @@ def post_tamper(key: str) -> dict[str, Any]:
         "report": report.to_json(),
         "caughtByExpectedStep": case.expected_step in failures,
         "failedSteps": failures,
+    }
+
+
+def _editable_documents() -> list[dict[str, Any]]:
+    """Return the documents a reader may edit, with their fields and pristine values.
+
+    Carried in the world payload rather than fetched separately, because the interface
+    already has that payload before it renders anything and the catalogue is small. The
+    pristine values are sent so that resetting a field, and telling whether a field has
+    been touched at all, are answered in the browser instead of by a round trip.
+
+    Returns:
+        One entry per document, in the order the chapter offers them.
+    """
+    current = world()
+    documents = []
+    for name in EDITABLE_DOCUMENTS:
+        credential = current.credential(name)
+        fields = fields_for(name)
+        documents.append(
+            {
+                "name": name,
+                "title": credential.get("name") or credential.get("description", name),
+                "type": _most_specific_type_of(credential),
+                "fields": [field.to_json() for field in fields],
+                "pristine": {
+                    field.key: read_path(credential, field.path) for field in fields
+                },
+            }
+        )
+    return documents
+
+
+def _most_specific_type_of(credential: dict[str, Any]) -> str:
+    """Name a credential by the most specific type it declares.
+
+    Args:
+        credential: The credential.
+
+    Returns:
+        The type, or ``VerifiableCredential`` when it declares nothing else.
+    """
+    types = [t for t in credential_types(credential) if t != "VerifiableCredential"]
+    return types[0] if types else "VerifiableCredential"
+
+
+class EditRequest(BaseModel):
+    """A request to change a document by hand and verify the result.
+
+    Attributes:
+        document: Short name of the credential to start from.
+        edits: Submitted values, keyed by the field identifiers the catalogue publishes.
+        resign: Whether the issuer signs the changed document again.
+        when: The instant to verify against, as an ISO 8601 timestamp.
+    """
+
+    document: str
+    edits: dict[str, Any] = Field(default_factory=dict)
+    resign: bool = True
+    when: str | None = None
+
+
+@app.post("/api/edit")
+def post_edit(request: EditRequest) -> dict[str, Any]:
+    """Apply a reader's edits to one document and verify what comes out.
+
+    The other half of ``/api/tamper``. There the change is one somebody else chose; here
+    it is the reader's own, which is the whole of what this adds -- and it is bounded, in
+    both senses that matter. Only fields the catalogue names may be written, so this is
+    "change this stated value and sign it again" rather than "rewrite any member of any
+    document and have a national metrology institute sign the result". And the edits are
+    applied to a copy: nothing is published, the world is not rebuilt, and the pristine
+    document is still served at the address this one claims. The reader is playing a
+    holder presenting an altered copy, and no step compares the two.
+
+    Signing again is offered because without it every edit dies at ``proof`` and the
+    interesting half of the pipeline is never reached. It is not a new capability: every
+    key here comes from a seed published in this repository, so a signature by any of
+    these issuers is something a reader could already produce for themselves.
+
+    Args:
+        request: Which document, which edits, and whether to sign it again.
+
+    Returns:
+        What actually changed, the resulting document, the full report, and the checks
+        the changed fields were expected to reach beside the ones that failed.
+
+    Raises:
+        HTTPException: If the document is not one of the editable ones, a key names no
+            field of it, or a value cannot be read as the kind its field declares.
+    """
+    if request.document not in EDITABLE_DOCUMENTS:
+        raise HTTPException(
+            status_code=404, detail=f"{request.document} is not a document you can edit"
+        )
+
+    current = world()
+    credential = copy.deepcopy(current.credential(request.document))
+    try:
+        changes = apply_edits(credential, request.edits, document=request.document)
+    except KeyError as error:
+        raise HTTPException(status_code=400, detail=str(error.args[0])) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    if request.resign:
+        # As the issuer the document now names, which is the point when that is what was
+        # edited: anybody can sign anything, and a valid signature by an unrecognised
+        # party proves only that the party exists.
+        credential, _ = sign_document(
+            credential, actor_key(issuer_id(credential)), created=DEMO_NOW
+        )
+
+    report = verify_credential(
+        credential,
+        store=current.store,
+        now=_parse_when(request.when),
+        trusted_issuers=TRUST_ANCHORS,
+    )
+    failures = [step.id for step in report.failures]
+    expected = [
+        field.expected_step
+        for field in fields_for(request.document)
+        if field.key in {change.key for change in changes} and field.expected_step
+    ]
+    return {
+        "document": request.document,
+        "applied": [change.to_json() for change in changes],
+        "credential": credential,
+        "resigned": request.resign,
+        "report": report.to_json(),
+        "failedSteps": failures,
+        "expectedSteps": expected,
+        # None rather than False when nothing was predicted: a field that is here because
+        # nothing catches it has no expectation to meet, and reporting that as a miss
+        # would be the opposite of what it demonstrates.
+        "caughtByExpectedStep": (
+            all(step in failures for step in expected) if expected else None
+        ),
     }
 
 
