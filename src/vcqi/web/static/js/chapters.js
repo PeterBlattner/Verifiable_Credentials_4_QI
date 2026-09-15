@@ -547,6 +547,7 @@ async function chapterIssuing(context) {
   fragment.append(t.prose('canonicalization'));
 
   const holder = el('div', {});
+  const noteHolder = el('div', {});
   const picker = el(
     'div',
     { class: 'chips' },
@@ -564,7 +565,40 @@ async function chapterIssuing(context) {
     )
   );
 
+  // One note per document, so that a chip says what it picked. Written out rather than
+  // looped over MAIN_CREDENTIALS because tests/test_content.py requires every content key
+  // to be a literal string a regex can find; tests/test_web.py checks the keys here
+  // against CREDENTIAL_LABELS, so a document cannot get a chip and no note.
+  const NOTES = {
+    'bipm-recognition': t.callout('doc.bipm-recognition'),
+    'global-aci-recognition': t.callout('doc.global-aci-recognition'),
+    'sas-recognition': t.callout('doc.sas-recognition'),
+    'scope-SCS-0123': t.callout('doc.scope-scs-0123'),
+    'scope-STS-0456': t.callout('doc.scope-sts-0456'),
+    'scope-SCESp-0789': t.callout('doc.scope-scesp-0789'),
+    'metas-calibration': t.callout('doc.metas-calibration'),
+    'callab-calibration': t.callout('doc.callab-calibration'),
+    'metas-SR10K-0091': t.callout('doc.metas-check-a'),
+    'metas-SR10K-0092': t.callout('doc.metas-check-b'),
+    'metas-external-dcc': t.callout('doc.metas-external-dcc'),
+    'testlab-report': t.callout('doc.testlab-report'),
+    'cab-conformity': t.callout('doc.cab-conformity'),
+    'oiml-ia-recognition': t.callout('doc.oiml-ia-recognition'),
+    'oiml-tl-recognition': t.callout('doc.oiml-tl-recognition'),
+    'oiml-evaluation': t.callout('doc.oiml-evaluation'),
+    'oiml-certificate': t.callout('doc.oiml-certificate'),
+  };
+  // A callout is the page's way of saying "careful"; this one is saying "this is what
+  // you picked", so it takes the quiet variant.
+  for (const note of Object.values(NOTES)) note.classList.add('callout--quiet');
+
   async function show(name) {
+    // Before the await, and cleared whether or not there is a note to put back: the
+    // failure worth designing against is the box quietly keeping the previous
+    // document's explanation, which reads as an answer. Spread rather than a bare
+    // lookup because this is the native append, which would write the string
+    // "undefined" for a missing key.
+    clear(noteHolder).append(...(NOTES[name] ? [NOTES[name]] : []));
     clear(holder).append(el('p', { class: 'spinner', text: 'Signing…' }));
     const data = await api.credential(name);
     const trace = data.trace;
@@ -592,7 +626,7 @@ async function chapterIssuing(context) {
     );
   }
 
-  fragment.append(picker, holder, t.prose('what-is-signed'));
+  fragment.append(picker, noteHolder, holder, t.prose('what-is-signed'));
   await show('metas-calibration');
   return fragment;
 }

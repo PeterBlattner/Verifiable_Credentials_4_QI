@@ -74,6 +74,33 @@ def test_every_credential_has_a_label_in_the_interface(client: TestClient) -> No
     assert not labelled - served, f"chapters.js labels a credential nobody issues: {sorted(labelled - served)}"
 
 
+def test_every_credential_has_a_note_under_the_picker() -> None:
+    """A chip with no note would show the previous document's explanation.
+
+    Chapter 3's picker draws a chip per ``CREDENTIAL_LABELS`` key and ``chapterIssuing``
+    keeps a note per key beside it. The two are written out separately -- they have to
+    be, since content keys must be literal strings -- so nothing but this stops one
+    growing an entry the other does not have. The failure is quiet: the box simply keeps
+    whatever it was showing before, which reads as an answer rather than as a gap.
+
+    ``tests/test_content.py`` covers the other half, that every ``doc.*`` key here has a
+    block in ``04-issuing.md`` and that no block goes unrendered.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    labels = re.search(r"const CREDENTIAL_LABELS = \{(.*?)^\};", source, re.DOTALL | re.MULTILINE)
+    assert labels, "could not find CREDENTIAL_LABELS in chapters.js"
+    labelled = set(re.findall(r"^  '([a-zA-Z0-9-]+)':", labels.group(1), re.MULTILINE))
+
+    # Indented one level further than CREDENTIAL_LABELS: the map lives inside
+    # chapterIssuing, because `t` does not exist at module scope.
+    notes = re.search(r"const NOTES = \{(.*?)^  \};", source, re.DOTALL | re.MULTILINE)
+    assert notes, "could not find the NOTES map in chapterIssuing"
+    noted = set(re.findall(r"^    '([a-zA-Z0-9-]+)':", notes.group(1), re.MULTILINE))
+
+    assert not labelled - noted, f"no note under the picker for: {sorted(labelled - noted)}"
+    assert not noted - labelled, f"a note for a document with no chip: {sorted(noted - labelled)}"
+
+
 def test_the_one_string_panel_finds_both_registers(client: TestClient) -> None:
     """Chapter 11's clearest example is a pair, and half of it vanished silently.
 
