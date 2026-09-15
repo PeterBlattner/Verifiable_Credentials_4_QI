@@ -103,7 +103,9 @@ you are not left hunting:
 - **Labels on buttons, sliders and options.** They are short and tied to the code that
   reads them.
 - **The names and descriptions of the organisations, certificates and failure cases.**
-  Those are data rather than prose; they live in `src/vcqi/actors/`.
+  Those are data rather than prose; they live in `src/vcqi/actors/`. The one exception is
+  the short note under each chip in chapter 3, which *is* prose: those are the `doc.`
+  blocks in `chapters/04-issuing.md` and you can edit them like any other.
 - **The deployment, harmonisation and portability tables** behind chapters 10, 11 and 12,
   for the same reason — they are records with many fields, which a markdown file
   expresses badly.

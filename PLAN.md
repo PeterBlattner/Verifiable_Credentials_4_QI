@@ -3427,3 +3427,80 @@ and were corrected while the numbering was being audited.
 Branch `feature/break-it-by-hand`, one commit into `develop`. One commit rather than two:
 the slot only balances once both halves land, so a split would leave an intermediate commit
 whose prose was wrong.
+
+# Change set 21 - a note under every chip
+
+## Context
+
+Chapter 3 opens with seventeen chips, one per document, and shows the signing steps for
+whichever is picked. The chips carried a label and nothing else, and two of them read
+
+    Calibration certificate METAS-2026-0418 (check standard A)
+    Calibration certificate METAS-2026-0419 (check standard B)
+
+with no way at all to tell what separates them. It is a real distinction and it is the
+one the demonstration leans on hardest later: both resistors were compared against the
+*same* national standard, which is exactly why chapter 6 can show a shared influence
+cancelling in a difference. Nothing on the page said so. Fifteen other documents had the
+same problem less acutely - for several of them the chip is the only place they are ever
+named.
+
+So: a box under the picker, one short note per document, changing with the selection.
+
+## Decisions taken
+
+**The sentences are content, not code.** `CREDENTIAL_LABELS` lives in `chapters.js` and
+the notes pair with it one for one, which argued for putting them beside it. They are
+prose, though, and the whole point of the content layer is that prose can be corrected
+through the GitHub pencil. They went into `04-issuing.md` as a `doc.` group.
+
+**Written out, seventeen times.** `tests/test_content.py` requires every content key to
+be a literal string a regex can find, so a computed key is not available - it would make
+the static checks unsound in both directions. Same shape and same reason as
+the five `panel(...)` calls in `chapterCautions`.
+
+**Chapter 4 does not get one.** Its document `<select>` is built from the same
+`MAIN_CREDENTIALS`, so it was tempting. `referenced_keys()` attributes a key to the
+nearest preceding `context.text(...)` binding, so reading `issuing` blocks from
+`chapterVerification` would misattribute that chapter's own keys and quietly break the
+coverage checks for both. Not worth it for a chapter that already names its documents in
+prose.
+
+**A quiet callout.** There was one callout style, an accent rule on a tinted ground, and
+it means "careful". A description that appears on every click should not. `.callout--quiet`
+restates two tokens; both already exist in the dark block, so the theme needed nothing.
+
+**The note is cleared before the await, not with the panels.** It started out inside the
+holder the panels are rebuilt in, which meant it blanked for the length of the signing
+round trip. It has its own slot now and is cleared unconditionally - the failure worth
+designing against is the box keeping the previous document's explanation, because that
+reads as an answer rather than as a gap.
+
+## Change
+
+- `content/chapters/04-issuing.md` - seventeen `doc.` blocks, in chip order, between
+  `canonicalization` and `claims.title`. The file's opening comment says what they are.
+- `chapters.js` - `NOTES` in `chapterIssuing`, `noteHolder` between the picker and the
+  panels, the quiet class applied in one pass over the map.
+- `app.css` - `.callout--quiet`.
+- `tests/test_web.py` - `test_every_credential_has_a_note_under_the_picker`, the companion
+  to the label test directly above it. `test_content.py` already covers the other half,
+  that every `doc.` key has a block and no block goes unrendered.
+- `content/README.md` - the "what is not here" list said certificate descriptions are data
+  in `src/vcqi/actors/`. Amended, because one kind of them no longer is.
+
+## Verification
+
+- 622 pass, 46 skipped - one more than before, the new one.
+- `tools/ui-clicks.mjs`: every control on all fourteen chapters responds. Issuing stays at
+  seventeen controls, so its floor in `MINIMUM_CONTROLS` did not move - the note is a div,
+  not a button.
+- A jsdom pass clicking all seventeen chips in turn: seventeen distinct notes, the right
+  one under each label, no `console.warn`, no `console.error`, no `.content-missing`.
+- The break, done on purpose: renaming `doc.metas-check-b` in the markdown and reloading
+  put `[missing content: issuing/doc.metas-check-b]` in the box and left the other sixteen
+  notes and the whole chapter working. Restored afterwards.
+
+## Git
+
+Branch `feature/document-notes-in-issuing`, one commit, into `develop`.

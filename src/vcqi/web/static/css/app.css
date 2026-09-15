@@ -619,6 +619,14 @@ svg.graph { display: block; width: 100%; height: auto; }
 .callout p { margin: 0; max-width: 76ch; }
 .callout p + p { margin-top: 8px; }
 
+/* A callout that describes rather than warns. The accent rule is how the page says
+   "careful"; the note under a picker is saying "this is what you picked", and one of
+   those appears on every click. */
+.callout--quiet {
+  border-left-color: var(--rule-strong);
+  background: var(--paper-raised);
+}
+
 .muted { color: var(--ink-faint); font-size: 12px; }
 
 /* An address that answers a question rather than serving a document. Set like the other
