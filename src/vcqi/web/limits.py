@@ -163,12 +163,18 @@ class BodySizeLimitMiddleware:
 def route_cost(path: str) -> int:
     """Return how many tokens a path costs.
 
-    The test is not "how much work is this" but "can the caller raise it". Three routes
+    The test is not "how much work is this" but "can the caller raise it". Four routes
     can. ``/api/keys/*`` performs scalar multiplications on caller-supplied numbers,
     ``/api/verify`` runs the whole pipeline over a credential the caller wrote, whose
     size and nesting are theirs to choose, and a POST to an exchange runs that same
     pipeline over every credential in a presentation the caller composed -- which is
     ``/api/verify`` again with the count of credentials also in the caller's hands.
+
+    ``/api/edit`` is the odd one and is charged anyway. Its shape is not the caller's:
+    the document comes from a fixed list and only named fields may be written, so the
+    body is small and bounded. What it does is a signature and then the whole pipeline,
+    and the signature is the expensive half -- so it costs what ``/api/verify`` costs
+    plus the work of signing, and a reader presses it a few times a minute.
 
     Opening an exchange is charged too, and for a different reason. It costs almost
     nothing to serve and it allocates state that lives for fifteen minutes, so the thing
@@ -193,6 +199,8 @@ def route_cost(path: str) -> int:
     if path.startswith("/api/keys/"):
         return 5
     if path.startswith("/api/verify"):
+        return 3
+    if path.startswith("/api/edit"):
         return 3
     if path.startswith("/workflows/"):
         # ".../exchanges" opens one; ".../exchanges/{id}" takes a turn, and only the

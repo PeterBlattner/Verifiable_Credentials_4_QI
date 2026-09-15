@@ -56,8 +56,8 @@ function buildRail(activeId) {
   clear(nav);
   // The rail number is the chapter's position among the *numbered* chapters, not its
   // index in the array. An unnumbered entry -- the cautions, which come first -- carries
-  // a marker, so adding one does not renumber the eleven chapters the prose refers to
-  // by number.
+  // a marker, so adding one does not renumber the thirteen chapters the prose refers
+  // to by number.
   const numbered = CHAPTERS.filter((chapter) => !chapter.unnumbered);
   CHAPTERS.forEach((chapter) => {
     nav.append(

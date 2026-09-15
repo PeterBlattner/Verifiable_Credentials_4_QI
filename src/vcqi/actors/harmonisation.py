@@ -1024,7 +1024,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "upper bound, and a nominal with a tolerance. Two of the rows are identical "
             "except for the frequency band they were demonstrated over, and they carry "
             "different capabilities. Chapter 5 shows the verifier choosing among them, "
-            "and chapter 8 has the certificate that is refused because no row covers "
+            "and chapter 7 has the certificate that is refused because no row covers "
             "the frequency it was measured at.\n\nThe shapes are taken from a published "
             "calibration scope; the numbers are invented. So is the tolerance that "
             "decides whether a reading of 19,2003 ohm is the 19,2 ohm fixed value -- no "
@@ -1135,7 +1135,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         source="",
         consequence=(
             "Recipients fall back to the classical statement and the correlation "
-            "information is lost. Chapter 7 measures what that costs, and the answer is "
+            "information is lost. Chapter 6 measures what that costs, and the answer is "
             "not small."
         ),
         forum="The JCGM would be the natural home, alongside the GUM itself.",

@@ -359,7 +359,15 @@ change.
 sentence or a heading; leave it if it is a label, a unit, an option name or a value. So
 button text, slider labels, `stat()` captions and the `triangle()` SVG strings stay.
 Chapter *order* stays too, because the prose says "chapter 5" and "the next chapter" in
-several places and letting an editor reorder chapters would silently break those. The
+several places and letting an editor reorder chapters would silently break those. It has
+been changed twice, deliberately and to a rule, and the two changes are the two shapes
+such a change is allowed to take. The dependencies chapter was folded into traceability and
+the failure pair took the slot it left, so the count never moved and one editorial string
+pointing at the chapter that went away was corrected with it -- net zero. Then the pair was
+reordered so the catalogue comes before the hands-on chapter, which is not net zero: nothing
+from 9 upward moved, but 7 and 8 both changed meaning, and the five by-number references
+resolving to them were swept. Net zero, or a sweep -- there is no third option, and no test
+would catch a change that took neither. The
 long editorial fields in `actors/deployment.py` and `actors/harmonisation.py` also stay:
 they are records of nine correlated fields per item, which a markdown file expresses
 badly, and `test_web.py` asserts that one of them names the cryptosuite the
@@ -919,6 +927,21 @@ reader rather than an attacker. `main()` runs one worker with a bounded thread p
 a concurrency limit, so a burst queues instead of thrashing. What is knowingly left
 uncovered is distributed flooding, which a per-process bucket cannot address; there is no
 data and no secret behind this, so the worst case is that the demonstration is slow.
+
+`/api/edit` signs with a key the caller does *not* supply, which is a different shape and
+wants its own sentence. It re-signs an edited certificate as the organisation the document
+names, which is what makes chapter 8 worth having: without it every edit dies at `proof`
+and the half of the pipeline the demonstration exists to argue for is never reached. The
+same argument covers it -- every key here comes from the seed published in `config.py`, so
+a signature by METAS's demonstration key is something a reader could already produce for
+themselves, and the route is an oracle for nothing.
+
+What that argument does *not* cover is shape, so the route does not take one. The document
+comes from a fixed list of five and only fields named in `actors/edit.py` may be written,
+each coerced and bounds-checked against the kind its catalogue entry declares. The
+pipeline therefore never walks a document the caller composed, which is precisely what
+`/api/verify` does and is charged three tokens for; `/api/edit` is charged the same,
+because it does that work plus a signature.
 
 The non-constant-time arithmetic stays as it is. It is the teaching material, and a
 timing side channel on a key published in `config.py` is not a finding.

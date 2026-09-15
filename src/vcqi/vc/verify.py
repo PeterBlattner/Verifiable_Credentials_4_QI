@@ -40,7 +40,7 @@ import math
 import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, Final
 
 from jsonschema import Draft202012Validator
 
@@ -1090,6 +1090,75 @@ def _step_action(
     )
 
 
+#: Longest schema complaint worth showing. Generous for a sentence about one member, and
+#: far below the length a message that has quoted an instance reaches.
+_SCHEMA_MESSAGE_LIMIT: Final = 300
+
+
+def _schema_failures(errors: Any) -> list[Any]:
+    """Reduce schema errors to the ones that name a member.
+
+    The calibration schema is a top-level ``anyOf``, one branch per carrier of the
+    measurement, so any failure anywhere in the document is reported by ``jsonschema`` as
+    a single error at the root whose message is "{the whole credential} is not valid under
+    any of the given schemas" -- with the credential spelled out in it. Rendered into the
+    step tree that was twelve kilobytes of Python repr where a sentence belonged, and it
+    named nothing.
+
+    So descend, and choose a branch the way the schema itself distinguishes them: by how
+    far the document got. The branch whose complaint reaches deepest into the document is
+    the branch the document was trying to be -- a certificate that carries a measurement
+    and states the wrong coverage factor fails one branch at
+    ``credentialSubject/calibration/results/0/coverageFactor`` and the others at the root,
+    for not being a document of that kind at all. Ties go to the branch with fewest
+    complaints.
+
+    ``best_match`` is not used for this. Its relevance heuristic has no way to prefer the
+    branch that is nearly right, and it picked "a certificate that points at its document
+    is missing relatedResource" for a certificate that carries one -- short, and about the
+    wrong branch, which is worse than long.
+
+    Args:
+        errors: Errors from a validator.
+
+    Returns:
+        The errors to report, each one about a member rather than about the document.
+    """
+    found: list[Any] = []
+    for error in errors:
+        if not error.context:
+            found.append(error)
+            continue
+        branches: dict[Any, list[Any]] = {}
+        for sub in error.context:
+            branches.setdefault(sub.schema_path[0], []).append(sub)
+        closest = max(
+            branches.values(),
+            key=lambda subs: (max(len(s.absolute_path) for s in subs), -len(subs)),
+        )
+        found.extend(_schema_failures(closest))
+    return found
+
+
+def _schema_message(error: Any) -> str:
+    """Return a schema complaint short enough to read.
+
+    ``_schema_failures`` removes the message that quotes a whole credential; this is the
+    backstop for a schema nobody here wrote, where a message may still carry more of the
+    document than a reader wants.
+
+    Args:
+        error: The validation error.
+
+    Returns:
+        The message, shortened if it runs long.
+    """
+    message = " ".join(error.message.split())
+    if len(message) <= _SCHEMA_MESSAGE_LIMIT:
+        return message
+    return f"{message[:_SCHEMA_MESSAGE_LIMIT]}..."
+
+
 def _step_output_validation(
     credential: dict[str, Any], action: dict[str, Any] | None, resolver: Resolver
 ) -> Step:
@@ -1146,7 +1215,8 @@ def _step_output_validation(
             )
 
     errors = sorted(
-        Draft202012Validator(schema).iter_errors(credential), key=lambda e: list(e.path)
+        _schema_failures(Draft202012Validator(schema).iter_errors(credential)),
+        key=lambda e: list(e.absolute_path),
     )
     if errors:
         return Step(
@@ -1154,7 +1224,8 @@ def _step_output_validation(
             title="Document matches the schema its recognition names",
             status=FAIL,
             detail="; ".join(
-                f"{'/'.join(str(part) for part in error.path) or 'document'}: {error.message}"
+                f"{'/'.join(str(part) for part in error.absolute_path) or 'document'}: "
+                f"{_schema_message(error)}"
                 for error in errors[:4]
             ),
             evidence={"schema": schema_url, "errorCount": len(errors)},

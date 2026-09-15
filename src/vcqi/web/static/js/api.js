@@ -35,6 +35,9 @@ export const api = {
   document: (url) => request(`/api/document?url=${encodeURIComponent(url)}`),
   verify: (options) => post('/api/verify', options),
   tamper: (key) => post(`/api/tamper/${key}`, {}),
+  // Edits are named fields, not a document: the server holds the catalogue and the
+  // pristine copy, so what travels is a handful of values and never a credential.
+  edit: (options) => post('/api/edit', options),
   scope: (options) => post('/api/scope', options),
   uncertainty: (options) => post('/api/uncertainty', options),
   combine: (options) => post('/api/combine', options),
