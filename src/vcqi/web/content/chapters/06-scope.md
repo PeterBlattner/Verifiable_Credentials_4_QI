@@ -30,7 +30,7 @@ That last one is the part that catches people out. The capability is a floor, no
 
 Move the sliders. The verdict, and with it the legitimacy of the logo, is decided from the published entry rather than from anybody’s judgement.
 
-The same machinery bounds the legal-metrology branch, and there the bound is a better one. An OIML Issuing Authority may certify a type only against a Recommendation it has been approved for, and a Recommendation is a numbered, edition-controlled document published by somebody else — not a declaration the organisation wrote about itself. Try *Certify a type against a Recommendation nobody approved* in chapter 8: the certificate is signed by a genuinely recognised body and rejected anyway, twice over, because the recognition names both the Recommendation and a schema built from it.
+The same machinery bounds the legal-metrology branch, and there the bound is a better one. An OIML Issuing Authority may certify a type only against a Recommendation it has been approved for, and a Recommendation is a numbered, edition-controlled document published by somebody else — not a declaration the organisation wrote about itself. Try *Certify a type against a Recommendation nobody approved* in chapter 7: the certificate is signed by a genuinely recognised body and rejected anyway, twice over, because the recognition names both the Recommendation and a schema built from it.
 
 What is still missing is that the schema is this project’s reading of R 46 rather than R 46 speaking for itself. The OIML is working towards machine-readable Recommendations; until then, the bound is only as good as whoever transcribed it. That is one of the items in chapter 11.
 
@@ -112,7 +112,7 @@ There is a fifth thing, and it is the one this demonstration changed its mind ab
 
 The CMC entry above is served unsigned, so a copy of it proves nothing and the verifier must go to the BIPM itself — which is why a holder may not carry it, and why one entry on chapter 12's list of what cannot travel is there for a reason that could be engineered away rather than a reason that is inherent. The accreditation scope used to sit beside it. It does not any more: the accreditation body signs its scopes, and every credential that cites one pins it by content digest. The link is still a link, and the laboratory still cannot state its own scope. But a verifier handed a copy can now check that it is the right scope, signed by the right body, still in force — without reaching the register at all.
 
-Try *Serve a different accreditation scope at the same address* in chapter 8. The document that comes back is signed by the accreditation body, in force and not suspended, and it is refused anyway, because it is not the scope the certificate was issued under. An unsigned register entry could never have been refused for that reason: a verifier could only ask what the register says today.
+Try *Serve a different accreditation scope at the same address* in chapter 7. The document that comes back is signed by the accreditation body, in force and not suspended, and it is refused anyway, because it is not the scope the certificate was issued under. An unsigned register entry could never have been refused for that reason: a verifier could only ask what the register says today.
 
 <!-- block: answered-registry -->
 
@@ -138,7 +138,7 @@ The verifier asks whether the standard was covered **on the day the testing was 
 
 That is one parameter, and it is the difference between *is this laboratory accredited* and *was it accredited when it did the work*. A scope grows: rows are added as a laboratory extends what it can do. A register asked the naive question answers honestly and answers about the wrong day, and it fails in the permissive direction, which is the one that matters. Below, the same question is put twice about a standard this laboratory took on in July 2026, seven weeks after it issued the report in chapter 4.
 
-Try *Test against a standard the scope did not yet cover* in chapter 8 to see it refused. Nothing about that report is forged: the signature is the laboratory's own, the equipment is traceable, the accreditation is real and in force. Only the date is wrong.
+Try *Test against a standard the scope did not yet cover* in chapter 7 to see it refused. Nothing about that report is forged: the signature is the laboratory's own, the equipment is traceable, the accreditation is real and in force. Only the date is wrong.
 
 <!-- block: asked.title -->
 

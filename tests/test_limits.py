@@ -137,7 +137,7 @@ class TestRateLimiting:
     def test_reading_is_never_charged(self) -> None:
         """Navigation must not be able to trip the limit.
 
-        Someone clicking through twelve chapters issues a lot of GETs, and a
+        Someone clicking through every chapter issues a lot of GETs, and a
         demonstration that rate-limits its own reader is worse than one with no limiter.
         """
         client = self._limited(burst=1)

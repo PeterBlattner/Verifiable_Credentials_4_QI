@@ -342,9 +342,9 @@ them: what distinguishes OIML-CS Scheme A from Scheme B, and what SMART stands f
 3. **Issuing a certificate** — canonical form, hashes, signature, step by step
 4. **Verification and recognition discovery** — the full pipeline, with the clock and the trust anchors under your control
 5. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
-6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, the same measurement shown four ways including as a PTB/DKD DCC, and what gets said twice as a result
-7. **Why the dependencies matter** — two certificates, one shared standard, and what each way of reporting lets the customer do
-8. **Break it** — 23 failure cases, each naming the check that catches it
+6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, the same measurement shown four ways including as a PTB/DKD DCC, what gets said twice as a result, and what two certificates resting on one shared standard let a customer do
+7. **Break it** — 23 failure cases, each naming the check that catches it
+8. **Break it yourself** — pick one of five documents, change a field, decide whether the issuer signs it again, and find out which check notices
 9. **What this would mean in practice** — the argument, and the open questions
 10. **What it would take to run** — the hosting burden computed per role, from the trust anchor down to a fifteen-person laboratory, and what a verifier actually fetches
 11. **What would have to be agreed** — global harmonisation in three tiers, what cannot be decided later, and a ladder of next steps ordered by who is able to act

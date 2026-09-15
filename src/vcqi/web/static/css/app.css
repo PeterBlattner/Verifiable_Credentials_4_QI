@@ -353,6 +353,24 @@ input[type="text"], input[type="number"], input[type="date"], select {
 
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 
+/* A grid rather than the wrapping flex row .controls uses on its own: the break-it-
+   yourself chapter puts six to eight labelled fields side by side, and a flex row leaves
+   them in ragged columns that make two documents hard to compare. */
+.controls--fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+.controls--fields > label.field { display: flex; }
+
+/* A field the reader has changed. Amber rather than red: the document is not wrong yet,
+   it is merely no longer the one that was issued, and what it is depends on the verdict
+   below. */
+label.field--edited > span { color: var(--warn); }
+label.field--edited input,
+label.field--edited select { border-color: var(--warn); background: var(--warn-soft); }
+
 .slider-row {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr) 160px;

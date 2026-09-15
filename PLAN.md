@@ -3309,3 +3309,121 @@ contains, which is a different register.
 
 Branch `feature/scope-query-endpoint`, two commits, PR into `develop`. Body in
 `temp/pr-body-scope-query.md`.
+
+# Change set 20 - break it yourself
+
+## Context
+
+The failure chapter presented twenty-three cases as chips: press one, watch a change
+somebody else chose get applied, read the report. A good catalogue and a passive one. The
+argument the chapter exists to make - that a signature settles almost nothing, and the
+failures worth dwelling on are the ones where every cryptographic check passes - lands
+harder when the reader breaks the certificate themselves.
+
+Asked for a chapter where you pick a certificate, edit selected fields by hand or at
+random, run the verification, and put it back. The catalogue keeps its own chapter: several
+of its cases change the *world* around the credential - an accreditation suspended, a
+schema loosened, a parent certificate reissued - and no amount of editing one document
+reproduces those. Both halves earn a chapter.
+
+Room was made by folding the dependencies chapter into traceability, which the README was
+already treating as one chapter: `README.md:265` said "Chapter 6 makes the difference
+concrete. Two check standards..." about material that was chapter 7. That sentence was
+wrong before this change and is right after it.
+
+## Decisions taken
+
+**Renumbering, in two steps.** `ARCHITECTURE.md` fixes chapter order because ~40 places
+refer to chapters by number, several of them editorial fields in `actors/harmonisation.py`
+served to the reader, and no test would notice. Folding dependencies into traceability and
+seating the new chapter in the slot it left was net zero, and a repo-wide sweep found
+exactly one live reference that moved - `harmonisation.py:1138`, "Chapter 7 measures what
+that costs", now chapter 6.
+
+Then, asked for it, the failure pair was reordered: the catalogue first at 7, the hands-on
+chapter second at 8. General before specific - twenty-three cases that name the check
+catching each, and then the same pipeline with the document in the reader's hands. That
+one is not net zero. Nothing from 9 upward moved, but 7 and 8 both changed meaning, so the
+five by-number references resolving to them were swept: three in `06-scope.md`,
+`harmonisation.py:1027`, and `ARCHITECTURE.md`'s own paragraph about `/api/edit`. Six
+sentences asserting an order between the two chapters were reversed, and the block key
+`catalogue-next` became `catalogue-behind`, because it now points backwards.
+
+The sweep also turned up something change set 20 had missed: `README.md`'s chapter list
+still named the deleted dependencies chapter at 7 and had no entry for the new one at all.
+Corrected here.
+
+**Fields addressed by key, never by a path the caller writes.** `actors/edit.py` holds 31
+`EditableField` records across the five end documents, mirroring how `TamperCase` records
+the tamper cases. A caller-supplied JSON pointer would have made the route "rewrite any
+member of any document and have a national metrology institute sign the result", which is
+a different and much less teachable thing.
+
+**The re-sign toggle is the chapter.** Without it every edit dies at `proof` and the third
+group of failures is unreachable by hand. With it the document is cryptographically
+perfect - genuine signature, by the organisation that claims to have issued it, over
+exactly those bytes - and something else has to catch it. Not a new capability: every key
+comes from the seed published in `config.py`.
+
+**Apply edits literally; recompute nothing.** Lowering a printed Expanded Uncertainty is
+caught by `scope`, because it is better than the published capability, and by
+`uncertainty.coverage`, because it no longer equals k times the Standard Uncertainty. Both
+are true. Rebuilding the budget to keep it self-consistent was tried and is worse: on the
+accredited laboratory's certificate it additionally trips `traceability.inherited`, because
+the rescale touches the line inherited from the institute.
+
+**Three fields that change nothing, on the page on purpose.** A statement of conformity
+that nothing adjudicates. A test report's `equipment` member, which the object-identity
+check does not look at because it looks for `instrument`. The copy of an OIML
+Recommendation carried inside a certificate, where the verifier reads the register's copy.
+An editable field that verifies clean is a hole stated honestly, and finding the fields
+nobody checks is a better use of the page than confirming the ones they do.
+
+**No per-request world.** Measured: nothing in the pipeline writes to the store and no step
+re-fetches the credential under test by its own identifier, so a deep copy verified against
+the shared world is safe - 15-40 ms against 260 ms to rebuild. `tamper.py` rebuilds because
+its cases republish documents; this does not.
+
+## What was built
+
+- `src/vcqi/actors/edit.py` - `EditableField`, `Change`, the catalogue, dotted-path read
+  and overwrite-only write, coercion with bounds.
+- `POST /api/edit`, `editableDocuments` in `/api/world`, `/api/edit` charged 3 tokens.
+- `chapterTamper` in `chapters.js`; `content/chapters/08-tamper.md`; `.controls--fields`
+  and `label.field--edited` in `app.css`.
+- `chapterDependencies` became `combiningPanel`, called from `chapterTraceability` after
+  the representation tabs - the payoff of the identifiers the `unclib` block promises.
+  Its eleven body blocks moved into `07-traceability.md`; `08-dependencies.md` deleted.
+
+## A bug this found
+
+`_step_output_validation` put 12 231 characters into `step.detail`. The calibration schema
+is a top-level `anyOf`, so any failure anywhere is reported by `jsonschema` as one root
+error whose message quotes the whole instance - and `stepTree` renders `detail` verbatim.
+Now the branch that got furthest into the document is the one reported, so the same edit
+says `credentialSubject/calibration/results/0/coverageFactor: 2.0 was expected` in 72
+characters. `best_match` was tried first and picks the wrong branch: it offered "missing
+relatedResource" for a certificate that carries its measurement. Improves `/api/verify` and
+the existing catalogue too.
+
+Three chapter counts in comments were already wrong ("twelve chapters", "eleven chapters")
+and were corrected while the numbering was being audited.
+
+## Verified
+
+- 621 pass, 46 skipped. `tests/test_edit.py` is 52 of them, and the substantial one is
+  parametrised over all 31 fields: every path resolves, every pristine document verifies,
+  every field reaches the check its note names, and the three inert ones stay inert.
+- Three jsdom harnesses against a running server. Every control responds on all fourteen
+  chapters: traceability 9, tamper 10, break 23. Two chapter snapshots diff clean.
+- End to end: unsigned edit fails `proof` with every later check still run; the same edit
+  signed again passes `proof` and fails `scope`; the frequency field reaches `scope.row`;
+  the same issuer substitution reaches `recognition` on the institute's certificate and
+  `action` on the laboratory's; an inert field verifies.
+- Rail reads traceability 6, break 7, tamper 8, implications 9 - unchanged from 9 up.
+
+## Git
+
+Branch `feature/break-it-by-hand`, one commit into `develop`. One commit rather than two:
+the slot only balances once both halves land, so a split would leave an intermediate commit
+whose prose was wrong.
