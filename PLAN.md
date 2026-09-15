@@ -3333,12 +3333,25 @@ wrong before this change and is right after it.
 
 ## Decisions taken
 
-**Net-zero renumbering.** One chapter out, one in, at the same position. `ARCHITECTURE.md`
-fixes chapter order because ~40 places refer to chapters by number, several of them
-editorial fields in `actors/harmonisation.py` served to the reader, and no test would
-notice. A repo-wide sweep found exactly one live reference that moved -
-`harmonisation.py:1138`, "Chapter 7 measures what that costs", now chapter 6. Everything
-from 8 upward means what it did, including the three "chapter 8" pointers in `06-scope.md`.
+**Renumbering, in two steps.** `ARCHITECTURE.md` fixes chapter order because ~40 places
+refer to chapters by number, several of them editorial fields in `actors/harmonisation.py`
+served to the reader, and no test would notice. Folding dependencies into traceability and
+seating the new chapter in the slot it left was net zero, and a repo-wide sweep found
+exactly one live reference that moved - `harmonisation.py:1138`, "Chapter 7 measures what
+that costs", now chapter 6.
+
+Then, asked for it, the failure pair was reordered: the catalogue first at 7, the hands-on
+chapter second at 8. General before specific - twenty-three cases that name the check
+catching each, and then the same pipeline with the document in the reader's hands. That
+one is not net zero. Nothing from 9 upward moved, but 7 and 8 both changed meaning, so the
+five by-number references resolving to them were swept: three in `06-scope.md`,
+`harmonisation.py:1027`, and `ARCHITECTURE.md`'s own paragraph about `/api/edit`. Six
+sentences asserting an order between the two chapters were reversed, and the block key
+`catalogue-next` became `catalogue-behind`, because it now points backwards.
+
+The sweep also turned up something change set 20 had missed: `README.md`'s chapter list
+still named the deleted dependencies chapter at 7 and had no entry for the new one at all.
+Corrected here.
 
 **Fields addressed by key, never by a path the caller writes.** `actors/edit.py` holds 31
 `EditableField` records across the five end documents, mirroring how `TamperCase` records
@@ -3407,7 +3420,7 @@ and were corrected while the numbering was being audited.
   signed again passes `proof` and fails `scope`; the frequency field reaches `scope.row`;
   the same issuer substitution reaches `recognition` on the institute's certificate and
   `action` on the laboratory's; an inert field verifies.
-- Rail reads traceability 6, tamper 7, break 8, implications 9 - unchanged from 9 up.
+- Rail reads traceability 6, break 7, tamper 8, implications 9 - unchanged from 9 up.
 
 ## Git
 

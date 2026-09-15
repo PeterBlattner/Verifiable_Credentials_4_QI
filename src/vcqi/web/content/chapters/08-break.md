@@ -1,4 +1,4 @@
-<!-- 09-break.md -- chapter 8 in the rail; the NN- prefix is the position in the
+<!-- 08-break.md -- chapter 7 in the rail; the NN- prefix is the position in the
      CHAPTERS array, which counts the cautions. Rendered by chapterBreakIt() in
      ../../static/js/chapters.js.
 
@@ -11,10 +11,10 @@
      prose, and the verifier reads the same records, so moving them here would split one
      fact across two files. Only the three group headings and their notes are here.
 
-     The chapter before this one is the same argument with the reader's hand on the
-     document. What earns this one its own chapter is that most of these cases change the
-     world around the certificate rather than the certificate, which editing one document
-     cannot do. -->
+     The chapter after this one is the same argument with the reader's hand on the
+     document. What earns this one its own chapter, and its place first, is that most of
+     these cases change the world around the certificate rather than the certificate, which
+     editing one document cannot do. -->
 
 <!-- block: title -->
 
@@ -32,7 +32,7 @@ Twenty-three ways this can go wrong, and the check that catches each. The intere
 
 A demonstration where everything always passes teaches very little. Each case below is a specific thing that can go wrong, and each names in advance the single check that is supposed to notice it.
 
-The previous chapter put the document in your hands. These go further than one document can: an accreditation suspended after the certificate was issued, a schema loosened after recognition was granted, a parent certificate reissued after it had been referenced. None of those is a change to the certificate being presented, and none of them could be made by editing it.
+Several of them go further than any edit to one document could: an accreditation suspended after the certificate was issued, a schema loosened after recognition was granted, a parent certificate reissued after it had been referenced. None of those is a change to the certificate being presented, which is why they are applied for you here. The next chapter hands you a document and lets you find one yourself.
 
 The third group is the one worth dwelling on. In every case there, the signature is valid, the issuer is genuinely recognised, and the document is inside its validity period.
 

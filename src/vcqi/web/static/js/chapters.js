@@ -1445,6 +1445,75 @@ async function chapterTraceability(context) {
 
 // ---------------------------------------------------------------- chapter 7
 
+async function chapterBreakIt(context) {
+  // Prose: web/content/chapters/08-break.md
+  const t = context.text('break');
+  const fragment = document.createDocumentFragment();
+  fragment.append(t.prose('why-break-it'));
+
+  // The three group headings and their notes used to be two module-level maps keyed by
+  // group name. They are read by literal key instead, because a computed key is
+  // invisible to the test that checks every key a chapter asks for exists -- and that
+  // one test is what makes the others able to see anything at all.
+  const GROUPS = [
+    { key: 'forgery', label: t.text('forgery.title'), note: t.text('forgery.hint') },
+    { key: 'standing', label: t.text('standing.title'), note: t.text('standing.hint') },
+    { key: 'metrological', label: t.text('metrological.title'), note: t.text('metrological.hint') },
+  ];
+  const labelFor = (key) => (GROUPS.find((group) => group.key === key) || {}).label;
+
+  const output = el('div', {});
+
+  for (const group of GROUPS) {
+    const cases = context.world.tamperCases.filter((item) => item.group === group.key);
+    fragment.append(
+      panel(
+        group.label,
+        null,
+        [
+          el('p', { class: 'muted', style: 'margin-top:-4px', text: group.note }),
+          el(
+            'div',
+            { class: 'chips' },
+            cases.map((item) =>
+              el('button', {
+                class: 'chip',
+                text: item.title,
+                onclick: () => run(item.key),
+              })
+            )
+          ),
+        ]
+      )
+    );
+  }
+
+  async function run(key) {
+    clear(output).append(el('p', { class: 'spinner', text: 'Applying the change and re-verifying…' }));
+    const result = await api.tamper(key);
+    const caught = result.caughtByExpectedStep;
+    clear(output).append(
+      panel(result.case.title, labelFor(result.case.group), [
+        prose([result.case.description]),
+        keyValues([
+          ['Expected to be caught by', el('code', { text: result.case.expectedStep })],
+          ['Actually failed at', el('code', { text: result.failedSteps.join(', ') || 'nothing' })],
+          ['Outcome', badge(caught ? 'pass' : 'fail', caught ? 'caught as expected' : 'not caught')],
+        ]),
+        callout([result.case.catches]),
+        verdictBanner(result.report),
+        stepTree(result.report.steps, 0),
+      ])
+    );
+    output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  fragment.append(output);
+  return fragment;
+}
+
+// ---------------------------------------------------------------- chapter 8
+
 /**
  * Draw one editable field as whatever control its kind calls for.
  *
@@ -1549,7 +1618,7 @@ function perturb(field, pristine) {
 }
 
 async function chapterTamper(context) {
-  // Prose: web/content/chapters/08-tamper.md
+  // Prose: web/content/chapters/09-tamper.md
   const t = context.text('tamper');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('by-hand'));
@@ -1716,79 +1785,10 @@ async function chapterTamper(context) {
     t.callout('resign.note'),
     output,
     t.callout('inert-note'),
-    t.callout('catalogue-next')
+    t.callout('catalogue-behind')
   );
 
   await run();
-  return fragment;
-}
-
-// ---------------------------------------------------------------- chapter 8
-
-async function chapterBreakIt(context) {
-  // Prose: web/content/chapters/09-break.md
-  const t = context.text('break');
-  const fragment = document.createDocumentFragment();
-  fragment.append(t.prose('why-break-it'));
-
-  // The three group headings and their notes used to be two module-level maps keyed by
-  // group name. They are read by literal key instead, because a computed key is
-  // invisible to the test that checks every key a chapter asks for exists -- and that
-  // one test is what makes the others able to see anything at all.
-  const GROUPS = [
-    { key: 'forgery', label: t.text('forgery.title'), note: t.text('forgery.hint') },
-    { key: 'standing', label: t.text('standing.title'), note: t.text('standing.hint') },
-    { key: 'metrological', label: t.text('metrological.title'), note: t.text('metrological.hint') },
-  ];
-  const labelFor = (key) => (GROUPS.find((group) => group.key === key) || {}).label;
-
-  const output = el('div', {});
-
-  for (const group of GROUPS) {
-    const cases = context.world.tamperCases.filter((item) => item.group === group.key);
-    fragment.append(
-      panel(
-        group.label,
-        null,
-        [
-          el('p', { class: 'muted', style: 'margin-top:-4px', text: group.note }),
-          el(
-            'div',
-            { class: 'chips' },
-            cases.map((item) =>
-              el('button', {
-                class: 'chip',
-                text: item.title,
-                onclick: () => run(item.key),
-              })
-            )
-          ),
-        ]
-      )
-    );
-  }
-
-  async function run(key) {
-    clear(output).append(el('p', { class: 'spinner', text: 'Applying the change and re-verifying…' }));
-    const result = await api.tamper(key);
-    const caught = result.caughtByExpectedStep;
-    clear(output).append(
-      panel(result.case.title, labelFor(result.case.group), [
-        prose([result.case.description]),
-        keyValues([
-          ['Expected to be caught by', el('code', { text: result.case.expectedStep })],
-          ['Actually failed at', el('code', { text: result.failedSteps.join(', ') || 'nothing' })],
-          ['Outcome', badge(caught ? 'pass' : 'fail', caught ? 'caught as expected' : 'not caught')],
-        ]),
-        callout([result.case.catches]),
-        verdictBanner(result.report),
-        stepTree(result.report.steps, 0),
-      ])
-    );
-    output.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  fragment.append(output);
   return fragment;
 }
 
@@ -2467,14 +2467,14 @@ export const CHAPTERS = [
     render: chapterTraceability,
   },
   {
-    // Heading text comes from web/content/chapters/08-tamper.md
-    id: 'tamper',
-    render: chapterTamper,
-  },
-  {
-    // Heading text comes from web/content/chapters/09-break.md
+    // Heading text comes from web/content/chapters/08-break.md
     id: 'break',
     render: chapterBreakIt,
+  },
+  {
+    // Heading text comes from web/content/chapters/09-tamper.md
+    id: 'tamper',
+    render: chapterTamper,
   },
   {
     // Heading text comes from web/content/chapters/10-implications.md

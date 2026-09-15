@@ -24,8 +24,8 @@ Every chapter is here.
 | 4 | Verification and recognition discovery | [`05-verification.md`](src/vcqi/web/content/chapters/05-verification.md) |
 | 5 | The CMC decides the logo | [`06-scope.md`](src/vcqi/web/content/chapters/06-scope.md) |
 | 6 | Traceability and uncertainty | [`07-traceability.md`](src/vcqi/web/content/chapters/07-traceability.md) |
-| 7 | Break it yourself | [`08-tamper.md`](src/vcqi/web/content/chapters/08-tamper.md) |
-| 8 | Break it | [`09-break.md`](src/vcqi/web/content/chapters/09-break.md) |
+| 7 | Break it | [`08-break.md`](src/vcqi/web/content/chapters/08-break.md) |
+| 8 | Break it yourself | [`09-tamper.md`](src/vcqi/web/content/chapters/09-tamper.md) |
 | 9 | What this would mean in practice | [`10-implications.md`](src/vcqi/web/content/chapters/10-implications.md) |
 | 10 | What it would take to run | [`11-infrastructure.md`](src/vcqi/web/content/chapters/11-infrastructure.md) |
 | 11 | What would have to be agreed | [`12-harmonisation.md`](src/vcqi/web/content/chapters/12-harmonisation.md) |

@@ -360,11 +360,14 @@ sentence or a heading; leave it if it is a label, a unit, an option name or a va
 button text, slider labels, `stat()` captions and the `triangle()` SVG strings stay.
 Chapter *order* stays too, because the prose says "chapter 5" and "the next chapter" in
 several places and letting an editor reorder chapters would silently break those. It has
-been changed once, deliberately and to a rule: the dependencies chapter was folded into
-traceability and *Break it yourself* took the slot it left, so the count never moved and
-every number from 8 upward still means what it did. One editorial string pointed at the
-chapter that went away and was corrected with it. That is the shape a chapter change has
-to take here -- net zero, or a sweep of every by-number reference in the repository. The
+been changed twice, deliberately and to a rule, and the two changes are the two shapes
+such a change is allowed to take. The dependencies chapter was folded into traceability and
+the failure pair took the slot it left, so the count never moved and one editorial string
+pointing at the chapter that went away was corrected with it -- net zero. Then the pair was
+reordered so the catalogue comes before the hands-on chapter, which is not net zero: nothing
+from 9 upward moved, but 7 and 8 both changed meaning, and the five by-number references
+resolving to them were swept. Net zero, or a sweep -- there is no third option, and no test
+would catch a change that took neither. The
 long editorial fields in `actors/deployment.py` and `actors/harmonisation.py` also stay:
 they are records of nine correlated fields per item, which a markdown file expresses
 badly, and `test_web.py` asserts that one of them names the cryptosuite the
@@ -927,7 +930,7 @@ data and no secret behind this, so the worst case is that the demonstration is s
 
 `/api/edit` signs with a key the caller does *not* supply, which is a different shape and
 wants its own sentence. It re-signs an edited certificate as the organisation the document
-names, which is what makes chapter 7 worth having: without it every edit dies at `proof`
+names, which is what makes chapter 8 worth having: without it every edit dies at `proof`
 and the half of the pipeline the demonstration exists to argue for is never reached. The
 same argument covers it -- every key here comes from the seed published in `config.py`, so
 a signature by METAS's demonstration key is something a reader could already produce for

@@ -1,6 +1,6 @@
 """Tests for the document a reader breaks by hand.
 
-Chapter 7 offers a catalogue of fields and, under each one, a sentence saying which check
+Chapter 8 offers a catalogue of fields and, under each one, a sentence saying which check
 is supposed to notice when it moves. That sentence is a claim about the pipeline, and a
 claim in prose beside a pipeline that changes is the thing this repository keeps writing
 tests against. So the substantial test here is parametrised over the whole catalogue: it

@@ -1,4 +1,4 @@
-<!-- 08-tamper.md -- chapter 7 in the rail; the NN- prefix is the position in the
+<!-- 09-tamper.md -- chapter 8 in the rail; the NN- prefix is the position in the
      CHAPTERS array, which counts the cautions. Rendered by chapterTamper() in
      ../../static/js/chapters.js.
 
@@ -12,9 +12,9 @@
      runs every one of them through the pipeline to confirm the note is still true. Moving
      them here would split one fact across two files and leave the claim untested.
 
-     The next chapter is the same argument with somebody else's hand on it: twenty-three
-     cases that reach further than one document can, because they change the world around
-     the certificate rather than the certificate. -->
+     The chapter before this one is the same argument with somebody else's hand on it:
+     twenty-three cases that reach further than one document can, because they change the
+     world around the certificate rather than the certificate. -->
 
 <!-- block: title -->
 
@@ -30,7 +30,7 @@ Change a field, decide whether the issuer signs it again, and see which check no
 
 <!-- block: by-hand -->
 
-Everything so far has been a document that verifies. This is the same pipeline with the document in your hands: pick a certificate, change one of the fields it states, and run it.
+The last chapter applied twenty-three failures somebody else chose. This is the same pipeline with the document in your hands: pick a certificate, change one of the fields it states, and run it.
 
 Leave the signature alone and the answer is always the same — the proof fails, because the signature covers a canonical form of the whole document and a single digit invalidates it. That is worth seeing once. It is also the least interesting thing that can go wrong, and it is the only failure a system built on signatures alone can find.
 
@@ -66,6 +66,6 @@ Three of the fields on offer change nothing, and they are on offer for that reas
 
 A pipeline is only as good as the list of things it thought to check. Finding the fields nobody checks is a better use of this page than confirming the ones they do.
 
-<!-- block: catalogue-next -->
+<!-- block: catalogue-behind -->
 
-One document at a time is as far as this goes. The next chapter has the cases that reach further — an accreditation suspended after the certificate was issued, a schema loosened after recognition was granted, a parent certificate reissued after it was referenced. None of those is a change to the document in front of you, and none of them could be made here.
+One document at a time is as far as this goes, and that is the boundary between this chapter and the one before it. The cases there reach further — an accreditation suspended after the certificate was issued, a schema loosened after recognition was granted, a parent certificate reissued after it was referenced. None of those is a change to the document in front of you, and none of them could be made from here. Worth going back for, now that you have seen how much one document can be made to do on its own.
