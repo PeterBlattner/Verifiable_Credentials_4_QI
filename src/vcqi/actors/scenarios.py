@@ -59,6 +59,7 @@ from vcqi.domain.uncertainty import (
     rectangular,
     to_unclib_xml,
 )
+from vcqi.party import party_reference
 from vcqi.actors.registry import ACTORS, actor_by_did, actor_key, did_document, whois_url
 from vcqi.vc.model import (
     accreditation_scope_credential,
@@ -476,8 +477,8 @@ def _dcc_for(
         measurand=measurand,
         conditions=conditions,
         instrument=instrument.to_json(),
-        laboratory={"id": laboratory.did, "name": laboratory.legal_name},
-        customer={"id": customer.did, "name": customer.legal_name},
+        laboratory=party_reference(laboratory.did, laboratory.legal_name),
+        customer=party_reference(customer.did, customer.legal_name),
         reference_certificate=reference_certificate,
     )
 
@@ -763,6 +764,7 @@ def _accreditation_scope_credentials(world: World) -> None:
     for scope in accreditation_registry.ACCREDITATION_SCOPES:
         credential = accreditation_scope_credential(
             scope=scope.to_json(),
+            credential_id=scope.url,
             issuer=issuer_reference(
                 "did:web:sas.example",
                 sas.legal_name,
@@ -844,7 +846,7 @@ def _coverage_handler(scope: Any, issuer: dict[str, Any]) -> Any:
         verdict = answer_coverage(scope.test_rows, question)
         credential = scope_coverage_answer_credential(
             address=question.address(scope.query_url),
-            scope_url=scope.url,
+            accreditation=scope.urn,
             identifier=scope.identifier,
             protocol=accreditation_registry.QUERY_PROTOCOL,
             issuer=issuer,
@@ -1116,7 +1118,7 @@ def _calibration_certificates(world: World) -> None:
         certificate_number="METAS-2026-0417",
         performed_on=METAS_CALIBRATED_ON,
         instrument=standard.to_json(),
-        owner={"id": callab.did, "name": callab.legal_name},
+        owner=party_reference(callab.did, callab.legal_name),
         measurand="dc.resistance",
         conditions=cmc.conditions,
         condition_quantities=DIRECT_CURRENT_CONDITIONS,
@@ -1177,7 +1179,7 @@ def _calibration_certificates(world: World) -> None:
         certificate_number="AC-2026-1182",
         performed_on=CALLAB_CALIBRATED_ON,
         instrument=multimeter.to_json(),
-        owner={"id": testlab.did, "name": testlab.legal_name},
+        owner=party_reference(testlab.did, testlab.legal_name),
         measurand="dc.resistance",
         conditions=scope.conditions,
         condition_quantities=DIRECT_CURRENT_CONDITIONS,
@@ -1287,7 +1289,7 @@ def _shared_reference_pair(world: World, unused: MeasurementResult) -> None:
             certificate_number=number,
             performed_on=METAS_CALIBRATED_ON,
             instrument=instrument.to_json(),
-            owner={"id": callab.did, "name": callab.legal_name},
+            owner=party_reference(callab.did, callab.legal_name),
             measurand="dc.resistance",
             conditions=cmc.conditions,
             condition_quantities=DIRECT_CURRENT_CONDITIONS,
@@ -1408,7 +1410,7 @@ def _test_report_and_conformity(world: World) -> None:
         report_number="HTS-2026-3391",
         performed_on=TESTLAB_TESTED_ON,
         product=product.to_json(),
-        client={"id": manufacturer.did, "name": manufacturer.legal_name},
+        client=party_reference(manufacturer.did, manufacturer.legal_name),
         standard="IEC 60335-1",
         tests=[
             {
@@ -1464,7 +1466,7 @@ def _test_report_and_conformity(world: World) -> None:
         certificate_number="CPC-2026-0055",
         issued_on=CAB_ISSUED_ON,
         product=product.to_json(),
-        holder={"id": manufacturer.did, "name": manufacturer.legal_name},
+        holder=party_reference(manufacturer.did, manufacturer.legal_name),
         standard="IEC 60335-1",
         capability_reference=_scope_reference(world, certification_scope),
         test_reports=[
@@ -1648,7 +1650,7 @@ def _oiml_certification(world: World, schemas: dict[str, dict[str, Any]]) -> Non
         report_number="HTS-TE-2024-0114",
         performed_on=OIML_EVALUATED_ON,
         instrument_type=meter_type.to_json(),
-        client={"id": meterworks.did, "name": meterworks.legal_name},
+        client=party_reference(meterworks.did, meterworks.legal_name),
         recommendation=recommendation.to_json(),
         tests=[
             {
@@ -1720,7 +1722,7 @@ def _oiml_certification(world: World, schemas: dict[str, dict[str, Any]]) -> Non
         certificate_number="R46/2024-CH1-0037",
         issued_on=OIML_CERTIFICATE_ISSUED_ON,
         instrument_type=meter_type.to_json(),
-        applicant={"id": meterworks.did, "name": meterworks.legal_name},
+        applicant=party_reference(meterworks.did, meterworks.legal_name),
         recommendation=recommendation.to_json(),
         characteristics={
             "type": "OimlCharacteristics",

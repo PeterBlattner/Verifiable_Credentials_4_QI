@@ -62,6 +62,7 @@ from vcqi.domain.scope import (
 from vcqi.domain.dcc import parse_dcc_administrative, parse_dcc_result
 from vcqi.domain.uncertainty import parse_input_quantities
 from vcqi.vc.model import artefact_payload
+from vcqi.party import party_id, party_in
 from vcqi.vc.checks import (
     CheckOutcome,
     check_proof,
@@ -335,7 +336,10 @@ def _capability_from_document(document: dict[str, Any]) -> DeclaredCapability | 
 
 
 def _capability_document(
-    reference: dict[str, Any], resolver: Resolver, now: datetime
+    reference: dict[str, Any],
+    resolver: Resolver,
+    now: datetime,
+    claimant: str | None = None,
 ) -> tuple[dict[str, Any] | None, str, Step | None]:
     """Obtain the published capability a document was issued under.
 
@@ -359,6 +363,9 @@ def _capability_document(
     Args:
         reference: The capability reference the credential names.
         resolver: Used to obtain the document.
+        claimant: Identifier of the party whose document is being adjudicated, so the
+            capability can be checked to be that party's own. None skips the check, for
+            a caller with nobody to compare against.
         now: The instant to judge the validity period against.
 
     Returns:
@@ -423,11 +430,38 @@ def _capability_document(
     # The body that signed it has to be the body it names as having granted it. Without
     # this, any issuer whose signature verifies could publish a scope in another body's
     # name and a reference would happily point at it.
-    granting_body = subject.get("accreditationBody")
-    if isinstance(granting_body, str) and issuer_id(document) != granting_body:
+    #
+    # A scope that does not name a granting body is refused rather than skipped. The
+    # guard here read `isinstance(granting_body, str) and ...`, which meant a document
+    # spelling the member any other way switched the check off and reported a pass --
+    # the one failure mode a check of this kind must not have.
+    granting_body = party_id(subject.get("accreditationBody"))
+    if granting_body is None:
+        return failure(
+            f"the capability at {address} does not name the body that granted it, so "
+            f"there is nothing to check its signature against"
+        )
+    if issuer_id(document) != granting_body:
         return failure(
             f"the capability at {address} says it was granted by {granting_body} but "
             f"was signed by {issuer_id(document)}"
+        )
+
+    # And the capability has to be the claimant's own. `organisation` names the body the
+    # accreditation was granted to, and nothing read it until now: the binding between a
+    # certificate and the accreditation authorising it was made one level up, by the
+    # recognition credential naming the same scope for the same laboratory. That chain
+    # does hold, so this is not a hole being closed -- it is a restated fact becoming a
+    # checked one, which is what this project asks of every other reference it carries.
+    #
+    # A capability naming no organisation passes rather than failing. A CMC entry names
+    # none, and though one returns earlier than this, a register that published a scope
+    # without a holder should not be refused by a check about a mismatch.
+    granted_to = party_id(subject.get("organisation"))
+    if claimant is not None and granted_to is not None and granted_to != claimant:
+        return failure(
+            f"the capability at {address} was granted to {granted_to} and the document "
+            f"citing it was issued by {claimant}"
         )
 
     validity = check_validity_period(document, now)
@@ -698,8 +732,17 @@ def _step_scope_by_query(
             f"the answer from {address} is not properly signed: {proof_outcome.detail}",
         )
 
-    granting_body = document.get("accreditationBody")
-    if isinstance(granting_body, str) and issuer_id(answer) != granting_body:
+    # Refused rather than skipped when the member cannot be read, for the reason given
+    # at the sibling check in `_capability_document`.
+    granting_body = party_id(document.get("accreditationBody"))
+    if granting_body is None:
+        return refuse(
+            "scope.answer",
+            "The answer is signed by the body that granted the scope",
+            f"{label} does not name the body that granted it, so there is nothing to "
+            f"check the answer's signature against",
+        )
+    if issuer_id(answer) != granting_body:
         return refuse(
             "scope.answer",
             "The answer is signed by the body that granted the scope",
@@ -1273,7 +1316,9 @@ def _step_scope(
     if _most_specific_type(credential) == "ExternalDocumentCredential":
         return _step_scope_of_external_document(credential, reference, resolver, now)
 
-    document, provenance, failed = _capability_document(reference, resolver, now)
+    document, provenance, failed = _capability_document(
+        reference, resolver, now, issuer_id(credential)
+    )
     if failed is not None:
         return failed
     assert document is not None
@@ -1376,7 +1421,9 @@ def _step_scope_of_external_document(
     Returns:
         The step, with one child per condition that could be evaluated.
     """
-    document, _, failed = _capability_document(reference, resolver, now)
+    document, _, failed = _capability_document(
+        reference, resolver, now, issuer_id(credential)
+    )
     if failed is not None:
         return failed
     assert document is not None
@@ -2473,8 +2520,12 @@ def _step_duplication(credential: dict[str, Any], dcc_xml: str | None) -> Step:
     subject = subject if isinstance(subject, dict) else {}
     issuer = credential.get("issuer")
     issuer = issuer if isinstance(issuer, dict) else {}
-    owner = subject.get("owner")
-    owner = owner if isinstance(owner, dict) else {}
+    # Read through the role list rather than by the word `owner`, so the check is about
+    # the party the document was issued to rather than about one spelling of it. The
+    # comparison against the DCC's customer is only right because in this world the
+    # owner of the artefact is the customer of the calibration; a certificate that named
+    # its recipient any other way would have gone unchecked before.
+    owner = party_in(subject) or {}
 
     duplicated = [
         (

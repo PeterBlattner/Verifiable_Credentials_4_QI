@@ -636,6 +636,107 @@ check therefore weighs only the grant the chain it is on actually rests on. That
 right answer, and it is worth noticing that the roster shape is what made the wrong one
 available.
 
+### Who a credential is about
+
+A reviewer read the accreditation scope credential and said its subject was wrong: it
+should be the accredited party, not the accreditation. The instinct is the right one and
+it was aimed at the wrong document, which is worth writing down because the reasoning
+generalises.
+
+*Recognized Entities* §2.4 has an accreditation body issuing a `RecognizedEntityCredential`
+to a conformity assessment body, and §4.1 step 8 has the verifier "confirm that `issuerId`
+appears as the `id` of a recognized entity in the `credentialSubject`". That credential --
+the claim *this laboratory is accredited* -- has the party as its subject, and this
+project's has always had party identifiers there. `AccreditationScopeCredential` is a
+different document: the scope table that `capabilityReference` points at, which exists
+because `outputValidation` is a JSON Schema and *A scope is a table* below explains why a
+schema cannot hold one.
+
+So the split is between what a credential is *for*, and the ecosystem divides the same way:
+
+| The credential says | Subject is | Examples |
+| --- | --- | --- |
+| this party has this standing | the party | `RecognizedEntityCredential` here; EBSI Verifiable Accreditation; UNTP's Digital Identity Anchor, whose `credentialSubject.id` "MUST be the DID of the registered member"; Open Badges 3.0, where the subject is the recipient and the achievement is nested |
+| here is a record about a thing | the thing | the calibration certificates, test reports, conformity certificates and type evaluations here, whose subjects are the instrument, product or type; UNTP's Digital Conformity Credential, where "The `ConformityAttestation` is the `credentialSubject`" |
+| here is a register entry | the entry | `AccreditationScopeCredential` and `KcdbCmcEntry` |
+
+Nothing in the data model decides this. §4.8 asks only that each subject object be the
+subject of the claims inside it, and §4.4 that an `id` be "a single URL, which MAY be
+dereferenceable" -- so a DID is one option of three and not a requirement. What the review
+was really reacting to is a defect that was there, and is now fixed: the credential's `id`
+and its `credentialSubject.id` were the same URI. One name for both a document and the
+thing it describes, on the only credential type here that did it. `accreditation_urn` gives
+the accreditation its own name, in the same family as the `urn:instrument:`,
+`urn:product:` and `urn:type:` subjects every other non-party credential already used.
+
+The second thing the review did not name is that `organisation` -- the member saying who
+the accreditation was granted to -- was read by nothing. The link between a certificate and
+the accreditation behind it was made one level up instead, by the recognition credential
+naming the same scope for the same laboratory. That chain does hold, so nothing was
+exploitable; it was a restated fact where this file asks everywhere else for a checked one.
+`scope-belongs-to-another-laboratory` in `actors/tamper.py` is the case that now catches it,
+and everything before `scope` passes on it.
+
+Worth keeping in view: *Recognized Entities* is a Working Draft that describes itself as
+experimental and not fit for production deployment, and it revises often enough that the
+version this was checked against was already newer than the one the project was built on.
+Any statement here about what it requires is a statement about a moving document.
+
+### One way to name a party
+
+There were seven spellings for "here is an organisation": two different flat pairs of
+members (`organisation` beside `organisationName`, `institute` beside `instituteName`), a
+`{id, name}` object, a `{id, type, name}` object, two richer subject nodes, and a bare
+identifier string. Which one a document got depended on which file wrote it.
+
+`vcqi/party.py` states one rule, and it is a distinction rather than a preference. A
+document that **points at** an organisation carries a party reference -- exactly `id`,
+`type`, `name`. A document that **is about** one carries a subject node with the class that
+credential type requires, and may say more. So `type` always names the role the
+organisation plays *in this document*, which is why `RecognizedIssuer` and
+`RecognizedEntity` stay as they are rather than being exceptions to a sweep: they are roles
+the specification being demonstrated defines, and `Organization` is what is left when the
+role is "this party and nothing more".
+
+**Role property names did not change.** `owner`, `client`, `holder` and `applicant` are
+four words because they mean four things -- an applicant is a defined position in the
+OIML-CS, the holder of a certificate of conformity is a legal one -- and collapsing them
+would delete the distinction the legal metrology branch exists to show. UNTP reaches the
+same answer: `issuedToParty`, `assessorParty` and `assessedParty` are several role
+properties over one `Party` class. What the graph view was paying for was not four words
+but four words written down twice, and `RECIPIENT_ROLES` fixes that without renaming
+anything.
+
+**Why a node object rather than a flat pair**, given that under `ecdsa-jcs-2019` nothing is
+dereferenced and the choice is invisible today. The two forms fail differently *if* the
+contexts are ever made resolvable, which the top of this file says a real deployment must
+do. `{"id": "did:web:testlab.example"}` needs one term definition to denote the laboratory
+as a node. `"did:web:testlab.example"` needs a term definition **and** an `"@type": "@id"`
+coercion, and with only the first it quietly becomes a string literal -- a document
+asserting that the laboratory's name is the characters `did:web:testlab.example`. The node
+form survives a half-written context; the flat form is silently wrong under one. The flat
+pair also costs what *Redundancy, and signing once* describes: two members that can
+disagree, with nothing comparing them.
+
+**Three members are deliberately not party references.** `recognizedBy` stays a bare
+identifier, because it is a specification member whose purpose is the case where it differs
+from the issuer, and a member kept for fidelity keeps that specification's spelling.
+`Instrument.manufacturer` stays a free string, because Tinsley and Fluke are not parties in
+this world -- no identifier, no key, nothing to point at -- and making them nodes would mean
+minting identifiers for organisations that are not actors. The consequence is that
+`instruments.py` and `oiml.py` both have a `manufacturer` and only one is a node, which is
+correct: one names a party, the other prints a plate. The third is the `issuer` inside a
+document reference, which is still a bare identifier and should either be checked against
+the document it sits beside or deleted; it is the one loose end this left.
+
+**A behavioural change a reader of the diff would otherwise miss.** Both places that check
+a capability was signed by the body it names as having granted it were guarded by
+`isinstance(granting_body, str)`. Turning the member into an object would have made both
+guards false, both checks silent, and the whole suite still green -- verified by doing it:
+a laboratory signing its own accreditation scope verifies clean. Neither check had a
+negative case. Both were made to refuse an unreadable member, and both got one, before
+anything changed shape.
+
 ## What the pipeline checks, and why each step exists
 
 | Step | Exists because |

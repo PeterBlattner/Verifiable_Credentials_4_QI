@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vcqi.config import BIPM_ORIGIN
+from vcqi.party import party_reference
 from vcqi.domain.scope import DeclaredCapability, Interval, UncertaintyFloor
 
 __all__ = ["CmcEntry", "CMC_ENTRIES", "cmc_by_id", "cmc_url", "cmcs_for_institute"]
@@ -109,8 +110,11 @@ class CmcEntry:
             "id": self.url,
             "type": "KcdbCmcEntry",
             "identifier": self.identifier,
-            "institute": self.institute,
-            "instituteName": self.institute_name,
+            # One shape for naming an organisation, the same as every credential uses.
+            # The member keeps the register's own word for the role; only the value
+            # changes. The dataclass attributes are untouched, so the mapping to the
+            # KCDB's columns recorded at the top of this file still reads straight.
+            "institute": party_reference(self.institute, self.institute_name),
             "country": self.country,
             "regionalMetrologyOrganisation": self.rmo,
             "branch": self.branch,

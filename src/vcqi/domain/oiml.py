@@ -46,6 +46,7 @@ from typing import Any
 
 from vcqi.config import OIML_ORIGIN
 from vcqi.domain.scope import DeclaredCapability, Interval, UncertaintyFloor
+from vcqi.party import party_reference
 
 __all__ = [
     "Recommendation",
@@ -228,11 +229,7 @@ class InstrumentType:
             "id": self.id,
             "type": self.kind,
             "name": self.name,
-            "manufacturer": {
-                "id": self.manufacturer,
-                "type": "Organization",
-                "name": self.manufacturer_name,
-            },
+            "manufacturer": party_reference(self.manufacturer, self.manufacturer_name),
             "typeDesignation": self.type_designation,
             "accuracyClass": self.accuracy_class,
         }

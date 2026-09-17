@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vcqi.config import SAS_ORIGIN
+from vcqi.party import party_reference
 from vcqi.domain.scope import (
     ConditionBand,
     Interval,
@@ -43,6 +44,7 @@ from vcqi.domain.scope import (
 from vcqi.domain.scope_query import TestScopeRow
 
 __all__ = [
+    "accreditation_urn",
     "AccreditationScope",
     "ACCREDITATION_SCOPES",
     "QUERY_PROTOCOL",
@@ -127,6 +129,16 @@ class AccreditationScope:
         return scope_url(self.identifier)
 
     @property
+    def urn(self) -> str:
+        """Return the name of the accreditation this scope document describes.
+
+        Returns:
+            The identifier a credential uses as its subject, distinct from the address
+            the document is served at.
+        """
+        return accreditation_urn(self.identifier)
+
+    @property
     def query_url(self) -> str | None:
         """Return the address questions about this scope are asked at.
 
@@ -154,13 +166,13 @@ class AccreditationScope:
             distinguish a calibration scope from a testing one.
         """
         document: dict[str, Any] = {
-            "id": self.url,
+            # The accreditation, not the document about it. The document is served at
+            # `url`, which is what the credential wrapping this carries as its own `id`.
+            "id": self.urn,
             "type": "AccreditationScope",
             "identifier": self.identifier,
-            "accreditationBody": self.body,
-            "accreditationBodyName": self.body_name,
-            "organisation": self.organisation,
-            "organisationName": self.organisation_name,
+            "accreditationBody": party_reference(self.body, self.body_name),
+            "organisation": party_reference(self.organisation, self.organisation_name),
             "conformityAssessmentStandard": self.standard,
             "activity": self.activity,
             "field": self.field,
@@ -182,6 +194,28 @@ class AccreditationScope:
         if self.language_precedence is not None:
             document["languagePrecedence"] = self.language_precedence
         return document
+
+
+def accreditation_urn(identifier: str) -> str:
+    """Return the name of the accreditation itself, as distinct from its document.
+
+    The credential is published at :func:`scope_url` and is *about* the accreditation
+    this names. Before these were two strings they were one, and the credential's ``id``
+    and its ``credentialSubject.id`` were the same URI -- one name asserted to denote
+    both a document and the thing the document describes.
+
+    A URN rather than a second URL, because there is nothing to serve at it and the data
+    model only asks for a URL that ``MAY`` be dereferenceable. It also matches what every
+    other non-party subject in this demonstration is already called: ``urn:instrument:``,
+    ``urn:product:``, ``urn:type:``.
+
+    Args:
+        identifier: The accreditation number, for example ``SCS 0123``.
+
+    Returns:
+        The identifier of the accreditation.
+    """
+    return f"urn:accreditation:sas:{identifier.replace(' ', '-')}"
 
 
 def scope_url(identifier: str) -> str:

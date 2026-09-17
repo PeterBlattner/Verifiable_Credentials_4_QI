@@ -3504,3 +3504,99 @@ reads as an answer rather than as a gap.
 ## Git
 
 Branch `feature/document-notes-in-issuing`, one commit, into `develop`.
+
+# Change set 22 - who a credential is about, and one way to name a party
+
+## Context
+
+A reviewer wrote, of the accreditation scope credential for STS 0456:
+
+> It seems Claude erred with his credential "Subject", which should be the party's DID,
+> not the ID of the accreditation hold by party.
+
+The instinct is right about the ecosystem rule and wrong about which document carries the
+claim. Recognized Entities 1.0 §2.4 and §4.1 step 8 - the specification this whole
+demonstration is built on - already prescribe a party-subject accreditation credential,
+and this repository already has one: SAS's `RecognizedEntityCredential` "Accredited
+bodies, 2026 edition", whose `credentialSubject` is an array of party DIDs including
+`did:web:testlab.example`, matched against the certificate issuer at `recognition.py:204`.
+That layer conforms.
+
+`AccreditationScopeCredential` is the scope *table* that `capabilityReference` points at,
+not the standing-claim. Its subject is legitimately the register entry - the same shape
+UN/CEFACT's UNTP uses for its Digital Conformity Credential. But three things are wrong,
+and the review found none of them:
+
+1. `credential.id == credentialSubject.id`, on this one type only. Every other non-party
+   credential here already keeps them apart - `urn:instrument:`, `urn:product:`,
+   `urn:type:` for subjects, `https://` for credentials.
+2. `organisation` is written and never read. `scopes_for_organisation` has no callers.
+   The holder of an accreditation sits in a field nothing consults.
+3. Seven spellings for naming a party, and the flat pairs are load-bearing: both signer
+   checks are guarded by `isinstance(granting_body, str)`, so turning `accreditationBody`
+   into an object silently disables them and no test fails. Neither check has a negative
+   case today.
+
+Full analysis, with the specification quotations and the four ecosystem precedents, is in
+`temp/review-response-subject-and-parties.md`.
+
+## Checklist
+
+- [x] 1. Close the silent skip in the two signer checks, no shape change, plus the two
+      missing negative tests
+- [x] 2. `src/vcqi/party.py` and `tests/test_parties.py`
+- [x] 3. Adopt the helper where the shape is already right - `oiml.py`, nine
+      `scenarios.py` sites
+- [x] 4. The scope credential - atomic across `accreditation.py`, `verify.py` x2,
+      `tests/test_web.py`
+- [x] 5. The KCDB entry
+- [x] 6. The `urn:` subject id and the holder check
+- [x] 7. `web/app.py` graph and `verify.py` duplication check read through `party_in`
+- [x] 8. Documentation - ARCHITECTURE.md, chapter 12, review response
+
+## Progress log
+
+- **Step 1 done** (`99f039e`). Both `accreditationBody` checks now refuse rather than
+  skip when the member cannot be read. Two negative tests arrived with them:
+  `scope-granted-by-another-body` in the tamper catalogue, and a wrongly-signed query
+  answer in `test_scope_query.py` -- the one of the three protections that module's
+  docstring names which had no test. Suite 625 pass, 46 skip, from a 622/46 baseline.
+  Deviation from plan: adding a tamper case tripped
+  `test_the_failure_chapter_counts_its_own_cases`, so the break-it and tamper chapters
+  move from twenty-three to twenty-four in prose. The test was doing its job.
+- **Step 2 done** (`c48af7b`). `src/vcqi/party.py` plus ten unit tests. Deviation from
+  plan: the world-wide sweep could not live here, because nothing was normalised yet and
+  it would have been red between commits. It landed with step 5 instead.
+- **Step 3 done** (`eaf1fd1`). Nine sites in `scenarios.py` and one in `oiml.py` now go
+  through `party_reference`. `oiml.py`'s output is unchanged -- it was already the shape.
+  The PTB/DKD DCC XML was checked byte-for-byte on both documents rather than assumed, so
+  the pinned digests did not move and `unclib_blobs.json` needed nothing.
+- **Step 4 done** (`259281a`). The scope credential's two bodies became party references,
+  atomically with both readers and one test. The reason step 1 came first was demonstrated
+  rather than argued: restoring the old guard against the new shape makes
+  `scope-granted-by-another-body` verify clean, and without the negative case the whole
+  suite stays green while it does.
+- **Step 5 done** (`61e1809`). The KCDB entry, and the sweep held back from step 2.
+  Seventeen parties under seven member names; both halves of the sweep were checked by
+  reintroducing the shapes they forbid.
+- **Step 6 done** (`5d04577`). `accreditation_urn` separates the accreditation from the
+  document about it, so the credential `id` and `credentialSubject.id` are no longer the
+  same URI. `organisation` is read for the first time, and
+  `scope-belongs-to-another-laboratory` is the case for it. Second count bump, to
+  twenty-five.
+- **Step 7 done.** The graph view and the duplication check read through `party_in` rather
+  than hard-coded role words. All five issuance edges still name a recipient.
+- **Step 8 done.** Two ARCHITECTURE decision sections; a `capability-vocabulary` item on
+  the harmonisation ladder plus a paragraph in chapter 12; the review response in
+  `temp/review-response-subject-and-parties.md`.
+
+## Outcome
+
+640 pass, 46 skipped, from a 622/46 baseline: eighteen new tests. Every control responds
+on all fourteen chapters, with `break` now reporting twenty-five.
+
+Left undone on purpose, and recorded in ARCHITECTURE.md rather than dropped: the `issuer`
+member inside a document reference is still a bare identifier restating something no check
+reads. It should be compared against the document it sits beside, the way
+`traceability.object-identity` treats `traceableTo.instrument`, or deleted. That adds a
+check where everything in this change set only moved shapes, so it earns its own branch.

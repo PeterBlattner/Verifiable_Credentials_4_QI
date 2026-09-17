@@ -13,7 +13,7 @@
      them here would split one fact across two files and leave the claim untested.
 
      The chapter before this one is the same argument with somebody else's hand on it:
-     twenty-three cases that reach further than one document can, because they change the
+     twenty-five cases that reach further than one document can, because they change the
      world around the certificate rather than the certificate. -->
 
 <!-- block: title -->
@@ -30,7 +30,7 @@ Change a field, decide whether the issuer signs it again, and see which check no
 
 <!-- block: by-hand -->
 
-The last chapter applied twenty-three failures somebody else chose. This is the same pipeline with the document in your hands: pick a certificate, change one of the fields it states, and run it.
+The last chapter applied twenty-five failures somebody else chose. This is the same pipeline with the document in your hands: pick a certificate, change one of the fields it states, and run it.
 
 Leave the signature alone and the answer is always the same — the proof fails, because the signature covers a canonical form of the whole document and a single digit invalidates it. That is worth seeing once. It is also the least interesting thing that can go wrong, and it is the only failure a system built on signatures alone can find.
 

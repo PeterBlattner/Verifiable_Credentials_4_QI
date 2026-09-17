@@ -227,6 +227,7 @@ def recognized_action(
 def accreditation_scope_credential(
     *,
     scope: dict[str, Any],
+    credential_id: str,
     issuer: dict[str, Any],
     valid_from: str,
     valid_until: str,
@@ -257,7 +258,10 @@ def accreditation_scope_credential(
     difference between them visible in the pipeline rather than only described.
 
     Args:
-        scope: The scope document, from ``AccreditationScope.to_json``.
+        scope: The scope document, from ``AccreditationScope.to_json``. Its ``id`` names
+            the accreditation; this credential's names the document about it.
+        credential_id: Where this credential is published, which is the address every
+            ``capabilityReference`` points at.
         issuer: The issuer object, from :func:`issuer_reference`.
         valid_from: Start of validity, as an XML Schema dateTime.
         valid_until: End of validity, as an XML Schema dateTime.
@@ -268,7 +272,7 @@ def accreditation_scope_credential(
     """
     credential: dict[str, Any] = {
         "@context": CREDENTIAL_CONTEXT,
-        "id": scope["id"],
+        "id": credential_id,
         "type": ["VerifiableCredential", "AccreditationScopeCredential"],
         "name": f"Accreditation scope {scope['identifier']}",
         "issuer": issuer,
@@ -339,7 +343,7 @@ def capability_reference(
 def scope_coverage_answer_credential(
     *,
     address: str,
-    scope_url: str,
+    accreditation: str,
     identifier: str,
     protocol: str,
     issuer: dict[str, Any],
@@ -368,7 +372,8 @@ def scope_coverage_answer_credential(
     Args:
         address: The endpoint with the question appended, which is this credential's
             identifier. One question, one spelling, one address.
-        scope_url: The scope the question is about.
+        accreditation: The accreditation the question is about, named the same way the
+            scope credential's subject names it.
         identifier: The register's number for that scope.
         protocol: The query protocol this answer was given under.
         issuer: The issuer object, from :func:`issuer_reference`.
@@ -389,7 +394,7 @@ def scope_coverage_answer_credential(
         "issuer": issuer,
         "validFrom": answered_at,
         "credentialSubject": {
-            "id": scope_url,
+            "id": accreditation,
             "type": "AccreditationScope",
             "identifier": identifier,
             "protocol": protocol,
