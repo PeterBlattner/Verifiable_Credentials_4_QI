@@ -62,6 +62,7 @@ from vcqi.domain.scope import (
 from vcqi.domain.dcc import parse_dcc_administrative, parse_dcc_result
 from vcqi.domain.uncertainty import parse_input_quantities
 from vcqi.vc.model import artefact_payload
+from vcqi.party import party_id
 from vcqi.vc.checks import (
     CheckOutcome,
     check_proof,
@@ -428,8 +429,8 @@ def _capability_document(
     # guard here read `isinstance(granting_body, str) and ...`, which meant a document
     # spelling the member any other way switched the check off and reported a pass --
     # the one failure mode a check of this kind must not have.
-    granting_body = subject.get("accreditationBody")
-    if not isinstance(granting_body, str):
+    granting_body = party_id(subject.get("accreditationBody"))
+    if granting_body is None:
         return failure(
             f"the capability at {address} does not name the body that granted it, so "
             f"there is nothing to check its signature against"
@@ -710,8 +711,8 @@ def _step_scope_by_query(
 
     # Refused rather than skipped when the member cannot be read, for the reason given
     # at the sibling check in `_capability_document`.
-    granting_body = document.get("accreditationBody")
-    if not isinstance(granting_body, str):
+    granting_body = party_id(document.get("accreditationBody"))
+    if granting_body is None:
         return refuse(
             "scope.answer",
             "The answer is signed by the body that granted the scope",

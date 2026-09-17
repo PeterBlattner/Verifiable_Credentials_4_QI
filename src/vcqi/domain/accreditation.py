@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vcqi.config import SAS_ORIGIN
+from vcqi.party import party_reference
 from vcqi.domain.scope import (
     ConditionBand,
     Interval,
@@ -157,10 +158,8 @@ class AccreditationScope:
             "id": self.url,
             "type": "AccreditationScope",
             "identifier": self.identifier,
-            "accreditationBody": self.body,
-            "accreditationBodyName": self.body_name,
-            "organisation": self.organisation,
-            "organisationName": self.organisation_name,
+            "accreditationBody": party_reference(self.body, self.body_name),
+            "organisation": party_reference(self.organisation, self.organisation_name),
             "conformityAssessmentStandard": self.standard,
             "activity": self.activity,
             "field": self.field,

@@ -127,7 +127,7 @@ def test_the_one_string_panel_finds_both_registers(client: TestClient) -> None:
     assert scopes, "no accreditation scope publishes dc.resistance, so the second chip is gone"
 
     # The point of the panel is that two different organisations publish the same string.
-    assert cmc[0]["institute"] != scopes[0]["accreditationBody"]
+    assert cmc[0]["institute"] != scopes[0]["accreditationBody"]["id"]
 
 
 def test_graph_edges_are_derived_from_the_credentials(client: TestClient) -> None:
