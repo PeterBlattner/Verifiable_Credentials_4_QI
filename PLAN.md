@@ -3544,15 +3544,15 @@ Full analysis, with the specification quotations and the four ecosystem preceden
 
 - [x] 1. Close the silent skip in the two signer checks, no shape change, plus the two
       missing negative tests
-- [ ] 2. `src/vcqi/party.py` and `tests/test_parties.py`
-- [ ] 3. Adopt the helper where the shape is already right - `oiml.py`, nine
+- [x] 2. `src/vcqi/party.py` and `tests/test_parties.py`
+- [x] 3. Adopt the helper where the shape is already right - `oiml.py`, nine
       `scenarios.py` sites
-- [ ] 4. The scope credential - atomic across `accreditation.py`, `verify.py` x2,
+- [x] 4. The scope credential - atomic across `accreditation.py`, `verify.py` x2,
       `tests/test_web.py`
-- [ ] 5. The KCDB entry
-- [ ] 6. The `urn:` subject id and the holder check
-- [ ] 7. `web/app.py` graph and `verify.py` duplication check read through `party_in`
-- [ ] 8. Documentation - ARCHITECTURE.md, chapter 12, review response
+- [x] 5. The KCDB entry
+- [x] 6. The `urn:` subject id and the holder check
+- [x] 7. `web/app.py` graph and `verify.py` duplication check read through `party_in`
+- [x] 8. Documentation - ARCHITECTURE.md, chapter 12, review response
 
 ## Progress log
 
@@ -3564,3 +3564,39 @@ Full analysis, with the specification quotations and the four ecosystem preceden
   Deviation from plan: adding a tamper case tripped
   `test_the_failure_chapter_counts_its_own_cases`, so the break-it and tamper chapters
   move from twenty-three to twenty-four in prose. The test was doing its job.
+- **Step 2 done** (`c48af7b`). `src/vcqi/party.py` plus ten unit tests. Deviation from
+  plan: the world-wide sweep could not live here, because nothing was normalised yet and
+  it would have been red between commits. It landed with step 5 instead.
+- **Step 3 done** (`eaf1fd1`). Nine sites in `scenarios.py` and one in `oiml.py` now go
+  through `party_reference`. `oiml.py`'s output is unchanged -- it was already the shape.
+  The PTB/DKD DCC XML was checked byte-for-byte on both documents rather than assumed, so
+  the pinned digests did not move and `unclib_blobs.json` needed nothing.
+- **Step 4 done** (`259281a`). The scope credential's two bodies became party references,
+  atomically with both readers and one test. The reason step 1 came first was demonstrated
+  rather than argued: restoring the old guard against the new shape makes
+  `scope-granted-by-another-body` verify clean, and without the negative case the whole
+  suite stays green while it does.
+- **Step 5 done** (`61e1809`). The KCDB entry, and the sweep held back from step 2.
+  Seventeen parties under seven member names; both halves of the sweep were checked by
+  reintroducing the shapes they forbid.
+- **Step 6 done** (`5d04577`). `accreditation_urn` separates the accreditation from the
+  document about it, so the credential `id` and `credentialSubject.id` are no longer the
+  same URI. `organisation` is read for the first time, and
+  `scope-belongs-to-another-laboratory` is the case for it. Second count bump, to
+  twenty-five.
+- **Step 7 done.** The graph view and the duplication check read through `party_in` rather
+  than hard-coded role words. All five issuance edges still name a recipient.
+- **Step 8 done.** Two ARCHITECTURE decision sections; a `capability-vocabulary` item on
+  the harmonisation ladder plus a paragraph in chapter 12; the review response in
+  `temp/review-response-subject-and-parties.md`.
+
+## Outcome
+
+640 pass, 46 skipped, from a 622/46 baseline: eighteen new tests. Every control responds
+on all fourteen chapters, with `break` now reporting twenty-five.
+
+Left undone on purpose, and recorded in ARCHITECTURE.md rather than dropped: the `issuer`
+member inside a document reference is still a bare identifier restating something no check
+reads. It should be compared against the document it sits beside, the way
+`traceability.object-identity` treats `traceableTo.instrument`, or deleted. That adds a
+check where everything in this change set only moved shapes, so it earns its own branch.

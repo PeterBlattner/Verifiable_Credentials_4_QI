@@ -862,6 +862,44 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "reaching back to suspend one entry of a roster already issued is not."
         ),
     ),
+    HarmonisationItem(
+        key="capability-vocabulary",
+        tier="irreversible",
+        title="How a capability is written down",
+        status="open",
+        requirement=(
+            "An agreed way to say what a recognised entity is permitted to issue that "
+            "can express a register's own grammar \u2014 lists of fixed values, strict "
+            "bounds, a nominal with a tolerance, and rows keyed by the conditions they "
+            "were demonstrated under."
+        ),
+        demonstrated=(
+            "Two members side by side. `outputValidation` carries the JSON Schema the "
+            "specification defines, and `capabilityReference` was invented beside it to "
+            "carry the accreditation scope, because a schema cannot hold a table of that "
+            "shape. The scope check reads the second; the schema check reads the first, "
+            "and passes documents the register then refuses."
+        ),
+        exists=(
+            "Recognized Entities defines `outputValidation` as one or more data schemas "
+            "and nothing else. A JSON Schema can say a result is a number within a range; "
+            "it cannot say which row of a published table applies, nor that the row "
+            "depends on whether the object is a measuring instrument or a material "
+            "measure. So the gap is real and the half that does exist is the easy half."
+        ),
+        source="https://www.w3.org/TR/vc-recognized-entities-1.0/",
+        consequence=(
+            "Every arrangement that needs a scope richer than a schema invents its own "
+            "member for it, and two verifiers reading the same accreditation disagree "
+            "about what it permits \u2014 which is the situation the recognition chain was "
+            "built to remove, reappearing one level down."
+        ),
+        forum=(
+            "The credential working group for the vocabulary, and the accreditation "
+            "arrangements for the grammar it would have to carry. Naming the member is "
+            "cheap now and expensive once several bodies have each named their own."
+        ),
+    ),
     # ---------------------------------------------------------------- tier 3
     HarmonisationItem(
         key="digital-si",
