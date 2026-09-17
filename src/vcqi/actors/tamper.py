@@ -60,6 +60,7 @@ from vcqi.crypto.keys import build_did_document, derive_key
 from vcqi.domain.instruments import instrument_by_id
 from vcqi.domain.oiml import recommendation_by_id
 from vcqi.domain.uncertainty import evaluate, from_expanded_uncertainty, normal, rectangular
+from vcqi.party import party_reference
 from vcqi.vc.model import (
     budget_to_json,
     credential_reference,
@@ -779,6 +780,40 @@ def _scope_granted_by_another_body() -> TamperResult:
     return TamperResult(world, signed, DEMO_NOW)
 
 
+def _scope_belongs_to_another_laboratory() -> TamperResult:
+    """Cite an accreditation that was granted to somebody else.
+
+    The scope at the address the test report names is genuine in every respect that used
+    to be checked: the accreditation body signed it, it is the body the document says
+    granted it, it is in force, it has not been suspended, and the digest the report
+    pins matches it exactly. The recognition credential still names this scope for this
+    laboratory, so the action check is satisfied too.
+
+    It was granted to a different laboratory, and the document says so in a member that
+    nothing read until now. The binding between a certificate and the accreditation
+    authorising it was made one level up, by the recognition credential naming the same
+    scope for the same laboratory -- which does hold, and which is a restated fact
+    rather than a checked one. This is the accreditation being checked on its own terms.
+    """
+    world = build_world()
+    callab = actor_by_did("did:web:callab.example")
+    scope = copy.deepcopy(world.credential("scope-STS-0456"))
+    scope["credentialSubject"]["organisation"] = party_reference(
+        callab.did, callab.legal_name
+    )
+    signed_scope = _resign(scope, "did:web:sas.example", RECOGNITION_FROM)
+    _republish(world, "scope-STS-0456", signed_scope)
+
+    report = copy.deepcopy(world.credential("testlab-report"))
+    reference = report["credentialSubject"]["testing"]["capabilityReference"]
+    reference["digestMultibase"] = credential_reference(
+        signed_scope, relation="AccreditationScope"
+    )["digestMultibase"]
+    signed = _resign(report, "did:web:testlab.example", TESTLAB_ISSUED)
+    _republish(world, "testlab-report", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
 def _tested_before_accredited() -> TamperResult:
     """Test against a standard the accreditation did not cover on the day.
 
@@ -868,6 +903,27 @@ NEW_CASES: tuple[TamperCase, ...] = (
             "check off and reported a pass."
         ),
         apply=_scope_granted_by_another_body,
+    ),
+    TamperCase(
+        key="scope-belongs-to-another-laboratory",
+        title="Cite an accreditation granted to somebody else",
+        group="forgery",
+        description=(
+            "The accreditation at the address the test report names is entirely "
+            "genuine -- signed by the accreditation body, in force, not suspended, and "
+            "matching the digest the report pins. It was granted to a different "
+            "laboratory."
+        ),
+        expected_step="scope",
+        catches=(
+            "An accreditation names the body it was granted to, and for a long time "
+            "nothing read that member. The link between a certificate and the "
+            "accreditation behind it was made one level up instead, by the recognition "
+            "credential naming the same scope for the same laboratory. That chain does "
+            "hold; it is simply a fact restated somewhere else rather than checked "
+            "where it is written."
+        ),
+        apply=_scope_belongs_to_another_laboratory,
     ),
     TamperCase(
         key="out-of-band-frequency",

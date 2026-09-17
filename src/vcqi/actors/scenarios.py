@@ -764,6 +764,7 @@ def _accreditation_scope_credentials(world: World) -> None:
     for scope in accreditation_registry.ACCREDITATION_SCOPES:
         credential = accreditation_scope_credential(
             scope=scope.to_json(),
+            credential_id=scope.url,
             issuer=issuer_reference(
                 "did:web:sas.example",
                 sas.legal_name,
@@ -845,7 +846,7 @@ def _coverage_handler(scope: Any, issuer: dict[str, Any]) -> Any:
         verdict = answer_coverage(scope.test_rows, question)
         credential = scope_coverage_answer_credential(
             address=question.address(scope.query_url),
-            scope_url=scope.url,
+            accreditation=scope.urn,
             identifier=scope.identifier,
             protocol=accreditation_registry.QUERY_PROTOCOL,
             issuer=issuer,

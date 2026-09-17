@@ -336,7 +336,10 @@ def _capability_from_document(document: dict[str, Any]) -> DeclaredCapability | 
 
 
 def _capability_document(
-    reference: dict[str, Any], resolver: Resolver, now: datetime
+    reference: dict[str, Any],
+    resolver: Resolver,
+    now: datetime,
+    claimant: str | None = None,
 ) -> tuple[dict[str, Any] | None, str, Step | None]:
     """Obtain the published capability a document was issued under.
 
@@ -360,6 +363,9 @@ def _capability_document(
     Args:
         reference: The capability reference the credential names.
         resolver: Used to obtain the document.
+        claimant: Identifier of the party whose document is being adjudicated, so the
+            capability can be checked to be that party's own. None skips the check, for
+            a caller with nobody to compare against.
         now: The instant to judge the validity period against.
 
     Returns:
@@ -439,6 +445,23 @@ def _capability_document(
         return failure(
             f"the capability at {address} says it was granted by {granting_body} but "
             f"was signed by {issuer_id(document)}"
+        )
+
+    # And the capability has to be the claimant's own. `organisation` names the body the
+    # accreditation was granted to, and nothing read it until now: the binding between a
+    # certificate and the accreditation authorising it was made one level up, by the
+    # recognition credential naming the same scope for the same laboratory. That chain
+    # does hold, so this is not a hole being closed -- it is a restated fact becoming a
+    # checked one, which is what this project asks of every other reference it carries.
+    #
+    # A capability naming no organisation passes rather than failing. A CMC entry names
+    # none, and though one returns earlier than this, a register that published a scope
+    # without a holder should not be refused by a check about a mismatch.
+    granted_to = party_id(subject.get("organisation"))
+    if claimant is not None and granted_to is not None and granted_to != claimant:
+        return failure(
+            f"the capability at {address} was granted to {granted_to} and the document "
+            f"citing it was issued by {claimant}"
         )
 
     validity = check_validity_period(document, now)
@@ -1293,7 +1316,9 @@ def _step_scope(
     if _most_specific_type(credential) == "ExternalDocumentCredential":
         return _step_scope_of_external_document(credential, reference, resolver, now)
 
-    document, provenance, failed = _capability_document(reference, resolver, now)
+    document, provenance, failed = _capability_document(
+        reference, resolver, now, issuer_id(credential)
+    )
     if failed is not None:
         return failed
     assert document is not None
@@ -1396,7 +1421,9 @@ def _step_scope_of_external_document(
     Returns:
         The step, with one child per condition that could be evaluated.
     """
-    document, _, failed = _capability_document(reference, resolver, now)
+    document, _, failed = _capability_document(
+        reference, resolver, now, issuer_id(credential)
+    )
     if failed is not None:
         return failed
     assert document is not None
