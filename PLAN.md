@@ -3542,7 +3542,7 @@ Full analysis, with the specification quotations and the four ecosystem preceden
 
 ## Checklist
 
-- [ ] 1. Close the silent skip in the two signer checks, no shape change, plus the two
+- [x] 1. Close the silent skip in the two signer checks, no shape change, plus the two
       missing negative tests
 - [ ] 2. `src/vcqi/party.py` and `tests/test_parties.py`
 - [ ] 3. Adopt the helper where the shape is already right - `oiml.py`, nine
@@ -3556,3 +3556,11 @@ Full analysis, with the specification quotations and the four ecosystem preceden
 
 ## Progress log
 
+- **Step 1 done** (`99f039e`). Both `accreditationBody` checks now refuse rather than
+  skip when the member cannot be read. Two negative tests arrived with them:
+  `scope-granted-by-another-body` in the tamper catalogue, and a wrongly-signed query
+  answer in `test_scope_query.py` -- the one of the three protections that module's
+  docstring names which had no test. Suite 625 pass, 46 skip, from a 622/46 baseline.
+  Deviation from plan: adding a tamper case tripped
+  `test_the_failure_chapter_counts_its_own_cases`, so the break-it and tamper chapters
+  move from twenty-three to twenty-four in prose. The test was doing its job.
