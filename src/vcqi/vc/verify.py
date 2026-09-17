@@ -62,7 +62,7 @@ from vcqi.domain.scope import (
 from vcqi.domain.dcc import parse_dcc_administrative, parse_dcc_result
 from vcqi.domain.uncertainty import parse_input_quantities
 from vcqi.vc.model import artefact_payload
-from vcqi.party import party_id
+from vcqi.party import party_id, party_in
 from vcqi.vc.checks import (
     CheckOutcome,
     check_proof,
@@ -2520,8 +2520,12 @@ def _step_duplication(credential: dict[str, Any], dcc_xml: str | None) -> Step:
     subject = subject if isinstance(subject, dict) else {}
     issuer = credential.get("issuer")
     issuer = issuer if isinstance(issuer, dict) else {}
-    owner = subject.get("owner")
-    owner = owner if isinstance(owner, dict) else {}
+    # Read through the role list rather than by the word `owner`, so the check is about
+    # the party the document was issued to rather than about one spelling of it. The
+    # comparison against the DCC's customer is only right because in this world the
+    # owner of the artefact is the customer of the calibration; a certificate that named
+    # its recipient any other way would have gone unchecked before.
+    owner = party_in(subject) or {}
 
     duplicated = [
         (

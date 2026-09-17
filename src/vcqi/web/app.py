@@ -99,6 +99,7 @@ from vcqi.domain.uncertainty import (
 )
 from vcqi.vc.checks import credential_types, issuer_id
 from vcqi.vc.resolver import DID_KEY_PREFIX, did_key_document
+from vcqi.party import party_in
 from vcqi.vc.verify import verify_credential
 from vcqi.web.content import content_payload
 from vcqi.web.limits import BodySizeLimitMiddleware, RateLimitMiddleware
@@ -450,17 +451,20 @@ def _graph() -> dict[str, Any]:
                 }
             )
 
+    # The member each of these names its recipient under used to be written here as
+    # well as in the document. One list of role words lives in `vcqi.party` now, and
+    # this reads through it.
     issuance = [
-        ("metas-calibration", "owner", "calibration certificate"),
-        ("callab-calibration", "owner", "calibration certificate"),
-        ("testlab-report", "client", "test report"),
-        ("cab-conformity", "holder", "certificate of conformity"),
-        ("oiml-certificate", "applicant", "OIML certificate"),
+        ("metas-calibration", "calibration certificate"),
+        ("callab-calibration", "calibration certificate"),
+        ("testlab-report", "test report"),
+        ("cab-conformity", "certificate of conformity"),
+        ("oiml-certificate", "OIML certificate"),
     ]
-    for name, member, label in issuance:
+    for name, label in issuance:
         credential = current.credential(name)
         subject = credential.get("credentialSubject", {})
-        recipient = subject.get(member, {}) if isinstance(subject, dict) else {}
+        recipient = (party_in(subject) if isinstance(subject, dict) else None) or {}
         edges.append(
             {
                 "source": issuer_id(credential),
