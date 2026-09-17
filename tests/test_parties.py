@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+from vcqi.actors.scenarios import build_world
 from vcqi.party import (
     PARTY_TYPE,
     RECIPIENT_ROLES,
@@ -19,6 +20,16 @@ from vcqi.party import (
     party_name,
     party_reference,
 )
+
+
+@pytest.fixture(scope="module")
+def world():
+    """Build the demonstration world once for the sweep.
+
+    Returns:
+        The world, whose store holds every document this project publishes.
+    """
+    return build_world()
 
 
 class TestTheVocabulary:
@@ -68,3 +79,77 @@ class TestTheVocabulary:
         cannot satisfy a reader that went through this module.
         """
         assert party_in({"owner": "did:web:a.example"}) is None
+
+
+#: Members under which a document names an organisation it points at. The four recipient
+#: roles plus the three registers' own words for who a document belongs to.
+PARTY_MEMBERS = RECIPIENT_ROLES + ("accreditationBody", "organisation", "institute")
+
+
+def _nodes(value):
+    """Walk every dictionary inside a document.
+
+    Args:
+        value: Any part of a document.
+
+    Yields:
+        Each dictionary, the document itself included.
+    """
+    if isinstance(value, dict):
+        yield value
+        for member in value.values():
+            yield from _nodes(member)
+    elif isinstance(value, list):
+        for member in value:
+            yield from _nodes(member)
+
+
+class TestEveryDocumentInTheWorld:
+    """The sweep. This is what stops an eighth spelling arriving later."""
+
+    def test_every_party_is_the_one_shape(self, world) -> None:
+        """One definition of a party, in every document the world publishes."""
+        seen = 0
+        for address in world.store.contents():
+            document = world.store.get(address)
+            for node in _nodes(document):
+                for member in PARTY_MEMBERS:
+                    party = node.get(member)
+                    if not isinstance(party, dict):
+                        continue
+                    seen += 1
+                    assert set(party) == {"id", "type", "name"}, (
+                        f"{member} in {address} carries {sorted(party)}"
+                    )
+                    assert party["type"] == PARTY_TYPE, (
+                        f"{member} in {address} is a {party['type']}"
+                    )
+        assert seen > 0, "the sweep found no parties at all, so it proves nothing"
+
+    def test_no_document_carries_a_flat_pair(self, world) -> None:
+        """A `fooName` beside a `foo` is the shape this module removed.
+
+        Two members that can disagree, with nothing comparing them, is the redundancy
+        the project argues against everywhere else. Catching the shape rather than the
+        four names it happened to have means a new one is caught too.
+        """
+        for address in world.store.contents():
+            for node in _nodes(world.store.get(address)):
+                for member in node:
+                    assert f"{member}Name" not in node, (
+                        f"{address} carries both {member} and {member}Name"
+                    )
+
+    def test_the_recognised_entity_roster_keeps_its_own_class(self, world) -> None:
+        """Subjects are not references, and the sweep must not have flattened them.
+
+        `RecognizedEntity` is a role the specification being demonstrated defines, and a
+        roster has to carry `legalName` and `url` to be readable. If this ever starts
+        failing because the subjects became `Organization`, the sweep has been applied
+        somewhere it does not belong.
+        """
+        roster = world.credential("sas-recognition")["credentialSubject"]
+        assert isinstance(roster, list) and roster
+        for entity in roster:
+            assert entity["type"] == "RecognizedEntity"
+            assert entity["id"].startswith("did:web:")
