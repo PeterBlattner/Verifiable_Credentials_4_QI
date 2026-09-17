@@ -3504,3 +3504,55 @@ reads as an answer rather than as a gap.
 ## Git
 
 Branch `feature/document-notes-in-issuing`, one commit, into `develop`.
+
+# Change set 22 - who a credential is about, and one way to name a party
+
+## Context
+
+A reviewer wrote, of the accreditation scope credential for STS 0456:
+
+> It seems Claude erred with his credential "Subject", which should be the party's DID,
+> not the ID of the accreditation hold by party.
+
+The instinct is right about the ecosystem rule and wrong about which document carries the
+claim. Recognized Entities 1.0 §2.4 and §4.1 step 8 - the specification this whole
+demonstration is built on - already prescribe a party-subject accreditation credential,
+and this repository already has one: SAS's `RecognizedEntityCredential` "Accredited
+bodies, 2026 edition", whose `credentialSubject` is an array of party DIDs including
+`did:web:testlab.example`, matched against the certificate issuer at `recognition.py:204`.
+That layer conforms.
+
+`AccreditationScopeCredential` is the scope *table* that `capabilityReference` points at,
+not the standing-claim. Its subject is legitimately the register entry - the same shape
+UN/CEFACT's UNTP uses for its Digital Conformity Credential. But three things are wrong,
+and the review found none of them:
+
+1. `credential.id == credentialSubject.id`, on this one type only. Every other non-party
+   credential here already keeps them apart - `urn:instrument:`, `urn:product:`,
+   `urn:type:` for subjects, `https://` for credentials.
+2. `organisation` is written and never read. `scopes_for_organisation` has no callers.
+   The holder of an accreditation sits in a field nothing consults.
+3. Seven spellings for naming a party, and the flat pairs are load-bearing: both signer
+   checks are guarded by `isinstance(granting_body, str)`, so turning `accreditationBody`
+   into an object silently disables them and no test fails. Neither check has a negative
+   case today.
+
+Full analysis, with the specification quotations and the four ecosystem precedents, is in
+`temp/review-response-subject-and-parties.md`.
+
+## Checklist
+
+- [ ] 1. Close the silent skip in the two signer checks, no shape change, plus the two
+      missing negative tests
+- [ ] 2. `src/vcqi/party.py` and `tests/test_parties.py`
+- [ ] 3. Adopt the helper where the shape is already right - `oiml.py`, nine
+      `scenarios.py` sites
+- [ ] 4. The scope credential - atomic across `accreditation.py`, `verify.py` x2,
+      `tests/test_web.py`
+- [ ] 5. The KCDB entry
+- [ ] 6. The `urn:` subject id and the holder check
+- [ ] 7. `web/app.py` graph and `verify.py` duplication check read through `party_in`
+- [ ] 8. Documentation - ARCHITECTURE.md, chapter 12, review response
+
+## Progress log
+

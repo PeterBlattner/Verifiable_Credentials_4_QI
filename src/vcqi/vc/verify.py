@@ -423,8 +423,18 @@ def _capability_document(
     # The body that signed it has to be the body it names as having granted it. Without
     # this, any issuer whose signature verifies could publish a scope in another body's
     # name and a reference would happily point at it.
+    #
+    # A scope that does not name a granting body is refused rather than skipped. The
+    # guard here read `isinstance(granting_body, str) and ...`, which meant a document
+    # spelling the member any other way switched the check off and reported a pass --
+    # the one failure mode a check of this kind must not have.
     granting_body = subject.get("accreditationBody")
-    if isinstance(granting_body, str) and issuer_id(document) != granting_body:
+    if not isinstance(granting_body, str):
+        return failure(
+            f"the capability at {address} does not name the body that granted it, so "
+            f"there is nothing to check its signature against"
+        )
+    if issuer_id(document) != granting_body:
         return failure(
             f"the capability at {address} says it was granted by {granting_body} but "
             f"was signed by {issuer_id(document)}"
@@ -698,8 +708,17 @@ def _step_scope_by_query(
             f"the answer from {address} is not properly signed: {proof_outcome.detail}",
         )
 
+    # Refused rather than skipped when the member cannot be read, for the reason given
+    # at the sibling check in `_capability_document`.
     granting_body = document.get("accreditationBody")
-    if isinstance(granting_body, str) and issuer_id(answer) != granting_body:
+    if not isinstance(granting_body, str):
+        return refuse(
+            "scope.answer",
+            "The answer is signed by the body that granted the scope",
+            f"{label} does not name the body that granted it, so there is nothing to "
+            f"check the answer's signature against",
+        )
+    if issuer_id(answer) != granting_body:
         return refuse(
             "scope.answer",
             "The answer is signed by the body that granted the scope",

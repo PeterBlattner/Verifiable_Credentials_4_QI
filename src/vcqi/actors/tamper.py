@@ -736,6 +736,49 @@ def _substituted_scope() -> TamperResult:
     return TamperResult(world, world.credential("callab-calibration"), DEMO_NOW)
 
 
+def _scope_granted_by_another_body() -> TamperResult:
+    """Mint your own accreditation scope and point the certificate at it.
+
+    The laboratory republishes the scope it works under, signed with its own key and
+    issued in its own name, and updates the digest its certificate pins so the reference
+    is satisfied. Everything the laboratory controls has been made consistent: the
+    signature verifies, the key really is the one its DID document authorises, the scope
+    is in force and not suspended, and the certificate names the document that is
+    actually there.
+
+    One member it cannot make consistent is ``accreditationBody``, because changing that
+    would be claiming the accreditation came from itself. So the scope still says the
+    Swiss Accreditation Service granted it, and the body that signed it is the
+    laboratory -- which is the whole of the forgery, stated in one line of the document.
+
+    This is the counterpart to ``substituted-scope``. There the digest catches a scope
+    that was altered; here the digest matches perfectly, and what catches it is that a
+    capability has to be signed by the body it names as having granted it.
+    """
+    world = build_world()
+    callab = actor_by_did("did:web:callab.example")
+    scope = copy.deepcopy(world.credential("scope-SCS-0123"))
+    scope["issuer"] = {
+        "id": callab.did,
+        "type": "RecognizedIssuer",
+        "name": callab.legal_name,
+    }
+    signed_scope = _resign(scope, callab.did, RECOGNITION_FROM)
+    _republish(world, "scope-SCS-0123", signed_scope)
+
+    # Without this the case would fail on the digest instead, which is the finding
+    # `substituted-scope` already makes. Re-pinning is what moves the failure onto the
+    # check this case exists for.
+    certificate = copy.deepcopy(world.credential("callab-calibration"))
+    reference = certificate["credentialSubject"]["calibration"]["capabilityReference"]
+    reference["digestMultibase"] = credential_reference(
+        signed_scope, relation="AccreditationScope"
+    )["digestMultibase"]
+    signed = _resign(certificate, callab.did, DEMO_NOW)
+    _republish(world, "callab-calibration", signed)
+    return TamperResult(world, signed, DEMO_NOW)
+
+
 def _tested_before_accredited() -> TamperResult:
     """Test against a standard the accreditation did not cover on the day.
 
@@ -803,6 +846,28 @@ NEW_CASES: tuple[TamperCase, ...] = (
             "not the one the certificate was issued under, and the reference says so."
         ),
         apply=_substituted_scope,
+    ),
+    TamperCase(
+        key="scope-granted-by-another-body",
+        title="Sign your own accreditation scope",
+        group="forgery",
+        description=(
+            "The laboratory republishes the scope it works under in its own name, signs "
+            "it with its own key, and re-pins the digest its certificate carries so the "
+            "reference is satisfied. Signature valid, key authorised, scope in force "
+            "and not suspended, digest correct."
+        ),
+        expected_step="scope",
+        catches=(
+            "A capability has to be signed by the body it names as having granted it. "
+            "The laboratory can forge every part of the document except the line that "
+            "says who granted the accreditation, because changing that line is no "
+            "longer a forgery of an accreditation but a claim to be an accreditation "
+            "body. Until this check existed the guard around it was satisfied by any "
+            "value at all, and a scope that spelled the member differently switched the "
+            "check off and reported a pass."
+        ),
+        apply=_scope_granted_by_another_body,
     ),
     TamperCase(
         key="out-of-band-frequency",

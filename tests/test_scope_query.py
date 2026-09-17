@@ -244,6 +244,48 @@ class TestAskingIsCheckedLikeReading:
         assert report.outcome == "rejected"
         assert "scope.answer" in [step.id for step in report.failures]
 
+    def test_an_answer_signed_by_anyone_else_is_refused(self) -> None:
+        """The second of the three protections this module's docstring names.
+
+        Controlling the address is not the only way to answer for yourself. A laboratory
+        that reached the register's own endpoint -- by compromise, by a misdirected name,
+        or because it operates the host -- could serve a reply that is a perfectly valid
+        credential: signed with a real key, by an issuer whose DID document authorises
+        that key, echoing exactly the question that was asked, at exactly the address it
+        was asked at. Every other check in this group passes on it.
+
+        What it cannot do is be the body that granted the scope, and the scope says which
+        body that is. This check had no test until the guard around it was found to be
+        satisfied by any value at all.
+        """
+        world = build_world()
+        asked = CoverageQuestion("IEC 60335-1", TESTED_ON).address(ENDPOINT)
+        genuine = world.store.answer(asked)
+        assert genuine is not None
+
+        forged = copy.deepcopy(genuine)
+        forged["issuer"] = {
+            "id": "did:web:testlab.example",
+            "type": "RecognizedIssuer",
+            "name": "Helvetia Testing Services GmbH (demonstration)",
+        }
+        forged.pop("proof")
+        forged, _ = sign_document(
+            forged, actor_key("did:web:testlab.example"), created=DEMO_NOW
+        )
+        world.store.publish_endpoint(ENDPOINT, lambda _query: forged, "query-answer")
+
+        outcome = verify_credential(
+            world.credentials["testlab-report"],
+            store=world.store,
+            now=DEMO_NOW,
+            trusted_issuers=TRUST_ANCHORS,
+        )
+        assert outcome.outcome == "rejected"
+        answer = next(step for step in outcome.failures if step.id == "scope.answer")
+        assert "was granted by did:web:sas.example" in answer.detail
+        assert "signed by did:web:testlab.example" in answer.detail
+
     def test_the_laboratory_cannot_choose_who_answers(self) -> None:
         """The endpoint comes from the scope document, not from the certificate.
 
