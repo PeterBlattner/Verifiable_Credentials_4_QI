@@ -603,3 +603,64 @@ def test_the_graph_lede_counts_the_trust_anchors(client: TestClient) -> None:
     assert written == served, (
         f"the lede says {match.group(1)} anchors, the world serves {served}"
     )
+
+
+def test_the_untp_chip_list_matches_what_the_server_projects(client: TestClient) -> None:
+    """A third export form offered for a credential with no projection would 404.
+
+    ``exportForms`` in chapters.js decides which documents get an "As a UNTP credential"
+    link, and it decides it from a literal list rather than from the server, because the
+    issuing chapter would otherwise need a second request per chip. That makes the list
+    a copy, and a copy is worth checking.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    block = re.search(r"const UNTP_PROJECTED = \[(.*?)\];", source, re.DOTALL)
+    assert block, "could not find UNTP_PROJECTED in chapters.js"
+    offered = set(re.findall(r"'([a-zA-Z0-9-]+)'", block.group(1)))
+
+    projected = {entry["name"] for entry in client.get("/api/untp").json()["credentials"]}
+    assert offered == projected, (
+        f"chapters.js offers a UNTP export for {sorted(offered)} but the server "
+        f"projects {sorted(projected)}"
+    )
+
+
+def test_every_export_form_downloads_as_a_file(client: TestClient) -> None:
+    """The reader has to end up with a file, since the Playground takes a file.
+
+    A JSON body rendered in a browser tab would be the same bytes and no use: the
+    Playground's uploader accepts a drop or a file picker, not a tab.
+    """
+    for form in ("native", "portable", "untp"):
+        response = client.get(f"/api/export/metas-calibration?form={form}")
+        assert response.status_code == 200, form
+        disposition = response.headers["content-disposition"]
+        assert disposition == f'attachment; filename="metas-calibration-{form}.json"'
+        assert "proof" in response.json()
+
+
+def test_an_export_of_something_unprojectable_is_refused(client: TestClient) -> None:
+    """Rather than served as a credential with the wrong shape inside it."""
+    assert client.get("/api/export/bipm-recognition?form=untp").status_code == 400
+    assert client.get("/api/export/bipm-recognition?form=native").status_code == 200
+
+
+def test_the_untp_panel_cannot_take_its_chapter_down() -> None:
+    """A second request in a chapter is a second way for the whole chapter to fail.
+
+    ``chapterHarmonisation`` is mostly prose and twenty-odd harmonisation items, none of
+    which depend on the probe, and an unguarded ``await`` in the panel loses all of it to
+    one failed fetch. That is not hypothetical: a reader who leaves ``vc-demo`` running
+    while pulling gets a server with no ``/api/untp`` route, and before this guard the
+    chapter rendered nothing but "This chapter failed to render".
+
+    Checked statically because the jsdom harnesses drive a working server and have no way
+    to make one route fail.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    body = re.search(r"async function untpProbe\(.*?\n\}\n", source, re.DOTALL)
+    assert body, "could not find untpProbe in chapters.js"
+
+    guard = re.search(r"try \{\s*data = await api\.untp\(\);\s*\} catch", body.group(0))
+    assert guard, "untpProbe must not let a failed /api/untp reach the chapter renderer"
+    assert "probe.unavailable" in body.group(0), "the reason has to be shown, not swallowed"

@@ -370,10 +370,12 @@ checked only the cryptography would accept all of them.
 src/vcqi/
   crypto/    jcs.py  multibase.py  keys.py  ecdsa_p256.py  dataintegrity.py
   vc/        model.py  checks.py  recognition.py  verify.py  schema.py  status.py  resolver.py
+             portable.py  untp.py
   domain/    scope.py  scope_query.py  kcdb.py  accreditation.py  arrangement.py
              oiml.py  uncertainty.py  instruments.py  dcc.py
   actors/    registry.py  scenarios.py  tamper.py  deployment.py  harmonisation.py
-             portability.py  exchange.py
+             portability.py  exchange.py  interop.py
+  vendor/    untp/  the pinned UNTP schema, so the check runs with no network
   web/       app.py  static/
 tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py
              test_domain.py  test_pipeline.py  test_web.py

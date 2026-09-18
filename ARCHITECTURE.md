@@ -674,6 +674,57 @@ check therefore weighs only the grant the chain it is on actually rests on. That
 right answer, and it is worth noticing that the roster shape is what made the wrong one
 available.
 
+### Checking the credentials against an implementation that is not ours
+
+`verify.py` was written beside `dataintegrity.py`, so a misreading of the W3C
+specification shared by both would pass unnoticed in both. The only cure is an outside
+verifier, and UN/CEFACT publishes one: the UNTP Playground, which takes a credential file
+and runs seven steps over it — proof type, VCDM version, VCDM schema, cryptographic
+verification, UNTP schema, JSON-LD expansion, and a conditional extension schema.
+
+Two things stood in the way, and `vc/portable.py` fixes one of them. Every organisation
+here is a `did:web` under a reserved `.example` domain, so the blocking cryptographic step
+could never be answered from outside. A `did:key` needs no lookup, because the identifier
+*is* the key — the argument `did_key_document` already makes in `vc/resolver.py`. A
+portable copy is therefore the same claims signed by the same key under the identifier
+that key stands for.
+
+The price is paid rather than hidden. `recognizedIn` is left in place on the copy, still
+pointing at a recognition credential that names the `did:web` identifier the copy no
+longer uses, so the chain does not close: round-tripped through `/api/verify`, the
+portable forms pass `proof` and fail `recognition`. That is exactly why the organisations
+here use `did:web` in the first place, and the export is not allowed to pretend otherwise.
+
+The second obstacle is not fixed. `https://vcqi.example/contexts/v1` is fictional, and the
+JSON-LD expansion step dereferences it, so that step fails for every form. This is the
+same gap recorded above under *`ecdsa-jcs-2019`, not `ecdsa-rdfc-2019`*; closing it needs
+a genuinely hosted context document, which would tie issuance to a deployed instance.
+
+### The UNTP projection is a probe, not a conformance target
+
+`vc/untp.py` expresses a calibration certificate and a certificate of conformity as
+UN/CEFACT Digital Conformity Credentials, and `actors/interop.py` validates the result
+against `vendor/untp/untp-dcc-schema-0.6.0.json` — the same document the Playground
+fetches, vendored so the answer cannot change without a visible diff and so the check runs
+with no network.
+
+Nothing obliges a calibration certificate to be an UNTP credential. The projection exists
+to find out what the vocabulary can carry, and the rule that makes the answer mean
+anything is that **where UNTP requires something the certificate does not state, the
+member is omitted and the omission recorded, never filled with a plausible value.** A
+required field satisfied by invention would turn a measurement into a misstatement.
+`tests/test_untp.py` asserts that every error the validator reports is one of those
+recorded choices, so a projection failing for an unrecorded reason breaks the build rather
+than being read as a finding about the format.
+
+What it found is in the harmonisation chapter and in change set 24 of PLAN.md. In short:
+UNTP's envelope reaches calibration — `attestationType` enumerates `calibration`,
+`assessmentLevel` separates `GlobalMRA` from `Accredited` — and the measurement does not
+arrive, because `conformance` is a required boolean, `conformityTopic` is required and
+sustainability-only, and `Metric` and `Measure` are closed to extension so uncertainty has
+nowhere to go.
+
+
 ## What the pipeline checks, and why each step exists
 
 | Step | Exists because |
@@ -911,7 +962,13 @@ between them, and that is a governance problem rather than a technical one.
   and keys are not built for that. Timestamping and an archival strategy would have to
   be designed in from the start.
 - **Key management and rotation.** Each actor has exactly one key, forever.
-- **Real DID methods.** `did:web` only, resolved locally.
+- **Real DID methods.** `did:web` only, resolved locally -- except for the export in
+  `vc/portable.py`, which re-issues under `did:key` precisely so that somebody else's
+  verifier can check the signature without resolving anything.
+- **A resolvable JSON-LD context.** `https://vcqi.example/contexts/v1` is fictional, so
+  the term definitions are decorative and any outside tool that expands the document
+  fails on it. This is the one step of the UNTP Playground's seven that nothing here can
+  make answerable, and closing it means hosting a context document for real.
 - **Uncertainty propagation beyond scalar arithmetic.** `domain/linprop.py`, which is
   what a deployed copy computes with, covers real scalars and the four operations
   because that is all any model here uses. DistProp, MCProp, complex quantities, arrays

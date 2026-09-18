@@ -46,6 +46,7 @@ from vcqi.actors.edit import (
     read_path,
 )
 from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS
+from vcqi.actors.interop import FORMS, export_document, untp_audit
 from vcqi.actors.exchange import (
     EXCHANGE_TTL_SECONDS,
     MAX_EXCHANGES,
@@ -643,6 +644,65 @@ def get_credential(name: str) -> dict[str, Any]:
             else None
         ),
     }
+
+
+@app.get("/api/export/{name}")
+def get_export(
+    name: str,
+    form: str = Query("native", description="One of native, portable, untp"),
+) -> Any:
+    """Return one credential as a file, for handing to somebody else's verifier.
+
+    The three forms are the three questions. ``native`` is the credential as issued, and
+    an outside verifier will reject it -- its issuer is a ``did:web`` under a reserved
+    ``.example`` domain that resolves nowhere. ``portable`` is the same claims signed
+    with the same key under the ``did:key`` that key stands for, which is the form whose
+    signature a stranger can actually check. ``untp`` is the projection into UN/CEFACT's
+    Digital Conformity Credential, signed the same way.
+
+    Served as an attachment rather than assembled in the browser because the policy this
+    application sends reaches ``default-src 'none'``, and a ``blob:`` URL would need a
+    hole in it. A link to a route on the same origin needs nothing.
+
+    Args:
+        name: Short name of the credential.
+        form: Which form to export.
+
+    Returns:
+        The document, with a filename.
+
+    Raises:
+        HTTPException: If the credential or the form is unknown, or the credential has
+            no UNTP projection.
+    """
+    if form not in FORMS:
+        raise HTTPException(status_code=400, detail=f"unknown form {form}")
+    current = world()
+    if name not in current.credentials:
+        raise HTTPException(status_code=404, detail=f"no credential {name}")
+    try:
+        document = export_document(current, name, form)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return JSONResponse(
+        document,
+        headers={"content-disposition": f'attachment; filename="{name}-{form}.json"'},
+    )
+
+
+@app.get("/api/untp")
+def get_untp() -> dict[str, Any]:
+    """Return what the UNTP projection carries and what it has to leave behind.
+
+    Computed rather than editorial, like the portability and revocation audits: the
+    credentials are really projected, the result is really validated against the UNTP
+    schema vendored in this repository, and the errors reported are the validator's.
+
+    Returns:
+        The UNTP version probed, one entry per credential, and whether every schema
+        error corresponds to an omission the projection recorded and can explain.
+    """
+    return untp_audit(world())
 
 
 @app.get("/api/document")

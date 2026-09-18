@@ -22,6 +22,7 @@ import {
   stat,
   stepTree,
   table,
+  takeaway,
   verdictBanner,
 } from './ui.js';
 
@@ -46,6 +47,30 @@ const CREDENTIAL_LABELS = {
 };
 
 const MAIN_CREDENTIALS = Object.keys(CREDENTIAL_LABELS);
+
+// The forms a credential can leave this page in, and why a reader would want each. The
+// first two apply to every document; the third only to the two an UNTP projection is
+// defined for, which is why UNTP_PROJECTED exists and why tests/test_web.py checks it
+// against what /api/untp actually offers.
+const EXPORT_FORMS = [
+  { key: 'native', label: 'As issued', hint: 'The credential exactly as this world publishes it' },
+  {
+    key: 'portable',
+    label: 'Signed as did:key',
+    hint: 'Same claims, same key, under an identifier that needs no lookup to resolve',
+  },
+  {
+    key: 'untp',
+    label: 'As a UNTP credential',
+    hint: 'Projected into UN/CEFACT’s Digital Conformity Credential',
+  },
+];
+
+const UNTP_PROJECTED = ['metas-calibration', 'cab-conformity'];
+
+function exportForms(name) {
+  return EXPORT_FORMS.filter((form) => form.key !== 'untp' || UNTP_PROJECTED.includes(name));
+}
 
 // ---------------------------------------------------------------- the cautions
 
@@ -622,7 +647,8 @@ async function chapterIssuing(context) {
         ]),
         el('p', { class: 'muted', style: 'margin-top: 12px;', text: t.text('deterministic') }),
       ]),
-      panel(`4. ${t.text('finished.title')}`, t.text('finished.hint'), jsonView(data.credential.proof, context.inspect))
+      panel(`4. ${t.text('finished.title')}`, t.text('finished.hint'), jsonView(data.credential.proof, context.inspect)),
+      takeaway(name, exportForms(name), data.credential)
     );
   }
 
@@ -2120,6 +2146,8 @@ async function chapterHarmonisation(context) {
     ])
   );
 
+  fragment.append(await untpProbe(context, t));
+
   for (const tier of data.tiers) {
     fragment.append(
       el('h3', { text: tier.label }),
@@ -2182,6 +2210,95 @@ async function chapterHarmonisation(context) {
   );
 
   return fragment;
+}
+
+// One thing on the list above that was actually tried rather than argued about.
+//
+// The certificate-format item says the quality infrastructure has one mature format
+// without international standing and one standing format that does not reach metrology.
+// That is a claim, and a claim in this chapter is worth more if somebody has run it. So
+// both a calibration certificate and a certificate of conformity are really projected
+// into UN/CEFACT's Digital Conformity Credential, and the result is really validated
+// against the UNTP schema vendored in this repository -- the same document the UNTP
+// Playground fetches, pinned so the answer cannot change without a visible diff.
+//
+// The omissions are the finding. Where UNTP requires something the source certificate
+// does not state, the projection leaves it out and says why, rather than supplying a
+// plausible value; a required field satisfied by invention would turn a measurement
+// into a misstatement. Every schema error below is therefore one of those choices, and
+// the panel says so only when the server confirms the two lists agree.
+async function untpProbe(context, t) {
+  // One panel's request must not take the chapter down with it. This chapter is mostly
+  // an argument in prose plus twenty-odd harmonisation items, none of which depend on
+  // the probe -- and losing all of it to a failed fetch is a bad trade, especially
+  // against a server started before this route existed, which is exactly what a reader
+  // who left `vc-demo` running while pulling would hit. Contained, not swallowed: the
+  // reason is shown, the same way a missing content key is shown rather than skipped.
+  let data;
+  try {
+    data = await api.untp();
+  } catch (error) {
+    return panel(t.text('probe.title'), t.text('probe.hint'), [
+      el('div', { class: 'callout' }, [
+        el('p', { text: t.text('probe.unavailable') }),
+        el('p', { class: 'muted', text: String(error && error.message ? error.message : error) }),
+      ]),
+    ]);
+  }
+  const holder = el('div', {});
+
+  function show(entry) {
+    const omissions = entry.omissions.map((item) => [
+      item.required ? badge('fail', 'required') : badge('warn', 'dropped'),
+      item.source,
+      item.path,
+      item.reason,
+    ]);
+    clear(holder).append(
+      el('div', { class: 'stat-row' }, [
+        stat(entry.omissions.length, 'members that could not be carried'),
+        stat(entry.blocking, 'of them required by UNTP'),
+        stat(entry.schemaErrors.length, 'errors the UNTP schema reports'),
+      ]),
+      table(['', 'What the certificate says', 'Where it would have gone', 'Why it stayed behind'], omissions),
+      entry.schemaErrors.length
+        ? panel(t.text('probe.errors.title'), t.text('probe.errors.hint'), [
+            table(
+              ['Where', 'What the validator says'],
+              entry.schemaErrors.map((error) => [error.path, error.message])
+            ),
+          ])
+        : null,
+      takeaway(entry.name, exportForms(entry.name).filter((form) => form.key === 'untp'), null)
+    );
+  }
+
+  const picker = el(
+    'div',
+    { class: 'chips' },
+    data.credentials.map((entry, index) =>
+      el('button', {
+        class: 'chip',
+        text: entry.title || entry.name,
+        'aria-pressed': index === 0 ? 'true' : 'false',
+        onclick: (event) => {
+          picker.querySelectorAll('.chip').forEach((chip) => chip.setAttribute('aria-pressed', 'false'));
+          event.target.setAttribute('aria-pressed', 'true');
+          show(entry);
+        },
+      })
+    )
+  );
+
+  show(data.credentials[0]);
+  return panel(t.text('probe.title'), `${t.text('probe.hint')} ${data.version}`, [
+    t.callout('probe.body'),
+    picker,
+    holder,
+    data.accountedFor
+      ? el('p', { class: 'muted', text: t.text('probe.accounted') })
+      : el('div', { class: 'callout', text: t.text('probe.unaccounted') }),
+  ]);
 }
 
 // ---------------------------------------------------------------- chapter 12
