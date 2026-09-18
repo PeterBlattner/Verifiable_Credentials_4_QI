@@ -50,6 +50,7 @@ from vcqi.actors.scenarios import (
     _callab_result,
     DEMO_NOW,
     METAS_CERTIFICATE,
+    CALLAB_STATUS,
     SAS_STATUS,
     STATUS_INDEX,
     World,
@@ -232,6 +233,38 @@ def _suspended_accreditation() -> TamperResult:
     )
     signed = _resign(credential, "did:web:sas.example", DEMO_NOW)
     world.store.publish(SAS_STATUS, signed, "status-list")
+    return TamperResult(world, world.credential("callab-calibration"), DEMO_NOW)
+
+
+def _revoked_certificate() -> TamperResult:
+    """Withdraw the certificate itself, by the laboratory that wrote it.
+
+    The other half of the case above, one level down. There the accreditation behind the
+    certificate was suspended and the chain caught it; here the laboratory withdraws this
+    one document, which is the ordinary act -- an artefact found to have drifted, a
+    result issued against the wrong standard -- and the top-level status step is what
+    notices. Nothing about the credential changes, and nothing about it can: the bytes
+    the holder carries are the bytes the laboratory signed.
+    """
+    world = build_world()
+    published = world.store.get(CALLAB_STATUS)
+    assert published is not None, "the laboratory publishes no status list"
+
+    status = BitstringStatusList(purpose="revocation")
+    status.set(STATUS_INDEX[CALLAB_CERTIFICATE])
+
+    # Republished from what the laboratory already serves, with one bit set, so the only
+    # difference between the two worlds is the bit rather than a second hand-written copy
+    # of the issuer and the description that could drift away from the real one.
+    credential = status_list_credential(
+        credential_id=CALLAB_STATUS,
+        issuer=published["issuer"],
+        valid_from=published["validFrom"],
+        status_list=status,
+        description=published["description"],
+    )
+    signed = _resign(credential, "did:web:callab.example", DEMO_NOW)
+    world.store.publish(CALLAB_STATUS, signed, "status-list")
     return TamperResult(world, world.credential("callab-calibration"), DEMO_NOW)
 
 
@@ -490,6 +523,24 @@ TAMPER_CASES: tuple[TamperCase, ...] = (
             "what an accreditation body suspending one laboratory would mean."
         ),
         apply=_suspended_accreditation,
+    ),
+    TamperCase(
+        key="revoked-certificate",
+        title="Withdraw the certificate after issuing it",
+        group="standing",
+        description=(
+            "The laboratory withdraws this certificate. The holder still has the file "
+            "it was given, unaltered and correctly signed."
+        ),
+        expected_step="status",
+        catches=(
+            "A signature says what was true when the document was signed, and cannot be "
+            "made to say anything else afterwards. The status list is the only part of "
+            "the arrangement that speaks in the present tense, which is why it is the "
+            "one document a holder may not hand over with the rest and the one a "
+            "verifier has to go and get."
+        ),
+        apply=_revoked_certificate,
     ),
     TamperCase(
         key="outside-accredited-scope",
