@@ -82,6 +82,42 @@ A **testing** scope is a table that cannot be handed over at all. It runs to fou
 
 Nothing about either is exotic. Both are the first page of one scope in one field. They are unagreed because a scope has always been a document for a person to read, and nobody has had to say what a row means to a machine or what a machine may ask about one.
 
+<!-- block: probe.title -->
+
+One of them tried rather than argued
+
+<!-- block: probe.hint -->
+
+both certificates really projected, really validated, against pinned UNTP schema
+
+<!-- block: probe.body -->
+
+The certificate-format item below says the quality infrastructure has one mature format without international standing and one format with standing that does not reach metrology. That is a claim, and a claim on a page like this is worth more once somebody has run it. So two of this demonstration's certificates were expressed in UN/CEFACT's Digital Conformity Credential and the result validated against the published UNTP schema — a calibration certificate, which the format was not built for, and a certificate of conformity, which it was.
+
+The rule the projection follows is the only thing that makes the result mean anything: **where UNTP requires something the certificate does not state, it is left out and the reason recorded, never filled in with a plausible value.** A required field satisfied by invention would turn a measurement into a misstatement, and the schema complaining is the finding rather than a fault to be tidied away.
+
+What came back is more interesting than the claim it was testing. UNTP's envelope anticipates this work: `attestationType` already includes `calibration`, and `assessmentLevel` already distinguishes `GlobalMRA` from `Accredited` — the CIPM MRA and accreditation distinction four chapters here are about, already enumerated. The accreditation behind a body maps cleanly onto `authorisation`, which UNTP describes using a national accreditation body authorising a laboratory as its own example.
+
+What does not arrive is the measurement. `conformance` is a required boolean, and a calibration does not pass or fail — it reports a value, and whether that value is good enough is a judgement for whoever is using the instrument. `conformityTopic` is required and is drawn from fifteen sustainability codes, so neither a calibration of a resistance standard nor a kettle certified to IEC 60335-1 has an honest one to give. And `Metric` and `Measure` are closed to extension, so uncertainty has nowhere to go at the only two places it could: the nearest member, `accuracy`, is a fraction meaning the value lies within that much of the claim, which is a bound, where an Expanded Uncertainty at k=2 is a coverage interval. Writing one into the other would quietly restate a 95 % statement as a certainty, so the projected value travels with no uncertainty at all.
+
+That is a sharper reading than the item below had. It is not that UNTP is the testing case and not the calibration one — UNTP's envelope reaches calibration perfectly well. It is that the envelope arrives and the measurement does not.
+
+<!-- block: probe.errors.title -->
+
+What the UNTP schema says about the result
+
+<!-- block: probe.errors.hint -->
+
+the validator's own words, not a summary of them
+
+<!-- block: probe.accounted -->
+
+Every error above corresponds to an omission this projection chose and can explain. The test suite asserts that, so a projection that starts failing for a reason nobody wrote down fails the build instead of being read as a finding.
+
+<!-- block: probe.unaccounted -->
+
+The schema is reporting errors this projection did not choose and cannot explain. That is a bug in the mapping rather than a finding about the format, and it should be treated as one.
+
 <!-- block: the-ladder -->
 
 The steps below are dependency structure rather than advice. Each rung is possible without the ones above it, and none of the upper rungs delivers anything without the lower ones — so whoever turns out to act, this is the order the blocking relationships force.
