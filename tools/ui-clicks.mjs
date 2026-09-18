@@ -115,11 +115,11 @@ const MINIMUM_CONTROLS = {
   scope: 0,
   traceability: 9,
   tamper: 9,
-  break: 23,
+  break: 24,
   implications: 0,
   infrastructure: 16,
   harmonisation: 2,
-  exchange: 5,
+  exchange: 7,
 };
 
 // The bytes the server sends, not the ones on disk: see served-modules.mjs for

@@ -2189,6 +2189,11 @@ async function chapterHarmonisation(context) {
 // What the coordinator is doing in a given exchange, which is a property of the exchange
 // and not of the organisation. Verifica is an issuer here and a verifier in the same
 // breath; that it can be both at once is the whole point of the last one.
+/** Group a count for reading. num() is for measured values and would exponentiate these. */
+function grouped(value) {
+  return value.toLocaleString('en-US');
+}
+
 const EXCHANGE_ROLE = {
   issuer: ['pass', 'issuing'],
   verifier: ['anchor', 'verifying'],
@@ -2284,9 +2289,100 @@ async function chapterMoving(context) {
 
   fragment.append(t.callout('the-forgery'));
 
+  const revocation = await api.revocation();
+
   fragment.append(
     el('h3', { text: t.text('three.title') }),
-    t.prose('three')
+    t.prose('three'),
+    panel(t.text('lists.title'), t.text('lists.hint'), [
+      el('div', { class: 'stat-row' }, [
+        stat(revocation.listCount, 'lists, one per issuer'),
+        stat(grouped(revocation.positions), 'positions reserved'),
+        stat(revocation.covered, 'credentials covered'),
+        stat(grouped(revocation.documentBytes), 'bytes, all of it'),
+      ]),
+      table(
+        ['Published by', 'A set bit means', 'On the list', 'Positions', 'Bytes'],
+        revocation.lists.map((item) => [
+          item.issuerName,
+          item.purpose,
+          { numeric: true, value: item.covered },
+          { numeric: true, value: grouped(item.positions) },
+          { numeric: true, value: grouped(item.documentBytes) },
+        ])
+      ),
+      el('div', {
+        class: 'callout',
+        html: t.fill('lists.body', {
+          lists: revocation.listCount,
+          positions: grouped(revocation.positions),
+          covered: revocation.covered,
+          bytes: grouped(revocation.documentBytes),
+        }),
+      }),
+    ]),
+    t.prose('herd')
+  );
+
+  const withdrawal = el('div');
+
+  // Both buttons leave the credential alone and move one bit on a list somebody else
+  // publishes, which is the whole of what the section claims. The comparison is made
+  // here rather than asserted in the prose, because a reader has no reason to take it
+  // on trust and the equality is the argument.
+  async function withdraw(key, label) {
+    clear(withdrawal).append(el('p', { class: 'footnote', text: `${label}...` }));
+    try {
+      const held = await api.credential('callab-calibration');
+      const before = await api.verify({ name: 'callab-calibration' });
+      const after = await api.tamper(key);
+      const unchanged = JSON.stringify(held.credential) === JSON.stringify(after.credential);
+
+      clear(withdrawal).append(
+        el('div', { class: 'stat-row' }, [
+          stat(before.outcome, 'before'),
+          stat(after.report.outcome, 'after'),
+          stat(after.failedSteps.join(', ') || 'none', 'step that caught it'),
+        ]),
+        el('div', { style: 'margin-bottom:12px' }, [
+          badge(unchanged ? 'pass' : 'fail', unchanged ? 'the credential is byte for byte the one it was' : 'the credential changed'),
+          badge('anchor', `${after.case.title}`),
+        ]),
+        keyValues([
+          ['What changed', 'one bit on a status list the holder does not control'],
+          ['What the holder has', 'exactly the document it was given'],
+          ['Why it is caught', after.case.catches],
+        ]),
+        stepTree(after.report.steps, 0)
+      );
+    } catch (error) {
+      clear(withdrawal).append(callout([String(error)]));
+    }
+  }
+
+  fragment.append(
+    panel(t.text('same-bytes.title'), t.text('same-bytes.hint'), [
+      t.prose('same-bytes'),
+      el('div', { class: 'chips' }, [
+        el('button', {
+          class: 'chip',
+          text: 'Withdraw the certificate',
+          onclick: () => withdraw('revoked-certificate', 'Withdrawing'),
+        }),
+        el('button', {
+          class: 'chip',
+          text: 'Suspend the accreditation behind it',
+          onclick: () => withdraw('suspended-accreditation', 'Suspending'),
+        }),
+      ]),
+      withdrawal,
+    ]),
+    t.prose('resolver-note')
+  );
+
+  fragment.append(
+    el('h3', { text: t.text('four.title') }),
+    t.prose('four')
   );
   fragment.append(panel(t.text('exchanges.title'), t.text('exchanges.hint'), [chips, stage]));
 
@@ -2416,14 +2512,14 @@ async function chapterMoving(context) {
   fragment.append(
     panel(t.text('buys.title'), t.text('buys.hint'), [
       table(
-        ['', 'The document travels', 'The parties talk'],
+        ['', 'The document travels', 'The issuer publishes a list', 'The parties talk'],
         [
-          ['What the verifier runs', 'Nothing. It needs the file and the issuer\u2019s key.', 'An endpoint, and state for every conversation in progress.'],
-          ['Works offline', 'Yes, apart from the residue above.', 'No. Both parties reachable at once.'],
-          ['Reaches parties with no prior relationship', 'Yes. Anyone handed the file.', 'Only those who implement the same protocol.'],
-          ['Proves who is presenting', 'No. Anyone with a copy can present it.', 'Yes. The challenge is signed into the answer.'],
-          ['Carries revocation', 'No. Status is a claim about now.', 'No, and it fetches it anyway.'],
-          ['Lets the verifier ask for something', 'No.', 'Yes, which is the entire point.'],
+          ['What the verifier runs', 'Nothing. It needs the file and the issuer\u2019s key.', 'Nothing. It fetches one file more.', 'An endpoint, and state for every conversation in progress.'],
+          ['Works offline', 'Yes, apart from the residue above.', 'Until the cached list goes stale.', 'No. Both parties reachable at once.'],
+          ['Reaches parties with no prior relationship', 'Yes. Anyone handed the file.', 'Yes. The list is served to anyone.', 'Only those who implement the same protocol.'],
+          ['Proves who is presenting', 'No. Anyone with a copy can present it.', 'No. It says whether, not who.', 'Yes. The challenge is signed into the answer.'],
+          ['Carries revocation', 'No. Status is a claim about now.', 'Yes. That is the whole of what it adds.', 'No, and it fetches it anyway.'],
+          ['Lets the verifier ask for something', 'No.', 'No. It reads a bit; it asks nothing.', 'Yes, which is the entire point.'],
         ]
       ),
       el('div', {
