@@ -643,3 +643,24 @@ def test_an_export_of_something_unprojectable_is_refused(client: TestClient) -> 
     """Rather than served as a credential with the wrong shape inside it."""
     assert client.get("/api/export/bipm-recognition?form=untp").status_code == 400
     assert client.get("/api/export/bipm-recognition?form=native").status_code == 200
+
+
+def test_the_untp_panel_cannot_take_its_chapter_down() -> None:
+    """A second request in a chapter is a second way for the whole chapter to fail.
+
+    ``chapterHarmonisation`` is mostly prose and twenty-odd harmonisation items, none of
+    which depend on the probe, and an unguarded ``await`` in the panel loses all of it to
+    one failed fetch. That is not hypothetical: a reader who leaves ``vc-demo`` running
+    while pulling gets a server with no ``/api/untp`` route, and before this guard the
+    chapter rendered nothing but "This chapter failed to render".
+
+    Checked statically because the jsdom harnesses drive a working server and have no way
+    to make one route fail.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    body = re.search(r"async function untpProbe\(.*?\n\}\n", source, re.DOTALL)
+    assert body, "could not find untpProbe in chapters.js"
+
+    guard = re.search(r"try \{\s*data = await api\.untp\(\);\s*\} catch", body.group(0))
+    assert guard, "untpProbe must not let a failed /api/untp reach the chapter renderer"
+    assert "probe.unavailable" in body.group(0), "the reason has to be shown, not swallowed"

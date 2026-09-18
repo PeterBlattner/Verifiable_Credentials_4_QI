@@ -102,6 +102,10 @@ What does not arrive is the measurement. `conformance` is a required boolean, an
 
 That is a sharper reading than the item below had. It is not that UNTP is the testing case and not the calibration one — UNTP's envelope reaches calibration perfectly well. It is that the envelope arrives and the measurement does not.
 
+<!-- block: probe.unavailable -->
+
+The probe could not be run. The rest of this chapter is unaffected — it is an argument and a list, and neither depends on this panel. The most likely reason is a server started before this check existed, which a reader who left the demonstrator running while pulling would hit; restarting it is the fix.
+
 <!-- block: probe.errors.title -->
 
 What the UNTP schema says about the result

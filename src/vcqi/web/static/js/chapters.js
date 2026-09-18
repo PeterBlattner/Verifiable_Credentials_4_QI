@@ -2228,7 +2228,23 @@ async function chapterHarmonisation(context) {
 // into a misstatement. Every schema error below is therefore one of those choices, and
 // the panel says so only when the server confirms the two lists agree.
 async function untpProbe(context, t) {
-  const data = await api.untp();
+  // One panel's request must not take the chapter down with it. This chapter is mostly
+  // an argument in prose plus twenty-odd harmonisation items, none of which depend on
+  // the probe -- and losing all of it to a failed fetch is a bad trade, especially
+  // against a server started before this route existed, which is exactly what a reader
+  // who left `vc-demo` running while pulling would hit. Contained, not swallowed: the
+  // reason is shown, the same way a missing content key is shown rather than skipped.
+  let data;
+  try {
+    data = await api.untp();
+  } catch (error) {
+    return panel(t.text('probe.title'), t.text('probe.hint'), [
+      el('div', { class: 'callout' }, [
+        el('p', { text: t.text('probe.unavailable') }),
+        el('p', { class: 'muted', text: String(error && error.message ? error.message : error) }),
+      ]),
+    ]);
+  }
   const holder = el('div', {});
 
   function show(entry) {
