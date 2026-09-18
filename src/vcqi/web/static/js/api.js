@@ -48,6 +48,11 @@ export const api = {
   gtc: () => request('/api/gtc'),
   infrastructure: () => request('/api/infrastructure'),
   harmonisation: () => request('/api/harmonisation'),
+  untp: () => request('/api/untp'),
+  // Not a request. The export is a file the reader saves and carries to somebody else's
+  // verifier, so what the interface needs is an address to hang off a download link,
+  // not a body to render.
+  exportUrl: (name, form) => `/api/export/${encodeURIComponent(name)}?form=${form}`,
   portability: () => request('/api/portability'),
   revocation: () => request('/api/revocation'),
   workflows: () => request('/api/exchange/workflows'),
