@@ -132,6 +132,57 @@ export function jsonView(value, onFollow, options) {
   return pre;
 }
 
+/**
+ * Render the controls that get a credential out of this page and into another tool.
+ *
+ * Reading a credential here proves only that this project agrees with itself. The
+ * verifier and the issuer were written together, so a misreading they share would show
+ * up nowhere on this screen. Taking the file somewhere else is the only way to find out,
+ * and a reader cannot take away what they cannot save.
+ *
+ * Download is a plain link to a route on the same origin, not a Blob assembled here:
+ * the policy this application sends reaches default-src 'none', and a blob: URL would
+ * need a hole in it. Copy is offered when the browser has a clipboard and silently
+ * omitted when it does not, which is also what happens under the jsdom harness.
+ */
+export function takeaway(name, forms, document_) {
+  const links = forms.map((form) =>
+    el('a', {
+      class: 'takeaway__link',
+      href: `/api/export/${encodeURIComponent(name)}?form=${form.key}`,
+      download: `${name}-${form.key}.json`,
+      title: form.hint,
+      text: form.label,
+    })
+  );
+  if (document_ && navigator.clipboard) {
+    const button = el('button', {
+      class: 'takeaway__link',
+      type: 'button',
+      title: 'Copy the credential as shown, for a tool that takes pasted text',
+      text: 'Copy',
+      onclick: () => {
+        navigator.clipboard
+          .writeText(JSON.stringify(document_, null, 2))
+          .then(() => {
+            button.textContent = 'Copied';
+            setTimeout(() => {
+              button.textContent = 'Copy';
+            }, 1500);
+          })
+          .catch(() => {
+            button.textContent = 'Copy failed';
+          });
+      },
+    });
+    links.push(button);
+  }
+  return el('div', { class: 'takeaway' }, [
+    el('span', { class: 'takeaway__label', text: 'Take it away:' }),
+    ...links,
+  ]);
+}
+
 function span(cls, text) {
   return el('span', { class: cls, text });
 }

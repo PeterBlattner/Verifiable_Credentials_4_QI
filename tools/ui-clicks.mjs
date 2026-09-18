@@ -118,7 +118,7 @@ const MINIMUM_CONTROLS = {
   break: 24,
   implications: 0,
   infrastructure: 16,
-  harmonisation: 2,
+  harmonisation: 4,
   exchange: 7,
 };
 

@@ -3588,3 +3588,134 @@ about "then"*, and it is tracked as `recognition-history` on the harmonisation l
 
 Branch `feature/revocation-as-a-third-model` from `develop`, three commits, into
 `develop`.
+
+# Change set 24 - handing a credential to somebody else's verifier
+
+## Context
+
+Everything this project issues has only ever been checked by the verifier in this same
+repository. `verify_credential` was written beside `sign_document`, so a misreading of
+the W3C specification that both halves share would pass unnoticed in both. UN/CEFACT
+publishes an independent implementation with no stake in our assumptions - the UNTP
+Playground, at `https://test.uncefact.org/untp-playground` for the bleeding edge and
+`https://test.uncefact.org/test-untp-playground` for the current release - and handing it
+a file is the cheapest way to find out whether the shared misreading exists.
+
+It runs seven steps: Proof Type Detection, VCDM Version Detection, VCDM Schema
+Validation, **Credential Verification** (cryptographic, and blocking), UNTP Schema
+Validation, JSON-LD Document Expansion and Context Validation, and a conditional
+Extension Schema Validation. Five of those are about W3C, which is the specification this
+project answers to. One is about UNTP conformance, which a calibration certificate is
+under no obligation to achieve.
+
+Decision taken with the user: the W3C steps are the point; UNTP is a check and not a
+target, and the quality infrastructure's credentials need not comply with all of it. The
+projection is therefore a probe, and its failures are a result rather than a defect.
+
+Three things blocked this before any of it could be tried, and only two were fixable:
+
+- **Nothing could leave the page.** `jsonView` builds DOM spans and never holds the
+  serialised string; there was no copy, no download, no per-credential URL. The
+  Playground's uploader takes a dropped or picked file, so a download was the affordance
+  that mattered.
+- **The issuer resolves nowhere.** `did:web:metas.example` is a reserved domain, so the
+  blocking cryptographic step could never pass from outside. `did:key` answers this
+  exactly: the identifier is the key, and `did_key_document` was already in the resolver.
+- **The context resolves nowhere either.** `https://vcqi.example/contexts/v1` is fictional
+  and step 6 dereferences it. Not fixable without genuinely hosting a context document.
+  ARCHITECTURE.md already records this; an outside tool saying so independently is
+  confirmation, not news.
+
+## Checklist
+
+- [x] 1. `vc/portable.py` - re-issue under the `did:key` of the same key, no new crypto
+- [x] 2. `vendor/untp/untp-dcc-schema-0.6.0.json` pinned, and `vc/untp.py` - the
+      projection and the offline schema check
+- [x] 3. `actors/interop.py` - the three export forms and the audit; `GET /api/export/{name}`
+      and `GET /api/untp`
+- [x] 4. `takeaway()` in `ui.js`, wired into the issuing chapter; the probe panel in the
+      harmonisation chapter; `.takeaway` styles; the control floor
+- [x] 5. The `certificate-format` item rewritten around what the probe found; prose in
+      `12-harmonisation.md`; `tests/test_untp.py` and three tests in `test_web.py`
+- [ ] 6. Run the three files through the Playground and record the seven steps below
+
+## Progress log
+
+**The projection found something that corrected the chapter.** The `certificate-format`
+item said UNTP's Digital Conformity Credential is "the testing and certification case
+rather than the calibration one". Half of that was too strong. UNTP's envelope reaches
+metrology further than its reputation suggests: `attestationType` already enumerates
+`calibration`, `assessmentLevel` already separates `GlobalMRA` from `Accredited` - which
+is the CIPM MRA and accreditation distinction four chapters here are about, already in an
+enumeration - and `authorisation` is described using a national accreditation body
+authorising a laboratory as UNTP's own example. Those map cleanly.
+
+What does not arrive is the measurement, and the reasons are specific rather than
+atmospheric:
+
+- `conformance` is a required boolean. A calibration does not pass or fail; it reports a
+  value, and whether that is good enough belongs to whoever is using the instrument.
+- `conformityTopic` is required and drawn from fifteen *sustainability* topic codes. Not
+  the calibration of a resistance standard, and not a kettle certified to IEC 60335-1
+  either - `social.safety` in that list is occupational health and safety, about the
+  people doing the work.
+- `Metric` and `Measure` are both `additionalProperties: false`, so uncertainty has no
+  member to occupy at the only two places it could go. The nearest is `Metric.accuracy`, a
+  fraction meaning the value lies within that much of the claim. That is a bound; an
+  Expanded Uncertainty at k=2 is a coverage interval. Writing one into the other would
+  restate a 95 % statement as a certainty, so it was dropped and the projected value
+  carries no uncertainty at all.
+- `Measure.unit` draws on UNECE Recommendation 20 codes, not the resolvable SI unit
+  identifiers the BIPM publishes.
+- `Standard` requires its `issuingParty` as a resolvable URI. A certificate names its
+  standard the way certificates do, as the designation `IEC 60335-1`, and carries no
+  identifier for the IEC.
+
+So the reading is now: one mature format without standing, and one format with standing
+whose envelope reaches calibration while its payload stops short of the measurement.
+
+**The discipline is what makes the result mean anything.** Where UNTP requires something
+the certificate does not state, the projection leaves it out and records why, rather than
+supplying a plausible value - a required field satisfied by invention would turn a
+measurement into a misstatement. `test_every_schema_error_is_a_recorded_omission` asserts
+that every error the validator reports is one of those recorded choices, so a projection
+that starts failing for a reason nobody wrote down fails the build instead of being read
+as a finding. Both probed credentials currently report two errors against two recorded
+blocking omissions.
+
+**The portable copy costs the recognition chain, and that is left visible.** Round-tripped
+through `POST /api/verify`, all three exported forms pass the `proof` step; `native`
+passes `recognition` and the other two fail it, because the issuer identifier moved and
+the recognition credential still names the `did:web` one. `recognizedIn` is deliberately
+not stripped from the copy - removing it would hide the price rather than pay it. This is
+the trade-off `did_key_document` already argued in its docstring, now demonstrable.
+
+**Not done, and not intended.** Making `did:web` or the JSON-LD context genuinely
+resolvable. Both would tie issuance to the deployed instance and break the `.example`
+convention in `scenarios.py`; the context one is what step 6 needs, and it stays open.
+
+## The Playground run
+
+To be filled in from an actual run. Three files per credential, from the "Take it away"
+row in chapter 3 or the probe panel in chapter 11.
+
+| Step | native | portable | untp |
+|---|---|---|---|
+| 1. Proof Type Detection | | | |
+| 2. VCDM Version Detection | | | |
+| 3. VCDM Schema Validation | | | |
+| 4. Credential Verification | | | |
+| 5. UNTP Schema Validation | | | |
+| 6. JSON-LD Expansion and Context Validation | | | |
+| 7. Extension Schema Validation | | | |
+
+Expected going in: 1-3 pass for all three; 4 fails for `native` and is the open question
+for the other two, since `ecdsa-jcs-2019` is a valid W3C cryptosuite that the Playground's
+verifier may or may not implement; 5 reports `Unknown` for the first two and the two
+recorded errors for `untp`; 6 fails for all three, for `native` and `portable` on the
+fictional context and for `untp` only if the UNTP vocabulary does not expand every term
+used. An unsupported-cryptosuite answer at step 4 would be as useful as a pass.
+
+## Git
+
+Branch `feature/untp-playground-check` from `develop`, into `develop`.

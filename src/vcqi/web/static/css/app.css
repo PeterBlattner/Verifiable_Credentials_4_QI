@@ -607,6 +607,33 @@ svg.graph { display: block; width: 100%; height: auto; }
 
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* The row that gets a credential off this page and into another tool. Deliberately not
+   a .chip: a chip selects what the page shows next, and these leave the page. Same size
+   so the two read as equals, different shape so they do not read as the same gesture. */
+.takeaway {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.takeaway__label { font-size: 12px; color: var(--ink-faint); }
+
+.takeaway__link {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 11px;
+  border-radius: var(--radius);
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.takeaway__link:hover { border-color: var(--accent); color: var(--accent); }
+
 .callout {
   border-left: 3px solid var(--accent);
   background: var(--accent-soft);
