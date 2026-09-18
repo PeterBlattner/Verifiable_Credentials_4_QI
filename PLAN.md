@@ -3504,3 +3504,87 @@ reads as an answer rather than as a gap.
 ## Git
 
 Branch `feature/document-notes-in-issuing`, one commit, into `develop`.
+
+# Change set 23 - the model between travelling and talking
+
+## Context
+
+A reviewer read chapter 12 and observed that UNTP cannot really be the portable model,
+because revocation has to happen somewhere. The observation is right and the mechanism is
+worth being exact about, because two things in the way it was put are not what the
+specifications say.
+
+**What is right.** UNTP's verifiable credentials profile, in the current 0.7.0 and in
+0.6.0 before it, requires *"MUST implement W3C VC Bitstring Status List for credential
+status management including revocation"*, and its architecture page describes every UNTP
+object as tamper-evident, issuer-identifiable and revocable. UN/CEFACT's
+portable-credentials page - the one this chapter already cites - argues the document
+should travel by email, file transfer, a USB drive or a QR code, and never mentions
+withdrawing one. Two UN pages, one architecture, and only the second of them can take
+something back.
+
+**What is not.** Revocation is perfectly possible when the document travels; a status list
+is what makes it possible. What it costs is one retrieval that cannot be pre-shipped,
+which is a sharper claim than impossibility. And Bitstring Status List is not a
+zero-knowledge interrogation of the issuer, and interrogates nobody: the issuer publishes
+one list of at least 131,072 positions, the verifier downloads the whole of it and reads
+its bit locally, so the retrieval names an issuer and not a credential. W3C says plainly
+that a residual leak remains and that the stronger fixes - Oblivious HTTP, a content
+distribution network the issuer does not operate - are SHOULD rather than MUST.
+
+Decisions taken with the user: build the revocation model now and name UNTP's Identity
+Resolver in a paragraph rather than building it; state the herd-privacy mechanism
+correctly and do not set zero knowledge up as a contrast.
+
+This repository was already closer to the argument than its prose admitted.
+`status.py` makes the herd-privacy case in a module docstring no reader ever sees,
+`MINIMUM_LIST_LENGTH` is enforced at 131,072, and `portability.py` already calls
+revocation "the one thing that cannot be pre-shipped". No chapter said any of it.
+
+## Checklist
+
+- [x] 1. `list_length()` in `vc/status.py`, factored out of `read_status`
+- [x] 2. `revocation_audit()` in `actors/portability.py`, `GET /api/revocation`, `api.js`
+- [x] 3. `revoked-certificate` in the tamper catalogue, and the count in two chapters
+- [x] 4. The third section in `13-exchange.md` and `chapterMoving()`, the third column in
+      the comparison table, the control floors
+- [x] 5. Tests, ARCHITECTURE.md, README.md
+
+## Progress log
+
+- **The failure catalogue had no case for the `status` step at all.** The nearest one
+  suspends the accreditation behind the certificate, which the recognition chain catches
+  one link up. `revoked-certificate` is the ordinary act - a laboratory withdrawing the
+  document it wrote - and it republishes the list the laboratory already serves with one
+  bit set, so the only difference between the two worlds is that bit. Both cases leave the
+  credential byte-identical, which is what the new section demonstrates and what
+  `test_withdrawing_a_certificate_changes_no_byte_of_it` asserts on the canonical form.
+- **The audit measures the world, not the table that built it.** Positions come from
+  decompressing each published `encodedList`; coverage comes from scanning every published
+  credential for a `credentialStatus`. A constant restated in a second place would drift.
+- **The residue was one quantity and is now two.** Chapter 12 already computed that what
+  cannot be handed over second-hand is each organisation's key and its revocation list,
+  and lumped them together. A key must be authentic and a status list must be fresh; only
+  the second has a clock in it. That distinction is the new section's payload.
+
+## Outcome
+
+633 pass, 46 skipped, from a 622/46 baseline: eleven new tests. Every control responds on
+all fourteen chapters, with the exchange chapter at seven and break at twenty-four.
+
+The figures the section reports, all computed: nine status lists, one per issuer,
+reserving 1,179,648 positions between them, carrying all seventeen credentials in the
+world - nothing here was issued that could not afterwards be withdrawn - and weighing
+9,289 bytes in total, which is less than the single calibration certificate the laboratory
+issued.
+
+Left undone on purpose, and recorded in ARCHITECTURE.md rather than dropped: a cached
+status list has no expressible age here, because `check_status` takes no `now`. The
+freshness cost is therefore described and not modelled. Giving the status step a clock
+would reopen a decision already recorded under *Status answers "now", and the chain asks
+about "then"*, and it is tracked as `recognition-history` on the harmonisation ladder.
+
+## Git
+
+Branch `feature/revocation-as-a-third-model` from `develop`, three commits, into
+`develop`.

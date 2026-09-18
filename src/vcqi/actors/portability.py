@@ -61,7 +61,9 @@ from typing import Any
 
 from vcqi.actors.deployment import host_of
 from vcqi.actors.scenarios import World
+from vcqi.crypto.jcs import canonicalize
 from vcqi.vc.resolver import RESOLVE_ONLY_KINDS, Resolver
+from vcqi.vc.status import MINIMUM_LIST_LENGTH, list_length
 from vcqi.vc.verify import verify_credential
 
 __all__ = [
@@ -69,6 +71,7 @@ __all__ = [
     "PortabilityClass",
     "class_of_kind",
     "portability_audit",
+    "revocation_audit",
 ]
 
 #: The credential the audit measures. The deepest chain in the world, and the same one
@@ -385,4 +388,104 @@ def portability_audit(
             ),
         },
         "resolveOnlyKinds": sorted(RESOLVE_ONLY_KINDS),
+    }
+
+
+def _status_entries(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the status entries a credential carries.
+
+    The data model allows either one entry or several, and a credential here carries
+    one. Reading both shapes costs three lines and means the count below follows the
+    specification rather than this world's current habit.
+
+    Args:
+        document: A published document, which may not be a credential at all.
+
+    Returns:
+        Every well-formed status entry, which is an empty list for a document that
+        carries none.
+    """
+    raw = document.get("credentialStatus")
+    entries = raw if isinstance(raw, list) else [raw]
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def revocation_audit(world: World) -> dict[str, Any]:
+    """Measure what the one document that cannot be pre-shipped actually costs.
+
+    The residue :func:`portability_audit` computes is a key and a status list per
+    organisation, and the two are not alike. A key must be *authentic*, and a copy of it
+    from a year ago is still the key. A status list must be *fresh*, and a copy of it
+    from a day ago is a day of undetected revocation. This counts the second half: how
+    many lists the world publishes, how many credentials each one covers, how many
+    positions it reserves, and how many bytes a verifier downloads in order to read one
+    bit out of it.
+
+    Everything is read back out of what the world published -- the positions by
+    decompressing the bitstring, the entries by scanning every document for one -- rather
+    than out of the table that built it, so the figures follow the world instead of
+    restating a constant that could drift away from it.
+
+    Args:
+        world: The built world.
+
+    Returns:
+        One entry per published status list with the credentials pointing at it, plus
+        the totals the chapter reports: how many credentials are covered, how many carry
+        no status entry at all and so could never be withdrawn, and what the whole of
+        this world's revocation state weighs.
+    """
+    store = world.store
+
+    pointing: dict[str, list[dict[str, Any]]] = {}
+    covered = 0
+    unlisted: list[str] = []
+    for url, document in store.contents().items():
+        if store.kind_of(url) != "credential":
+            continue
+        entries = _status_entries(document)
+        if not entries:
+            unlisted.append(url)
+            continue
+        covered += 1
+        for entry in entries:
+            list_url = entry.get("statusListCredential")
+            if not isinstance(list_url, str):
+                continue
+            pointing.setdefault(list_url, []).append(
+                {"id": url, "index": entry.get("statusListIndex"), "purpose": entry.get("statusPurpose")}
+            )
+
+    lists: list[dict[str, Any]] = []
+    for url in sorted(store.urls_of_kind("status-list")):
+        document = store.get(url) or {}
+        subject = document.get("credentialSubject", {})
+        issuer = document.get("issuer", {})
+        encoded = subject.get("encodedList", "")
+        entries = sorted(pointing.get(url, []), key=lambda entry: str(entry["index"]))
+        lists.append(
+            {
+                "url": url,
+                "issuer": issuer.get("id"),
+                "issuerName": issuer.get("name"),
+                "host": host_of(url),
+                "purpose": subject.get("statusPurpose"),
+                "description": document.get("description"),
+                "positions": list_length(encoded),
+                "covered": len(entries),
+                "credentials": entries,
+                "encodedBytes": len(encoded.encode("utf-8")),
+                "documentBytes": len(canonicalize(document)),
+            }
+        )
+
+    return {
+        "lists": lists,
+        "listCount": len(lists),
+        "covered": covered,
+        "unlisted": sorted(unlisted),
+        "positions": sum(item["positions"] for item in lists),
+        "encodedBytes": sum(item["encodedBytes"] for item in lists),
+        "documentBytes": sum(item["documentBytes"] for item in lists),
+        "minimumListLength": MINIMUM_LIST_LENGTH,
     }

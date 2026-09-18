@@ -545,6 +545,44 @@ signature or is covered by a `digestMultibase` inside one, so a copy from any so
 checkable and may travel. That set is exactly what UN/CEFACT's portable-credential
 architecture assumes, and chapter 12 measures how far it gets.
 
+### The status list is the one retrieval no portable architecture can pre-ship
+
+The residue the portability audit computes is two kinds, and reading it as one quantity
+misses the only interesting thing about it. A `did-document` must be **authentic**, and a
+copy of one from a year ago is still the key. A `status-list` must be **fresh**, and a
+copy of one from a day ago is a day of undetected revocation. Only the second has a clock
+in it, and it is the reason a purely portable deployment does not exist in practice.
+
+UN/CEFACT's portable-credential page argues the document should travel and says nothing
+at all about withdrawing one. UNTP, built on that architecture, requires the opposite --
+"MUST implement W3C VC Bitstring Status List for credential status management including
+revocation" -- so the arrangement anyone actually deploys is the middle one: the document
+travels, nobody talks to anybody, and exactly one document is fetched live.
+
+`revocation_audit` in `actors/portability.py` measures what that costs, and measures it
+off what was published rather than off the table that built it: the positions by
+decompressing each `encodedList`, the coverage by scanning every credential for a
+`credentialStatus`. Nine lists, 1,179,648 positions, every credential in the world
+covered, and the whole revocation state smaller than one calibration certificate.
+
+Two properties of the mechanism are worth recording, because neither is obvious from the
+code:
+
+- **The list size is a privacy parameter, not a capacity one.** `MINIMUM_LIST_LENGTH` is
+  131,072 and every list here sits exactly on it while carrying between one and four
+  entries. A verifier downloads the whole list and reads its bit locally, so the issuer
+  serves a list rather than answering a question about a credential. A list sized to an
+  issuer's actual issuance would publish that number to anyone who looked.
+- **The fetch is a retrieval, not a conversation.** `deployment.py` claims verification is
+  a computation and not a conversation, and the status check does not break that claim: the
+  same bytes are served to everyone, cacheable and mirrorable, and the issuer is asked
+  nothing. What it does break is the claim that a verifier never needs the network.
+
+`check_status` still takes no `now`, so a cached list has no expressible age here and the
+freshness cost is described rather than modelled. That is the same limit already recorded
+under *Status answers "now", and the chain asks about "then"*, and the
+`recognition-history` item on the harmonisation ladder is where it is tracked.
+
 ### An exchange has state, and it is the only thing here that does
 
 Everything else in this application is a function of the world plus the request. Ask the

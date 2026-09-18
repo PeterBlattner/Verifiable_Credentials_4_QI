@@ -14,6 +14,11 @@ attacker's -- the attacker had supplied the document that said so.
 The second group checks the audit is a measurement and not a story: every document the
 verification reads is classified, the classification is exhaustive in both directions,
 and the two retrieval counts come from the resolver's own log rather than from prose.
+
+The third group is about the one class that cannot travel. It checks that the roster of
+status lists is read back out of what the world published, that every credential is on
+one of them, and that withdrawing a certificate changes no byte of the certificate --
+which is the whole of why the list has to be fetched rather than carried.
 """
 
 from __future__ import annotations
@@ -28,11 +33,13 @@ from vcqi.actors.portability import (
     PORTABILITY_CLASSES,
     class_of_kind,
     portability_audit,
+    revocation_audit,
 )
 from vcqi.actors.registry import TRUST_ANCHORS, actor_key
 from vcqi.actors.scenarios import DEMO_NOW, build_world
 from vcqi.actors.tamper import tamper_by_key
 from vcqi.crypto.dataintegrity import sign_document
+from vcqi.crypto.jcs import canonicalize
 from vcqi.crypto.keys import build_did_document
 from vcqi.vc.resolver import RESOLVE_ONLY_KINDS, Resolver
 from vcqi.vc.verify import verify_credential
@@ -309,3 +316,131 @@ class TestTheAuditIsAMeasurement:
             assert item["label"].strip() and item["why"].strip()
         for section in ("baseline", "stapled", "ifRegistriesWereSigned"):
             assert data[section]["hostCount"] >= 1
+
+
+class TestTheRevocationAudit:
+    """The one document a holder may not carry, counted rather than described."""
+
+    def test_every_published_list_is_in_the_roster(self) -> None:
+        """Read back out of the store, so a tenth list cannot appear unreported."""
+        world = build_world()
+        audit = revocation_audit(world)
+        assert {item["url"] for item in audit["lists"]} == set(
+            world.store.urls_of_kind("status-list")
+        )
+        assert audit["listCount"] == len(audit["lists"])
+
+    def test_every_credential_is_on_a_list_that_exists(self) -> None:
+        """Nothing points at a status list nobody publishes.
+
+        The audit attributes a credential to a list by the address the credential names,
+        so a typo in one would show up here as a credential counted in the total and
+        present on no list.
+        """
+        audit = revocation_audit(build_world())
+        attributed = sum(item["covered"] for item in audit["lists"])
+        assert attributed == audit["covered"]
+        assert audit["covered"] > 0
+
+    def test_no_credential_in_this_world_is_unrevocable(self) -> None:
+        """A credential carrying no status entry passes the status step by definition.
+
+        ``check_status`` has nothing to check when there is no ``credentialStatus``, so
+        an issuer that omits one has issued something it can never withdraw. That is a
+        legitimate reading of the data model and a poor property for a calibration
+        certificate, and this asserts the world never does it.
+        """
+        assert revocation_audit(build_world())["unlisted"] == []
+
+    def test_no_list_is_smaller_than_the_specification_requires(self) -> None:
+        """The floor is what makes one list a crowd rather than a pointer.
+
+        A verifier downloads the whole list and reads one bit out of it locally, so the
+        retrieval says which issuer is being asked about and not which credential. That
+        only holds while the list is large, which is why the minimum is normative and why
+        it is measured here by decompressing what was actually published.
+        """
+        audit = revocation_audit(build_world())
+        for item in audit["lists"]:
+            assert item["positions"] >= audit["minimumListLength"], item["url"]
+
+    def test_the_bytes_reported_are_the_bytes_that_travel(self) -> None:
+        """Measured off the published document, not estimated from the bitstring."""
+        world = build_world()
+        audit = revocation_audit(world)
+        for item in audit["lists"]:
+            document = world.store.get(item["url"])
+            assert document is not None
+            assert item["documentBytes"] == len(canonicalize(document))
+        assert audit["documentBytes"] == sum(
+            item["documentBytes"] for item in audit["lists"]
+        )
+
+    def test_the_whole_revocation_state_weighs_less_than_one_certificate(self) -> None:
+        """The figure the chapter leads with, compared live rather than pinned.
+
+        Every status list this world publishes, covering every credential in it, comes to
+        less than the one calibration certificate the laboratory issued. Both sides are
+        computed, so the claim follows the world instead of dating.
+        """
+        world = build_world()
+        audit = revocation_audit(world)
+        certificate = len(canonicalize(world.credential("callab-calibration")))
+        assert audit["documentBytes"] < certificate
+
+    def test_the_endpoint_serves_what_the_chapter_renders(self) -> None:
+        """Every field the interface reads, present and populated."""
+        with TestClient(app) as client:
+            data = client.get("/api/revocation").json()
+
+        assert data["listCount"] == len(data["lists"])
+        assert data["covered"] > 0
+        assert data["positions"] > 0
+        assert data["documentBytes"] > 0
+        for item in data["lists"]:
+            assert item["url"].startswith("https://")
+            assert item["issuer"].startswith("did:web:")
+            assert item["issuerName"].strip()
+            assert item["purpose"] in {"revocation", "suspension"}
+            assert item["description"].strip()
+            assert item["positions"] >= data["minimumListLength"]
+
+
+class TestWithdrawalChangesNothingAboutTheDocument:
+    """Why the list is fetched and not carried, stated as an equality on bytes."""
+
+    def test_withdrawing_a_certificate_changes_no_byte_of_it(self) -> None:
+        """The demonstration chapter 12 runs, asserted on the canonical form.
+
+        Both cases leave the credential exactly as the laboratory signed it. One flips a
+        bit on the laboratory's own revocation list and the other on the accreditation
+        body's suspension list, and the verdict changes in both. If a future edit made
+        either case modify the credential, the section would be showing something else
+        and still look right.
+        """
+        base = canonicalize(build_world().credential("callab-calibration"))
+
+        for key in ("revoked-certificate", "suspended-accreditation"):
+            case = tamper_by_key(key)
+            assert case is not None
+            result = case.apply()
+            assert canonicalize(result.credential) == base, key
+
+            report = verify_credential(
+                result.credential,
+                store=result.world.store,
+                now=result.verify_at,
+                trusted_issuers=TRUST_ANCHORS,
+            )
+            assert report.outcome == "rejected", key
+            assert case.expected_step in [step.id for step in report.failures], key
+
+    def test_the_two_withdrawals_are_caught_by_different_steps(self) -> None:
+        """One is about this document; the other about the right to have issued it.
+
+        Worth pinning, because the section says so in words: the laboratory's own list is
+        read by the top-level status step, while a suspension one link up the chain is
+        only reached while the chain is being walked.
+        """
+        assert tamper_by_key("revoked-certificate").expected_step == "status"
+        assert tamper_by_key("suspended-accreditation").expected_step == "recognition"

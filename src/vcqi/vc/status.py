@@ -26,6 +26,7 @@ from vcqi.config import CONTEXT_CREDENTIALS_V2, CONTEXT_VCQI_V1
 __all__ = [
     "BitstringStatusList",
     "MINIMUM_LIST_LENGTH",
+    "list_length",
     "status_list_credential",
     "read_status",
 ]
@@ -109,6 +110,47 @@ class BitstringStatusList:
         return "u" + base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
 
 
+def _decode(encoded_list: str) -> bytes:
+    """Return the raw bitstring behind a published encodedList.
+
+    Args:
+        encoded_list: The ``encodedList`` value from a status list credential.
+
+    Returns:
+        The uncompressed bitstring.
+
+    Raises:
+        ValueError: If the encoded list is malformed.
+    """
+    if not encoded_list.startswith("u"):
+        raise ValueError("encodedList is not multibase base64url")
+    body = encoded_list[1:]
+    try:
+        compressed = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
+        return gzip.decompress(compressed)
+    except (ValueError, OSError, EOFError) as error:
+        raise ValueError(f"encodedList could not be decoded: {error}") from error
+
+
+def list_length(encoded_list: str) -> int:
+    """Return how many positions a published list reserves.
+
+    The number of positions is not stated anywhere in the credential -- it is a property
+    of the bitstring itself, and reading it back is the only way to find out how large a
+    herd an issuer publishes its statuses into.
+
+    Args:
+        encoded_list: The ``encodedList`` value from a status list credential.
+
+    Returns:
+        The number of positions the list covers.
+
+    Raises:
+        ValueError: If the encoded list is malformed.
+    """
+    return len(_decode(encoded_list)) * 8
+
+
 def read_status(encoded_list: str, index: int) -> bool:
     """Read one position out of a published status list.
 
@@ -122,15 +164,7 @@ def read_status(encoded_list: str, index: int) -> bool:
     Raises:
         ValueError: If the encoded list is malformed or too short for the position.
     """
-    if not encoded_list.startswith("u"):
-        raise ValueError("encodedList is not multibase base64url")
-    body = encoded_list[1:]
-    try:
-        compressed = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
-        bits = gzip.decompress(compressed)
-    except (ValueError, OSError, EOFError) as error:
-        raise ValueError(f"encodedList could not be decoded: {error}") from error
-
+    bits = _decode(encoded_list)
     byte, bit = divmod(index, 8)
     if byte >= len(bits):
         raise ValueError(f"position {index} is outside the published list")
