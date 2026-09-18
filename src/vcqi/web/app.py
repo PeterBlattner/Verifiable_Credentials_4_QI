@@ -56,7 +56,7 @@ from vcqi.actors.exchange import (
     respond,
     workflow_by_id,
 )
-from vcqi.actors.portability import PORTABILITY_CLASSES, portability_audit
+from vcqi.actors.portability import PORTABILITY_CLASSES, portability_audit, revocation_audit
 from vcqi.actors.registry import (
     ACTORS,
     TRUST_ANCHORS,
@@ -1825,6 +1825,23 @@ def get_portability() -> dict[str, Any]:
         counts, and what would remain if the registries were signed.
     """
     return portability_audit(world(), now=DEMO_NOW, trusted_issuers=TRUST_ANCHORS)
+
+
+@app.get("/api/revocation")
+def get_revocation() -> dict[str, Any]:
+    """Return every status list this world publishes, and what it weighs.
+
+    The other half of the portability measurement. That one says which documents a
+    holder may hand over; this one takes the single kind that may not and asks what
+    insisting on it actually costs -- in documents, in positions reserved, and in bytes
+    a verifier downloads to read one bit.
+
+    Returns:
+        One entry per published status list with the credentials pointing at it, and the
+        totals: how many credentials are covered, how many carry no status entry at all,
+        and the size of this world's entire revocation state.
+    """
+    return revocation_audit(world())
 
 # ---------------------------------------------------------------- exchange
 #
