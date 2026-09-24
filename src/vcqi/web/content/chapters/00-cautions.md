@@ -74,3 +74,5 @@ These pages may change or disappear without notice.
 The hope is simply that this sparks curiosity — and, ideally, correction. If something here is wrong, I would genuinely like to hear it.
 
 That has happened once already, unsolicited, and it made the work better rather than worse — which is the argument for publishing something unfinished in the first place. The offer stands.
+
+Corrections are welcome. If you find an error, an incorrect assumption, or something that does not reflect how QI works in practice, please open an issue in the GitHub repository or contact Peter Blattner at peter_blattner@bluewin.ch
