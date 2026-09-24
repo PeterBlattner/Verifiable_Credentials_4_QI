@@ -1,6 +1,7 @@
 [project]
 name = "vcqi"
 version = "0.1.0"
+license = "MIT"
 description = "Interactive demonstrator: W3C Verifiable Credentials and Recognized Entities applied to the metrology quality infrastructure"
 readme = "README.md"
 requires-python = ">=3.10"

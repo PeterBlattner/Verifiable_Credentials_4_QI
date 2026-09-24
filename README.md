@@ -408,3 +408,14 @@ reference implementation at `bf4b24d` and `bea1372`.
 [gtc]: https://gtc.readthedocs.io/
 [vc]: https://www.w3.org/TR/vc-data-model-2.0/
 [re]: https://www.w3.org/TR/vc-recognized-entities-1.0/
+
+
+## Licence
+
+Unless otherwise indicated, the original software and documentation in this
+repository are licensed under the MIT License. See [LICENSE](LICENSE).
+
+Third-party specifications, schemas, software, trademarks and other materials
+referenced or included by the demonstrator remain subject to their respective
+licences and terms. In particular, METAS UncLib is not distributed with this
+repository and is subject to its own licence.
