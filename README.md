@@ -1,7 +1,7 @@
 # Verifiable credentials for the quality infrastructure
 
 An interactive demonstration of what W3C [Verifiable Credentials][vc] and
-[Recognized Entities][re] would look like applied to metrology, accreditation and
+[Recognized Entities][re] could look like when applied to metrology, accreditation and
 conformity assessment — calibration certificates, CMCs and the CIPM MRA, accreditation
 scopes and the Global ACI MRA, test reports and certificates of conformity.
 
@@ -50,12 +50,17 @@ about accreditation, conformity assessment or metrological traceability.
 
 The same statement is the first chapter of the demonstration itself, in
 [`00-cautions.md`](src/vcqi/web/content/chapters/00-cautions.md). Correct one and correct
-the other. The hope is simply that this sparks curiosity — and, ideally, correction. If
-something here is wrong, I would genuinely like to hear it.
+the other. The hope is simply that this sparks curiosity — and, ideally, correction. If you find an error, an incorrect assumption, or something that does not
+reflect how QI works in practice, I would be very interested to hear about it.
+Please open a GitHub issue or contact me at **peter_blattner@bluewin.ch**.
 
 That has happened once already, unsolicited, and it made the work better rather than worse
 — which is the argument for publishing something unfinished in the first place. The offer
 stands.
+
+
+
+The demonstrator explores a distinction that becomes important when Verifiable Credentials are applied to Quality Infrastructure: authentic evidence is not necessarily sufficient evidence. A verifier must establish not only who issued a credential and whether it has been altered, but whether the issuer was recognised for the specific activity, whether the result falls within the applicable scope, and whether the evidence chain supports the intended use. The resulting verification problem is therefore a traversal of interconnected recognition and evidence graphs rather than a signature check.
 
 ## Run it
 
@@ -105,69 +110,15 @@ uv run vc-demo &
 node tools/ui-clicks.mjs     # clicks every control on every chapter
 ```
 
-## Run it on the web
+## Deployment
 
-The demonstration argues that a verifier operates nothing. It should ask no more of its
-own reader than a URL, which means not asking them to install Python first — and on a
-managed machine, running an unsigned executable is often prohibited outright.
+The demonstrator can also be deployed as a container. The repository includes
+`Dockerfile` and `render.yaml`; the public demonstration is deployed directly
+from `main`.
 
-`Dockerfile` and `render.yaml` are all that is needed. There is nothing to install
-locally: Render builds the image on its own builders and everything below is done in a
-browser.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment, health-check, DNS,
+rate-limiting and indexing configuration.
 
-0. **Merge `develop` into `main` first.** `render.yaml` sets `branch: main`, and a
-   blueprint has nothing to build until `main` carries the `Dockerfile`. Because `main`
-   is the deployment branch, that pull request is also what publishes each new version;
-   `ci.yml` runs on it, so the tests have passed on exactly that content first.
-1. **Render → New → Blueprint**, and pick this repository. `render.yaml` defines the
-   service, so there is no dashboard configuration to remember or reproduce. Render
-   reads it, shows what it will create, and asks for confirmation.
-2. **Watch the first build.** It should end with the two assertions from the Dockerfile
-   in the log — that the interface reached the wheel, and that `metas_unclib` is *not*
-   in the image — and then `/healthz` going green. First build is a few minutes; later
-   ones reuse cached layers.
-3. **Check the health endpoint** at `https://<service>.onrender.com/healthz` — for this
-   deployment, <https://verifiable-credentials-4-qi.onrender.com/healthz>. It reports
-   `"engine": "linprop"`, which is the confirmation that the deployment is computing
-   with the engine it is licensed to ship, and the commit it is running. Compare that
-   commit against `main`: a green dashboard says a build succeeded, not that the build
-   was the one just merged. The endpoint answers only after the lifespan warm-up has
-   built and signed the world, so a 200 means the process can serve rather than that a
-   port opened.
-4. **Settings → Custom Domains**, add the hostname, then create the DNS records below.
-   Certificates are issued and renewed automatically, and HTTP is redirected to HTTPS.
-
-| Type | Name | Value | Notes |
-| --- | --- | --- | --- |
-| `CNAME` | `vc` (or `www`) | `<service>.onrender.com.` | What Render wants for any non-apex name. |
-| `ALIAS` / `ANAME` | `@` | `<service>.onrender.com.` | For the bare domain, if the registrar supports it. Preferred: no address is hard-coded. |
-| `A` | `@` | Render's load-balancer address | Fallback where `ALIAS` is unavailable. Take the address from the dashboard rather than from here. |
-| `AAAA` | any | — | **Delete them.** Render is IPv4-only, and a stale `AAAA` is the usual reason a certificate never issues. |
-
-Pick one canonical hostname and redirect the other, so the demonstration has one address.
-
-Two things worth knowing before the link circulates. The free instance spins down after
-about fifteen minutes idle and takes the better part of a minute to wake, which is the
-wrong behaviour for a link opened live in a meeting — `plan: starter` in `render.yaml`
-removes it. And crawlers are asked off by default (`VCQI_ALLOW_INDEXING=0`), because this
-names METAS, BIPM and PTB/DKD while inventing their documents; allowing indexing is a
-deliberate decision rather than a default.
-
-Environment variables, all optional and all defaulting to local behaviour:
-
-| Variable | Default | Effect |
-| --- | --- | --- |
-| `VCQI_HOST` | `127.0.0.1` | Bind address. The container sets `0.0.0.0`. |
-| `PORT` | `8000` | Managed hosts assign this. |
-| `VCQI_PUBLIC` | `0` | Turns on the request limits, drops the API docs, and refuses to start if the interface is missing from the package. |
-| `VCQI_RATE_LIMIT_BURST` | `0` (off) | Token bucket size, per client address. |
-| `VCQI_RATE_LIMIT_PER_SECOND` | `1.0` | Refill rate. |
-| `VCQI_MAX_BODY_BYTES` | `262144` | Largest request body parsed. |
-| `VCQI_ALLOW_INDEXING` | `0` | Whether `robots.txt` and `X-Robots-Tag` invite crawlers. |
-| `VCQI_ENGINE` | unset | Set to `linprop` to force the deployed uncertainty engine locally. |
-
-`ARCHITECTURE.md` records why `/api/keys/*` is safe to expose and what changed when the
-old answer — "the server binds to localhost" — stopped being true.
 
 ## What it demonstrates
 
@@ -409,7 +360,6 @@ reference implementation at `bf4b24d` and `bea1372`.
 [vc]: https://www.w3.org/TR/vc-data-model-2.0/
 [re]: https://www.w3.org/TR/vc-recognized-entities-1.0/
 
-
 ## Licence
 
 Unless otherwise indicated, the original software and documentation in this
@@ -417,5 +367,15 @@ repository are licensed under the MIT License. See [LICENSE](LICENSE).
 
 Third-party specifications, schemas, software, trademarks and other materials
 referenced or included by the demonstrator remain subject to their respective
-licences and terms. In particular, METAS UncLib is not distributed with this
-repository and is subject to its own licence.
+licences and terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for
+third-party material included in this repository.
+
+In particular, METAS UncLib is not distributed with this repository and is
+subject to its own licence.
+
+## Contact and feedback
+
+Corrections, comments and suggestions are welcome. Please use the
+[GitHub issue tracker](../../issues) or contact **Peter Blattner**
+at **peter_blattner@bluewin.ch**.
+
