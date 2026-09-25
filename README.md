@@ -18,7 +18,7 @@ the link live in a meeting. Everything below runs it locally instead.
 
 This started as curiosity. A friend pointed me to the W3C Recognized Entities
 specification, whose use case §2.4 (Product Conformity) looked potentially relevant to the
-Quality Infrastructure. Over a few hours one weekend I used AI-assisted coding to sketch a
+Quality Infrastructure. Over a few hours one weekend in early September 2026 I used AI-assisted coding to sketch a
 simple metrology and accreditation scenario, mainly to understand Verifiable Credentials
 better myself. I was struck by how much came together in so little time — which is exactly
 why the following warnings matter.
@@ -33,7 +33,7 @@ seed published in this repository, so they protect nothing. Nothing produced by 
 project is an authentic output of any real institute, accreditation body or certification
 body, and none of it should ever be presented as one.
 
-**No institution is speaking here.** BIPM, Global ACI, METAS and PTB appear only as
+**No institution is speaking here.** BIPM, Global ACI, METAS, SAS and PTB appear only as
 recognisable placeholders in a fictional scenario. Nothing here represents their views,
 plans, positions or endorsement, and none of them were involved in or informed about this
 work.
@@ -52,7 +52,7 @@ The same statement is the first chapter of the demonstration itself, in
 [`00-cautions.md`](src/vcqi/web/content/chapters/00-cautions.md). Correct one and correct
 the other. The hope is simply that this sparks curiosity — and, ideally, correction. If you find an error, an incorrect assumption, or something that does not
 reflect how QI works in practice, I would be very interested to hear about it.
-Please open a GitHub issue or contact me at **peter_blattner@bluewin.ch**.
+Please open a GitHub issue or contact me at **vc4qi@bluewin.ch**.
 
 That has happened once already, unsolicited, and it made the work better rather than worse
 — which is the argument for publishing something unfinished in the first place. The offer
@@ -362,6 +362,8 @@ reference implementation at `bf4b24d` and `bea1372`.
 
 ## Licence
 
+(C) Peter Blattner
+
 Unless otherwise indicated, the original software and documentation in this
 repository are licensed under the MIT License. See [LICENSE](LICENSE).
 
@@ -377,5 +379,6 @@ subject to its own licence.
 
 Corrections, comments and suggestions are welcome. Please use the
 [GitHub issue tracker](../../issues) or contact **Peter Blattner**
-at **peter_blattner@bluewin.ch**.
+at **vc4qi@bluewin.ch**.
+
 
