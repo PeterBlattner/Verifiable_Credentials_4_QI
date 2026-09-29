@@ -19,7 +19,11 @@
      document. Adding a document to the demonstration means adding a block here *and* a
      line in chapters.js; the tests fail if the two ever disagree. They are grouped by
      type, in the order the type chips are, and a note is only ever read beside the
-     other documents of its own type. -->
+     other documents of its own type.
+
+     The two "takeaway." blocks are the note under the "Take it away" row. The first is
+     shown for the two documents that have a UNTP form, listed in UNTP_PROJECTED in
+     chapters.js, and the second for every other document. -->
 
 <!-- block: title -->
 
@@ -182,6 +186,14 @@ The finished credential
 <!-- block: finished.hint -->
 
 The proof configuration, plus the signature it covers
+
+<!-- block: takeaway.untp -->
+
+Only *As a UNTP credential* gets into UN/CEFACT's [UNTP Playground](https://test.uncefact.org/test-untp-playground). Since its release 0.4.0 the Playground accepts UNTP's own credential types only, and it refuses the other two files at upload, before it checks anything. They are for a verifier that takes any W3C credential.
+
+<!-- block: takeaway.no-untp -->
+
+None of these files gets into UN/CEFACT's [UNTP Playground](https://test.uncefact.org/test-untp-playground). Since its release 0.4.0 the Playground accepts UNTP's own credential types only, and it refuses anything else at upload, before it checks anything. Two documents here have a UNTP form: Calibration certificate METAS-2026-0417 and Certificate of conformity CPC-2026-0055. These files are for a verifier that takes any W3C credential.
 
 <!-- block: what-is-signed -->
 

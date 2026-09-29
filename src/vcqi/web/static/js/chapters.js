@@ -762,7 +762,11 @@ async function chapterIssuing(context) {
         el('p', { class: 'muted', style: 'margin-top: 12px;', text: t.text('deterministic') }),
       ]),
       panel(`4. ${t.text('finished.title')}`, t.text('finished.hint'), jsonView(data.credential.proof, context.inspect)),
-      takeaway(name, exportForms(name), data.credential)
+      takeaway(name, exportForms(name), data.credential),
+      // Which of those files the UNTP Playground takes. Since its 0.4.0 it refuses every
+      // type that is not UNTP's at upload, so for most documents the answer is none, and
+      // a reader who tries finds out from one error and no steps run.
+      UNTP_PROJECTED.includes(name) ? t.callout('takeaway.untp') : t.callout('takeaway.no-untp')
     );
   }
 
