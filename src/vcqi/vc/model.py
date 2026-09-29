@@ -187,7 +187,7 @@ def recognized_action(
     action: str,
     recognized_by: str,
     *,
-    output_validation: dict[str, Any] | None = None,
+    output_validation: dict[str, Any] | list[dict[str, Any]] | None = None,
     capability_reference: dict[str, Any] | None = None,
     main_scope: dict[str, Any] | None = None,
     valid_from: str | None = None,
@@ -200,7 +200,8 @@ def recognized_action(
         action: What the entity may do, for example ``issue`` or ``accredit``.
         recognized_by: Identifier of the recognising authority.
         output_validation: Reference to a JSON Schema that documents produced under
-            this recognition must validate against.
+            this recognition must validate against, or a list of them, each of which
+            they must validate against.
         capability_reference: Reference to the CMC entry or accreditation scope that
             bounds the recognition. A JSON Schema can express a measurand and a range,
             but not an uncertainty floor that varies with the measured level, so the

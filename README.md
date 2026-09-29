@@ -290,7 +290,7 @@ them: what distinguishes OIML-CS Scheme A from Scheme B, and what SMART stands f
 0. **What a verifiable credential is** — for someone who has not met one before: how one is written in JSON-LD and signed, an everyday example (a university degree), and the same degree followed up to the authority that recognises the university
 1. **Keys: what a signature actually proves** — make a keypair, sign something, break it four ways, then try to forge a certificate with it
 2. **The quality infrastructure as a trust graph** — thirteen organisations, three arrangements, filterable; click any organisation or edge
-3. **Issuing a certificate** — pick one of the eight credential types and see its data model as a JSON Schema, then one of its documents: canonical form, hashes, signature, step by step
+3. **Issuing a Verifiable Credential** — pick one of the eight credential types and see its data model as a JSON Schema, then one of its documents: canonical form, hashes, signature, step by step
 4. **Verification and recognition discovery** — the full pipeline, with the clock and the trust anchors under your control
 5. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
 6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, the same measurement shown four ways including as a PTB/DKD DCC, what gets said twice as a result, and what two certificates resting on one shared standard let a customer do
@@ -322,13 +322,14 @@ src/vcqi/
   crypto/    jcs.py  multibase.py  keys.py  ecdsa_p256.py  dataintegrity.py
              xmlc14n.py  xmldsig.py
   vc/        model.py  checks.py  recognition.py  verify.py  schema.py  status.py  resolver.py
-             portable.py  untp.py  datamodel.py
+             portable.py  untp.py  jsonld_terms.py  datamodel.py
   domain/    scope.py  scope_query.py  kcdb.py  accreditation.py  arrangement.py
              oiml.py  uncertainty.py  instruments.py  dcc.py  external_dcc.py
              engine.py  linprop.py  gtc_archive.py
   actors/    registry.py  scenarios.py  tamper.py  deployment.py  harmonisation.py
              portability.py  exchange.py  interop.py  edit.py
-  vendor/    untp/  the pinned UNTP schema, so the check runs with no network
+  vendor/    untp/  w3c/  the pinned UNTP 0.7.0 schema and contexts, so the checks run
+             with no network
   web/       app.py  static/
 tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_xmlc14n.py
              test_xmldsig.py  test_keys.py  test_domain.py  test_dcc.py  test_pipeline.py

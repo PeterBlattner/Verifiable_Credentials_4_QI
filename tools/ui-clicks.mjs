@@ -110,13 +110,14 @@ const MINIMUM_CONTROLS = {
   orientation: 0,
   keys: 8,
   graph: 20,
-  // Eight type chips and the four documents of the calibration type it opens on. It was
-  // seventeen, one chip per document, until the documents were grouped under their types.
+  // Eight type chips and the five documents of the recognition type it opens on. It was
+  // seventeen, one chip per document, until the documents were grouped under their types,
+  // and twelve while the chapter opened on the four calibration certificates.
   // The loop below clicks by position, so it now exercises every type chip and reaches
   // no document chip: by the time it gets there the last type is selected and its one
   // document is already pressed. The change set 26 notes in PLAN.md record the jsdom pass
   // that clicked those instead.
-  issuing: 12,
+  issuing: 13,
   verification: 2,
   scope: 0,
   traceability: 9,

@@ -12,6 +12,11 @@ JSON-LD context expansion -- and those are the ones this project answers to. The
 UNTP Schema Validation, is about UNTP conformance, which a calibration certificate is
 under no obligation to achieve; it is run here as a mapping probe rather than a target.
 
+It runs them only over UNTP's own credential types. Since its release 0.4.0 of
+21 September 2026 the Playground refuses any other ``type`` at upload, before the first
+step, so of the three forms below only ``untp`` reaches it. The other two remain the
+forms to hand to a verifier that takes an arbitrary W3C credential.
+
 This module produces the three artefacts to hand over and reports what can be determined
 without leaving the machine:
 
@@ -22,11 +27,14 @@ without leaving the machine:
   confirmation rather than news.
 * **portable** -- the same claims, same key, re-issued under the ``did:key`` that key
   stands for. This is the one that makes the cryptographic step answerable by a stranger.
-* **untp** -- the projection into UNTP's vocabulary, signed the same portable way.
+* **untp** -- the projection into UNTP's vocabulary, signed the same portable way. The
+  only form the Playground accepts, and it carries published contexts only.
 
-What the schema step says about the projection is computed here, offline, against the
-vendored schema. What the other steps say has to come from the Playground itself, and is
-recorded in PLAN.md when somebody runs it.
+Two of the Playground's steps can be answered here, offline, for the projection: what
+the schema step says, against the vendored UNTP schema, and whether every term expands,
+against the vendored contexts -- a stand-in for the JSON-LD step, written by the same hand
+(see :mod:`vcqi.vc.jsonld_terms`). What the other steps say has to come from the
+Playground itself, and is recorded in PLAN.md when somebody runs it.
 """
 
 from __future__ import annotations
@@ -36,8 +44,9 @@ from typing import Any
 
 from vcqi.actors.registry import actor_key
 from vcqi.actors.scenarios import DEMO_NOW, World
+from vcqi.vc.jsonld_terms import term_problems
 from vcqi.vc.portable import portable_copy
-from vcqi.vc.untp import UNTP_VERSION, project, schema_errors
+from vcqi.vc.untp import UNTP_VERSION, project, schema_errors, vendored_contexts
 
 #: The credentials the probe is run over: the case UNTP was not built for, and the case
 #: it was. Both are needed -- one of them failing alone would say nothing about which of
@@ -77,7 +86,8 @@ def export_document(
         signed, _ = portable_copy(credential, key, created=created)
         return signed
     if form == "untp":
-        signed, _ = portable_copy(project(credential).credential, key, created=created)
+        projected = project(credential, world.store.get).credential
+        signed, _ = portable_copy(projected, key, created=created)
         return signed
     raise ValueError(f"unknown export form {form!r}")
 
@@ -89,34 +99,42 @@ def untp_audit(world: World) -> dict[str, Any]:
         world: The built demonstration world.
 
     Returns:
-        The UNTP version probed, and one entry per credential carrying its name, the
-        omissions the mapping had to make, and the errors the pinned UNTP schema reports
-        against the result.
+        The UNTP version probed, whether every schema error is accounted for and every
+        term expands, and one entry per credential carrying its name, the findings the
+        mapping recorded, the errors the pinned UNTP schema reports against the result,
+        and the terms that do not expand against the vendored contexts.
     """
+    contexts = vendored_contexts()
     entries = []
     for name in PROBED:
         credential = world.credential(name)
-        projection = project(credential)
+        projection = project(credential, world.store.get)
         errors = schema_errors(projection.credential)
+        problems = term_problems(projection.credential, contexts)
         entries.append(
             {
                 "name": name,
                 "title": credential.get("name"),
                 "sourceType": _own_type(credential),
-                "omissions": [omission.to_json() for omission in projection.omissions],
+                "findings": [finding.to_json() for finding in projection.findings],
                 "blocking": len(projection.blocking),
                 "schemaErrors": errors,
+                "termProblems": [problem.to_json() for problem in problems],
                 "valid": not errors,
+                # Member by member, not by count: a count agrees when a plausible value
+                # fills one required member and an unrecorded gap opens another, which is
+                # exactly the fill the projection's rule forbids.
+                "accounted": {error["member"] for error in errors}
+                == {finding.path for finding in projection.blocking},
             }
         )
     return {
         "version": UNTP_VERSION,
         "credentials": entries,
-        # Every schema error should be an omission this module chose and can explain. If
+        # Every schema error should be a finding this module recorded and can explain. If
         # these ever disagree, the projection has a bug rather than a finding.
-        "accountedFor": all(
-            len(entry["schemaErrors"]) == entry["blocking"] for entry in entries
-        ),
+        "accountedFor": all(entry["accounted"] for entry in entries),
+        "expands": all(not entry["termProblems"] for entry in entries),
     }
 
 

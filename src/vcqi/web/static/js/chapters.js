@@ -1,7 +1,7 @@
 // The chapters of the demonstration.
 //
 // Each one answers a question in order: what is a credential, who is in this world, how
-// is a certificate signed, what does a recipient check, what does the CMC decide, where
+// is a credential signed, what does a recipient check, what does the CMC decide, where
 // does the uncertainty come from, what breaks it, and what would any of this change.
 
 import { api } from './api.js';
@@ -629,9 +629,9 @@ async function chapterIssuing(context) {
     group.names.push(name);
   }
 
-  // The first calibration in CREDENTIAL_LABELS is METAS-2026-0417, which is why picking
-  // its type below lands on it without being told to.
-  const state = { type: typeOf.get('metas-calibration'), name: 'metas-calibration' };
+  // The chapter opens where the chain starts: on the first type, a recognition, and on
+  // the first document of that type, the BIPM's.
+  const state = { type: typeOf.get('bipm-recognition'), name: 'bipm-recognition' };
   const typeRow = el('div', { class: 'chips' });
   const exampleRow = el('div', { class: 'chips' });
   const modelHolder = el('div', {});
@@ -748,7 +748,9 @@ async function chapterIssuing(context) {
       panel(
         `2. ${t.text('canonical.title')}`,
         t.text('canonical.hint'),
-        el('pre', { class: 'code', text: wrap(trace.canonicalDocument, 110) })
+        // Capped and scrolling, as the data model is: one line of bytes that is meant to
+        // be seen for what it is, not read end to end.
+        el('pre', { class: 'code json json--compact', text: wrap(trace.canonicalDocument, 110) })
       ),
       panel(`3. ${t.text('hashing.title')}`, t.text('hashing.hint'), [
         keyValues([
@@ -760,7 +762,11 @@ async function chapterIssuing(context) {
         el('p', { class: 'muted', style: 'margin-top: 12px;', text: t.text('deterministic') }),
       ]),
       panel(`4. ${t.text('finished.title')}`, t.text('finished.hint'), jsonView(data.credential.proof, context.inspect)),
-      takeaway(name, exportForms(name), data.credential)
+      takeaway(name, exportForms(name), data.credential),
+      // Which of those files the UNTP Playground takes. Since its 0.4.0 it refuses every
+      // type that is not UNTP's at upload, so for most documents the answer is none, and
+      // a reader who tries finds out from one error and no steps run.
+      UNTP_PROJECTED.includes(name) ? t.callout('takeaway.untp') : t.callout('takeaway.no-untp')
     );
   }
 
@@ -2340,19 +2346,20 @@ async function chapterHarmonisation(context) {
 
 // One thing on the list above that was actually tried rather than argued about.
 //
-// The certificate-format item says the quality infrastructure has one mature format
-// without international standing and one standing format that does not reach metrology.
-// That is a claim, and a claim in this chapter is worth more if somebody has run it. So
-// both a calibration certificate and a certificate of conformity are really projected
-// into UN/CEFACT's Digital Conformity Credential, and the result is really validated
-// against the UNTP schema vendored in this repository -- the same document the UNTP
-// Playground fetches, pinned so the answer cannot change without a visible diff.
+// The certificate-format item weighs a mature format without international standing
+// against a standing one, and a claim in this chapter is worth more if somebody has run
+// it. So both a calibration certificate and a certificate of conformity are really
+// projected into UN/CEFACT's Digital Conformity Credential, the result is really validated
+// against the UNTP schema vendored in this repository -- the artefact the UNTP Playground
+// bundles, pinned so the answer cannot change without a visible diff -- and every term is
+// really expanded against the vendored contexts.
 //
-// The omissions are the finding. Where UNTP requires something the source certificate
-// does not state, the projection leaves it out and says why, rather than supplying a
-// plausible value; a required field satisfied by invention would turn a measurement
-// into a misstatement. Every schema error below is therefore one of those choices, and
-// the panel says so only when the server confirms the two lists agree.
+// The findings are the result. Where UNTP requires something the source certificate does
+// not state, the projection leaves it out and says why, rather than supplying a plausible
+// value; where it carries something UNTP refuses, it says so; where it supplies a value
+// the source does not literally state, it says that too. Every schema error below is one
+// of those findings, and the panel says so only when the server confirms the two agree
+// member by member.
 async function untpProbe(context, t) {
   // One panel's request must not take the chapter down with it. This chapter is mostly
   // an argument in prose plus twenty-odd harmonisation items, none of which depend on
@@ -2373,30 +2380,52 @@ async function untpProbe(context, t) {
   }
   const holder = el('div', {});
 
+  // One badge per kind of finding. Required and conflict are the two that fail the
+  // schema, so they share the colour a failure has everywhere else on these pages.
+  const KINDS = {
+    required: ['fail', 'required'],
+    conflict: ['fail', 'conflict'],
+    dropped: ['warn', 'dropped'],
+    judgement: ['neutral', 'judgement'],
+  };
+  const count = (entry, kind) => entry.findings.filter((item) => item.kind === kind).length;
+
   function show(entry) {
-    const omissions = entry.omissions.map((item) => [
-      item.required ? badge('fail', 'required') : badge('warn', 'dropped'),
+    const findings = entry.findings.map((item) => [
+      badge(...(KINDS[item.kind] || ['neutral', item.kind])),
       item.source,
       item.path,
       item.reason,
     ]);
-    clear(holder).append(
+    // Filtered rather than passed through: this is the native append, which would write
+    // the string "null" for a panel that has nothing to show.
+    clear(holder).append(...[
       el('div', { class: 'stat-row' }, [
-        stat(entry.omissions.length, 'members that could not be carried'),
-        stat(entry.blocking, 'of them required by UNTP'),
+        stat(count(entry, 'dropped'), 'said by the certificate, not carried'),
+        stat(count(entry, 'required'), 'required by UNTP, not stated'),
+        stat(count(entry, 'conflict'), 'carried as stated, refused'),
+        stat(count(entry, 'judgement'), 'supplied by judgement'),
         stat(entry.schemaErrors.length, 'errors the UNTP schema reports'),
       ]),
-      table(['', 'What the certificate says', 'Where it would have gone', 'Why it stayed behind'], omissions),
+      table(['', 'What the certificate says', 'Where', 'Why'], findings),
       entry.schemaErrors.length
         ? panel(t.text('probe.errors.title'), t.text('probe.errors.hint'), [
             table(
               ['Where', 'What the validator says'],
-              entry.schemaErrors.map((error) => [error.path, error.message])
+              entry.schemaErrors.map((error) => [error.member, error.message])
             ),
           ])
         : null,
-      takeaway(entry.name, exportForms(entry.name).filter((form) => form.key === 'untp'), null)
-    );
+      entry.termProblems.length
+        ? panel(t.text('probe.terms.title'), t.text('probe.terms.hint'), [
+            table(
+              ['Where', 'Term', 'What is wrong'],
+              entry.termProblems.map((item) => [item.path, item.term, `${item.kind} ${item.problem}`])
+            ),
+          ])
+        : null,
+      takeaway(entry.name, exportForms(entry.name).filter((form) => form.key === 'untp'), null),
+    ].filter(Boolean));
   }
 
   const picker = el(
@@ -2424,6 +2453,7 @@ async function untpProbe(context, t) {
     data.accountedFor
       ? el('p', { class: 'muted', text: t.text('probe.accounted') })
       : el('div', { class: 'callout', text: t.text('probe.unaccounted') }),
+    data.expands ? el('p', { class: 'muted', text: t.text('probe.expands') }) : null,
   ]);
 }
 

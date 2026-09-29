@@ -222,6 +222,18 @@ class TestTheModelsDescribeWhatIsIssued:
         paths = [list(error.absolute_path) for error in errors]
         assert ["credentialSubject", "calibration"] in paths
 
+    def test_a_recognition_may_name_several_output_schemas(self, world) -> None:
+        """The specification's "one or more": a list is as well-formed as one reference."""
+        credential = copy.deepcopy(world.credential("bipm-recognition"))
+        action = credential["credentialSubject"][0]["recognizedTo"][0]
+        action["outputValidation"] = [action["outputValidation"]] * 2
+        schema = data_model("RecognizedEntityCredential")
+        assert [error.message for error in validator_for(schema).iter_errors(credential)] == []
+
+        # And the list has to name something, or it is a claim of bounds with none in it.
+        action["outputValidation"] = []
+        assert list(validator_for(schema).iter_errors(credential))
+
     @pytest.mark.parametrize("name", EXAMPLES)
     def test_the_credential_names_its_type_s_model(self, world, name) -> None:
         """The reference is exactly the one published for the type, digests included."""

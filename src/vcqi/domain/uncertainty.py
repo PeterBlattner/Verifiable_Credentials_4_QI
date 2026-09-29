@@ -49,6 +49,8 @@ __all__ = [
     "from_quantity",
     "evaluate",
     "format_measurement",
+    "reported_decimals",
+    "rounded_to_uncertainty",
     "seeded_input_id",
     "to_unclib_xml",
     "to_unclib_binary",
@@ -467,6 +469,47 @@ def evaluate(
     )
 
 
+def reported_decimals(expanded_uncertainty: float) -> int | None:
+    """Return how many decimal places a result with this uncertainty is reported to.
+
+    U is shown to two significant figures and the value to the same decimal place, as
+    the GUM advises against quoting more digits than the uncertainty supports.
+
+    Args:
+        expanded_uncertainty: The Expanded Uncertainty U.
+
+    Returns:
+        The number of decimal places, or None when U is zero, negative or not finite
+        and there is nothing to round to.
+    """
+    if expanded_uncertainty <= 0.0 or not math.isfinite(expanded_uncertainty):
+        return None
+    exponent = math.floor(math.log10(abs(expanded_uncertainty)))
+    return max(0, -(exponent - 1))
+
+
+def rounded_to_uncertainty(value: float, expanded_uncertainty: float) -> float:
+    """Round a value the way :func:`format_measurement` reports it, as a number.
+
+    For a document that carries the value without its uncertainty, where the digits a
+    floating-point computation leaves behind would otherwise read as precision nobody
+    measured. A JSON number cannot keep trailing zeros, so ``0.280`` becomes ``0.28``;
+    only the string form can say how many places were meant.
+
+    Args:
+        value: The measured value.
+        expanded_uncertainty: The Expanded Uncertainty U of that value.
+
+    Returns:
+        The value rounded to the reported decimal place, or unchanged when U gives
+        nothing to round to.
+    """
+    decimals = reported_decimals(expanded_uncertainty)
+    if decimals is None:
+        return value
+    return float(f"{value:.{decimals}f}")
+
+
 def format_measurement(
     value: float,
     expanded_uncertainty: float,
@@ -475,9 +518,10 @@ def format_measurement(
 ) -> str:
     """Render a value and its Expanded Uncertainty in the conventional form.
 
-    Rounding happens here and nowhere else. Intermediate results are carried at full
-    precision throughout, and only the reported string is rounded, with U shown to two
-    significant figures and the value shown to the same decimal place.
+    Rounding happens in this module and nowhere else. Intermediate results are carried at
+    full precision throughout, and only what is reported is rounded, with U shown to two
+    significant figures and the value shown to the same decimal place;
+    :func:`reported_decimals` holds that rule.
 
     Args:
         value: The measured value, in ``unit``.
@@ -488,11 +532,10 @@ def format_measurement(
     Returns:
         A string such as ``10000.0012 +/- 0.0011 ohm (k = 2)``.
     """
-    if expanded_uncertainty <= 0.0 or not math.isfinite(expanded_uncertainty):
+    decimals = reported_decimals(expanded_uncertainty)
+    if decimals is None:
         rendered_value, rendered_uncertainty = repr(value), repr(expanded_uncertainty)
     else:
-        exponent = math.floor(math.log10(abs(expanded_uncertainty)))
-        decimals = max(0, -(exponent - 1))
         rendered_value = f"{value:.{decimals}f}"
         rendered_uncertainty = f"{expanded_uncertainty:.{decimals}f}"
 

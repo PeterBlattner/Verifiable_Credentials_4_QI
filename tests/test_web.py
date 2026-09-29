@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from vcqi.actors.tamper import TAMPER_CASES
+from vcqi.vc.untp import KINDS
 from vcqi.web.app import STATIC_ROOT, app
 from vcqi.web.content import blocks_for, content_payload
 
@@ -650,11 +651,32 @@ def test_the_untp_chip_list_matches_what_the_server_projects(client: TestClient)
     )
 
 
+def test_the_playground_note_names_the_documents_that_have_a_untp_form() -> None:
+    """The note under every other document sends the reader to these two by name.
+
+    It is prose, so it is a third copy of UNTP_PROJECTED, written as the chip labels a
+    reader would look for. Checked against the labels rather than the short names,
+    because a label is what the note has to match for the reader to find the chip.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    block = re.search(r"const UNTP_PROJECTED = \[(.*?)\];", source, re.DOTALL)
+    assert block, "could not find UNTP_PROJECTED in chapters.js"
+    note = blocks_for("issuing")["takeaway.no-untp"]["text"]
+
+    for name in re.findall(r"'([a-zA-Z0-9-]+)'", block.group(1)):
+        label = re.search(rf"'{re.escape(name)}': '([^']+)'", source)
+        assert label, f"no chip label for {name} in chapters.js"
+        assert label.group(1) in note, (
+            f"the issuing chapter's takeaway.no-untp note does not name {label.group(1)!r}"
+        )
+
+
 def test_every_export_form_downloads_as_a_file(client: TestClient) -> None:
     """The reader has to end up with a file, since the Playground takes a file.
 
     A JSON body rendered in a browser tab would be the same bytes and no use: the
-    Playground's uploader accepts a drop or a file picker, not a tab.
+    Playground's uploader accepts a drop, a file picker, or a URL it fetches itself, and
+    it refuses private addresses, so a URL cannot reach a demonstrator on localhost.
     """
     for form in ("native", "portable", "untp"):
         response = client.get(f"/api/export/metas-calibration?form={form}")
@@ -689,3 +711,17 @@ def test_the_untp_panel_cannot_take_its_chapter_down() -> None:
     guard = re.search(r"try \{\s*data = await api\.untp\(\);\s*\} catch", body.group(0))
     assert guard, "untpProbe must not let a failed /api/untp reach the chapter renderer"
     assert "probe.unavailable" in body.group(0), "the reason has to be shown, not swallowed"
+
+
+def test_the_untp_panel_has_a_badge_for_every_kind_of_finding() -> None:
+    """A finding the panel has no badge for would show as a bare word nobody explained.
+
+    The kinds come from the server, which refuses any other, so the panel's table of
+    badges has to name every one of them.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    body = re.search(r"async function untpProbe\(.*?\n\}\n", source, re.DOTALL)
+    assert body, "could not find untpProbe in chapters.js"
+
+    for kind in KINDS:
+        assert re.search(rf"\b{kind}: \[", body.group(0)), f"no badge for {kind}"

@@ -3637,7 +3637,13 @@ Three things blocked this before any of it could be tried, and only two were fix
       harmonisation chapter; `.takeaway` styles; the control floor
 - [x] 5. The `certificate-format` item rewritten around what the probe found; prose in
       `12-harmonisation.md`; `tests/test_untp.py` and three tests in `test_web.py`
-- [ ] 6. Run the three files through the Playground and record the seven steps below
+- [x] 6. Run the `untp` file of each certificate through the Playground and record the
+      steps below (the other two forms are refused at upload since Playground 0.4.0)
+- [x] 7. Docs corrected for the Playground's type check at upload: ARCHITECTURE.md, the
+      `interop.py` docstring, the `get_export` docstring, and two comments in `vc/untp.py`
+      and the tests
+- [x] 8. A note under the "Take it away" row in chapter 3 saying which file, if any, the
+      Playground accepts
 
 ## Progress log
 
@@ -3694,27 +3700,103 @@ the trade-off `did_key_document` already argued in its docstring, now demonstrab
 resolvable. Both would tie issuance to the deployed instance and break the `.example`
 convention in `scenarios.py`; the context one is what step 6 needs, and it stays open.
 
+**2026-09-29: the Playground now refuses everything that is not a UNTP type.** Peter
+uploaded `bipm-recognition-native.json` to the current release at
+`https://test.uncefact.org/test-untp-playground` and got one error and no steps:
+*unsupported credential type - the declared type(s) "VerifiableCredential",
+"RecognizedEntityCredential" are not a UNTP credential type the Playground validates*.
+
+The cause is in the Playground's source (`uncefact/tests-untp`, branch `next`): the upload
+handler in `packages/untp-playground/src/app/page.tsx` compares `type` with
+`permittedCredentialTypes` in `constants.ts` - DigitalProductPassport,
+DigitalConformityCredential, DigitalFacilityRecord, DigitalIdentityAnchor,
+DigitalTraceabilityEvent - and returns before any step on a miss. The release notes for
+0.4.0 (2026-09-21) introduce it: "unsupported types ... fail schema selection before a
+schema is fetched". This change set was built on 2026-09-18 against 0.3.0, and the
+expectations below assumed a non-UNTP credential would run through and show `Unknown` at
+step 5. It no longer does.
+
+What that changes: only the `untp` form of the two certificates can reach the Playground
+at all. The native and portable forms of every credential, recognitions and accreditations
+included, are refused unread, so the Playground has stopped being an outside check of the
+W3C layer for anything that is not UNTP's. The portable form keeps its purpose for any
+verifier that takes an arbitrary W3C credential. The watch item recorded in change set 26,
+that the portable exports carry a `credentialSchema` nobody outside can fetch, does not
+arise at the Playground for the same reason. Docs corrected (item 7); no code changed.
+
+Adding a UNTP type to get past the check is no way round it: the UNTP schema step would
+then fail the credential, and it would claim to be something it is not.
+
+**2026-09-29: chapter 3 now says so where the files are (item 8).** The "Take it away" row
+offered *As issued* and *Signed as did:key* for every document with nothing to say the
+Playground refuses both, which is how the refusal was found. A callout under the row now
+answers it per document, from two blocks in `04-issuing.md`: `takeaway.untp` for the two
+in `UNTP_PROJECTED`, saying only *As a UNTP credential* gets in, and `takeaway.no-untp`
+for the rest, saying none of the files does and naming the two documents that have a
+UNTP form. It is a plain callout, not the quiet variant, because it is a caution.
+
+- The second block names the two documents by their chip labels, so it is a third copy of
+  `UNTP_PROJECTED`. `test_the_playground_note_names_the_documents_that_have_a_untp_form`
+  checks it against the labels. Deliberate break: changing CPC-2026-0055 to 0056 in the
+  note failed it on that label. Restored.
+- The chapter 11 probe panel is unchanged: its row offers only the UNTP form already.
+- `ui-clicks.mjs`: every control responds, and the issuing floor stays at 13, since the
+  note adds a link and no button. A jsdom click-through printed the note for the opening
+  recognition and for AC-2026-1182 (none of the files) and for METAS-2026-0417 and
+  CPC-2026-0055 (only the UNTP one).
+
+**2026-09-30: the run (item 6).** Peter ran both `untp` exports through the Playground
+0.4.2 on 29 September; the reports are `temp/untp-test-report-*-untp.json`, and the files
+uploaded are identical to what `GET /api/export/{name}?form=untp` serves. The table below
+has the result. Four readings:
+
+- **Step 4 never checked the signature.** The verifier behind the Playground is Veramo
+  with `@digitalcredentials/jsonld-signatures` 10.0.1, whose `ProofSet.js` matches each
+  proof to a purpose and a loaded suite before verifying anything; with no match it
+  verifies nothing and throws `NotFoundError`. So no suite there accepts `ecdsa-jcs-2019`.
+  That is the unsupported-cryptosuite answer, and nothing outside this repository has yet
+  checked a signature made here. The Playground's own sample credential is an enveloped
+  JWT signed EdDSA.
+- **Step 5 is the one independent confirmation.** The errors are the offline check's,
+  path for path, and the vendored 0.6.0 schema parses identical to the copy the
+  Playground bundles.
+- **Step 6 is a UNTP 0.6.0 defect, not ours.** The 0.6.0 schema defaults five type names
+  (`ProductVerification`, `Metric`, `Measure`, `SecureLink`, `Link`) that the 0.6.0
+  context never defines, and the W3C context declares no `@vocab`, so each is a relative
+  `@type`. The Playground reports the first and calls the cause unknown. UNTP 0.7.0 drops
+  `type` from those objects.
+- **What the Playground could not see was worse.** The projection filled
+  `scope.issuingParty` and `authorisation.issuingAuthority` with the scope document
+  itself, dropped `credentialStatus` without recording it, gave the credential, the
+  attestation and the assessment one identifier, and carried the value as
+  `10000.001200000035` with no uncertainty. The first is exactly the plausible fill the
+  projection's rule forbids, and the counts-only test could not catch it. All of it, and
+  the move to 0.7.0, is change set 28.
+
 ## The Playground run
 
-To be filled in from an actual run. Three files per credential, from the "Take it away"
-row in chapter 3 or the probe panel in chapter 11.
+One file per certificate - the `untp` form, from *As a UNTP credential* in the "Take it
+away" row of chapter 3 or the probe panel in chapter 11, or
+`GET /api/export/{name}?form=untp`. The `native` and `portable` forms are refused at upload
+since Playground 0.4.0 and have no column. Run on 2026-09-29 against Playground 0.4.2,
+UNTP 0.6.0.
 
-| Step | native | portable | untp |
-|---|---|---|---|
-| 1. Proof Type Detection | | | |
-| 2. VCDM Version Detection | | | |
-| 3. VCDM Schema Validation | | | |
-| 4. Credential Verification | | | |
-| 5. UNTP Schema Validation | | | |
-| 6. JSON-LD Expansion and Context Validation | | | |
-| 7. Extension Schema Validation | | | |
+| Step | metas-calibration | cab-conformity |
+|---|---|---|
+| 1. Proof Type Detection | pass, embedded | pass, embedded |
+| 2. VCDM Version Detection | pass, v2 | pass, v2 |
+| 3. VCDM Schema Validation | pass | pass |
+| 4. Credential Verification | fail: `NotFoundError`, no suite for `ecdsa-jcs-2019` | same |
+| 5. UNTP Schema Validation | fail: `conformance`, `conformityTopic` required | fail: `conformityTopic`, `referenceStandard.issuingParty.id` required |
+| 6. JSON-LD Expansion and Context Validation | fail: relative `@type` `ProductVerification` | same |
+| 7. Extension Schema Validation | not run | not run |
 
-Expected going in: 1-3 pass for all three; 4 fails for `native` and is the open question
-for the other two, since `ecdsa-jcs-2019` is a valid W3C cryptosuite that the Playground's
-verifier may or may not implement; 5 reports `Unknown` for the first two and the two
-recorded errors for `untp`; 6 fails for all three, for `native` and `portable` on the
-fictional context and for `untp` only if the UNTP vocabulary does not expand every term
-used. An unsupported-cryptosuite answer at step 4 would be as useful as a pass.
+Expected going in: 1-3 pass; 4 is the open question, since `ecdsa-jcs-2019` is a valid W3C
+cryptosuite that the Playground's verifier may or may not implement, and the `did:key`
+issuer needs no lookup; 5 reports the two recorded errors; 6 passes unless the UNTP
+vocabulary does not expand every term used, since the projection carries only the W3C and
+`test.uncefact.org/vocabulary/untp/dcc/0.6.0/` contexts; 7 does not run, as there is no
+extension. An unsupported-cryptosuite answer at step 4 would be as useful as a pass.
 
 ## Git
 
@@ -4152,3 +4234,393 @@ compare URL with the body pasted in (`gh` is unavailable).
   - Not committed: the prose in `04-issuing.md` is a draft for Peter, and item 8 is his.
 - 2026-09-29: committed on `feature/data-model-per-type` at Peter's request, not pushed.
   The prose remains open to his edits in a follow-up commit.
+
+# Change set 27 - chapter 3 is about credentials, and outputValidation is checked properly
+
+## Context
+
+Chapter 3 (`04-issuing.md`) is titled *Issuing a certificate* and opens on a calibration
+certificate. Its own type chips show it covers eight kinds of credential, and fewer than
+half of them are certificates. Peter wants the chapter to be about credentials in
+general. That means:
+
+- a new title;
+- opening on the *Recognition* type;
+- no "Not a certificate" disclaimers;
+- a shorter canonical-form box that scrolls;
+- a clearer paragraph on `credentialSchema` against `outputValidation`.
+
+He also asked whether the credentials need to change for `credentialSchema` or
+`outputValidation`. **They do not.** `credentialSchema` matches W3C *VC JSON Schema*
+(`id`, `type: JsonSchema`, optional `digestSRI`), and `digestMultibase` is a term the
+VCDM 2.0 context defines. `outputValidation` matches the Recognized Entities WD of
+6 September 2026, Example 2, member for member.
+
+The check found two gaps next to the credentials, and Peter chose to fix both, in their
+own commit:
+
+1. The WD says `outputValidation` is "one or more data schemas". The Recognition data
+   model allows only one object, and the verifier skips the check when it gets a list.
+2. `_step_output_validation` (`src/vcqi/vc/verify.py:1326`) is looser than
+   `_step_data_model`:
+   - it builds `Draft202012Validator(schema)` without the empty registry, so an outside
+     `$ref` can be fetched past the digest;
+   - it checks neither `type` nor `$schema`;
+   - its PASS says "whose content digest matches" even when no digest was recorded.
+
+One caveat to report, not change: `digestSRI` is computed over the RFC 8785 form. SRI
+proper hashes the bytes fetched. The two agree only if a deployment serves the schema
+in its canonical form.
+
+## Git
+
+Branch `feature/issuing-credentials` from `develop`. Append this plan to `PLAN.md` as
+*Change set 27*, with a checklist and a progress log. Two commits, made only when Peter
+asks:
+
+- first `fix(verify): …` (phase A);
+- then `feat(issuing): …` (phase B), so the prose describes code that already exists.
+
+The PR goes into `develop` via a compare URL, because `gh` is unavailable.
+
+## Phase A - outputValidation: one or more, held to the data-model standard
+
+**`src/vcqi/vc/datamodel.py`, `_recognized_entity`**
+- Move the reference shape (`id`, `type: JsonSchema`, `digestMultibase`, all required,
+  as today) into a local `$def` named `schemaReference`.
+- Make `outputValidation` accept one reference or a list of them:
+  `{"anyOf": [_ref("schemaReference"), _array(_ref("schemaReference"), at_least=1)]}`.
+  Add a one-line comment citing the WD's "one or more".
+- The existing tests should still pass as they are: the walker already follows `anyOf`
+  and `items`, and the new `$def` is used.
+
+**`src/vcqi/vc/model.py`, `recognized_action`**
+- Change the `output_validation` hint to `dict | list[dict] | None`, and update the
+  docstring to say "one reference or several".
+
+**`src/vcqi/vc/verify.py`**
+- Pull the digest-pin logic (lines 1247–1256) out into `_digest_pins(schema, reference)`,
+  which returns `(pinned, broken)`. Use it in `_step_data_model` without changing its
+  behaviour.
+- Rewrite `_step_output_validation` over a list of references:
+  - accept either a dict or a list, and keep the dicts that have a string `id`; if none
+    are left, SKIP as today;
+  - check each reference in its own helper, `_output_schema_outcome`, in the same order
+    as the data-model step:
+    - a `type` other than `JsonSchema` → WARN ("does not evaluate");
+    - the schema cannot be retrieved → FAIL (text as today);
+    - a digest mismatch, using `digestMultibase` and also `digestSRI` if present → FAIL
+      (text as today);
+    - `$schema` other than `JSON_SCHEMA_DIALECT` → WARN (indeterminate);
+    - validate with `validator_for(schema)`; catch `Unresolvable` → WARN;
+    - validation errors → FAIL (text as today);
+    - no digest recorded → WARN ("the recognition recorded no digest of it…");
+    - otherwise PASS.
+  - The worst outcome wins: FAIL, then WARN, then PASS. With one schema, the PASS text
+    and the `evidence={"schema": url}` stay exactly as today. With several, the evidence
+    becomes `schemas: [...]`.
+- Drop the `Draft202012Validator` import at line 45 if nothing else in the file uses it.
+
+**Tests**
+- In `tests/test_pipeline.py`, add a new class `TestOutputValidation`. Its tests call
+  `_step_output_validation` directly with a hand-built action, because reaching a list
+  through the pipeline would need a re-signed recognition. Each test publishes small
+  schemas into a fresh `build_world()` store, with references from
+  `vc/schema.py:schema_reference`, and uses `Resolver(world.store)`. Cases:
+  - two schemas, both satisfied → PASS, with both named;
+  - two schemas, the second not satisfied → FAIL, naming the member;
+  - no digest recorded → WARN;
+  - an outside `$ref`, with `socket.socket.connect` monkeypatched to refuse → WARN and
+    no connection (the pattern from `test_validation_never_reaches_for_the_network`);
+  - a draft other than 2020-12 → WARN;
+  - a `type` other than `JsonSchema` → WARN.
+- In `tests/test_datamodel.py`:
+  - a copy of `bipm-recognition` whose `outputValidation` is a list validates against
+    the Recognition model;
+  - an empty list does not.
+- These must keep passing unchanged:
+  - `test_edit.py:280`, the coverage-factor FAIL;
+  - the *loosened schema* tamper case;
+  - `edit.py` expected steps;
+  - the pipeline's step order.
+
+**Docs**
+- `ARCHITECTURE.md:782`: the `output-validation` row now says "the schema or schemas the
+  recognition names, each pinned by content digest and evaluated without the network".
+- The `_step_output_validation` docstring says the same.
+
+## Phase B - the chapter
+
+**`src/vcqi/web/content/chapters/04-issuing.md`**
+- `title`: `Issuing a Verifiable Credential`.
+- `canonicalization`: "the same certificate can be written" and "a certificate can be
+  reformatted" both become "credential".
+- `doc.bipm-recognition`: drop the opening "Not a certificate." Now that it is the first
+  note a reader sees, it begins with "The BIPM naming…".
+- `what-is-signed`: "Not every type above is a certificate, and one of them is unlike
+  everything else here." becomes "One of the types above is unlike everything else
+  here." The rest stays as it is.
+- `data-model` is rewritten. Tables already render (`01-orientation.md:86`) and
+  `test_every_table_row_has_the_headers_column_count` guards them. Draft:
+
+  > **Two schemas, two questions.** A credential in this world is held against two JSON
+  > Schemas. They look alike, but they answer different questions and sit in different
+  > places.
+  >
+  > The first is the data model shown above. Every credential names it in
+  > `credentialSchema`, the member the W3C Verifiable Credentials standard reserves for
+  > it. It says what a document of this type **is**: which members it has, which of them
+  > are required, and what kind of value each holds. It is written once per type and is
+  > the same for every issuer.
+  >
+  > The second is named by the issuer's recognition, in `outputValidation`. It says what
+  > this particular issuer **may** issue: this measurand, this unit, this range. The
+  > authority granting the recognition writes it, so it differs from one issuer to the
+  > next. A recognition may name several, and a document then has to satisfy each of
+  > them.
+  >
+  > | | `credentialSchema` | `outputValidation` |
+  > | --- | --- | --- |
+  > | Named in | the credential itself | the recognition of its issuer |
+  > | Written by | whoever defines the type | the authority granting the recognition |
+  > | Answers | is this a well-formed document of its type? | is it within what its issuer is recognised for? |
+  > | The same for | every issuer of the type | one issuer |
+  > | Checked in chapter 4 | inside the first step, *Document is a Verifiable Credential* | as its own step, *Document matches the schema its recognition names* |
+  >
+  > Both references carry a digest of the schema they name, and both digests are signed:
+  > the first by the issuer, inside the credential, and the second by the recognising
+  > authority, inside the recognition. So neither schema can be loosened at its address
+  > afterwards: the verifier fetches it, and it no longer matches the digest.
+  > `credentialSchema` gives the same SHA-256 digest in two spellings, `digestSRI` and
+  > `digestMultibase`.
+  >
+  > The data model is open on purpose. It constrains the members it lists and forbids
+  > nothing it does not list, because a credential is meant to be extended.
+
+**`src/vcqi/web/static/js/chapters.js`**
+- Line 634: `state = { type: typeOf.get('bipm-recognition'), name: 'bipm-recognition' }`.
+  Rewrite the comment above it: the chapter opens on the first type in chain order and
+  on its first document.
+- Line 751: the canonical form gets `class: 'code json json--compact'`, the same capped,
+  vertically scrolling box as the data model. There is a precedent at line 1118
+  (`code json json--tall`). Nothing new goes into the CSS.
+- Line 4, file comment: "how is a certificate signed" becomes "how is a credential
+  signed".
+
+**`src/vcqi/web/static/css/app.css:517`**
+- Widen the `.json--compact` comment to cover the canonical form as well.
+
+**`tools/ui-clicks.mjs:113-119`**
+- The issuing floor becomes eight type chips plus five recognitions, so 13. Rewrite the
+  comment to match, and confirm the number with a run.
+
+**Title elsewhere**
+- `CONTENT.md:23` and `README.md:293`: *Issuing a Verifiable Credential*. `PLAN.md` is
+  history, so it stays as it is.
+
+## Verification
+
+- `uv run pytest`: the whole suite, with phase A's new tests. The baseline was 756 pass,
+  46 skipped.
+- `uv run python -m vcqi.actors.scenarios --dump`, run twice: the output must be
+  byte-identical. The recognitions' `credentialSchema` digests and signatures change,
+  because the Recognition model changed. Nothing else should.
+- `uv run vc-demo`, then `node tools/ui-clicks.mjs`: every control responds, and issuing
+  reports at least 13 controls.
+- Chapter 3 by hand:
+  - it opens on *Recognition* and the BIPM document;
+  - the canonical box is capped and scrolls vertically;
+  - the table renders;
+  - no `.content-missing`.
+- Chapter 4 on `metas-calibration`: `output-validation` still passes, with the same
+  wording.
+- Left for Peter: the page by eye in a browser, light and dark, at phone width.
+
+## Checklist
+
+- [x] A1. `vc/datamodel.py` - `outputValidation` takes one reference or several
+- [x] A2. `vc/model.py` - the builder's hint and docstring
+- [x] A3. `vc/verify.py` - `_digest_pins`, `_step_output_validation` over a list
+- [x] A4. Tests in `test_pipeline.py` and `test_datamodel.py`; `ARCHITECTURE.md`
+- [x] B1. `04-issuing.md` - title, wording, the data-model explanation
+- [x] B2. `chapters.js`, `app.css`, `ui-clicks.mjs`, `CONTENT.md`, `README.md`
+- [x] C. Full suite, `--dump` twice, `ui-clicks.mjs`
+- [ ] D. The page by eye in a real browser: light and dark, phone width (Peter)
+
+## Progress log
+
+- 2026-09-29: plan approved. Branch `feature/issuing-credentials` from `develop`.
+- 2026-09-29: phase A, `outputValidation`.
+  - The Recognition model takes one reference or a list of at least one, through a new
+    `schemaReference` in its `$defs`. The recognitions' `credentialSchema` digests move
+    with it, and nothing pinned them.
+  - `_digest_pins` is shared by both schema steps. `output-validation` now checks
+    `type`, `$schema` and `digestSRI` as well, validates through `validator_for`, and
+    warns when no digest was recorded. With one schema, its pass text and evidence are
+    unchanged; the digest-mismatch evidence names `mismatched` instead of
+    `expectedDigest`, which nothing read.
+  - `Draft202012Validator` is no longer imported by `verify.py`.
+  - Nine tests in `TestOutputValidation`, one in `test_datamodel.py`. Full suite: 766
+    pass, 46 skipped (756 before).
+- 2026-09-29: phase B, the chapter, and the final checks.
+  - Title *Issuing a Verifiable Credential*, here and in `CONTENT.md` and `README.md`.
+    The chapter opens on *Recognition* and the BIPM document. "Not a certificate" is
+    gone, and the canonicalization paragraph says "credential". The canonical form is a
+    `json--compact` box.
+  - Deviation: the table's last row places the data-model check "inside the first step,
+    as *Document has the shape its type declares*", which is the nested step's actual
+    title. The draft named the parent step, *Document is a Verifiable Credential*.
+  - `--dump`, run twice: byte-identical, 86 documents. Against `develop`, the documents
+    that differ are the five recognitions, the Recognition data model, and the seven
+    `whois` presentations that carry a recognition. Nothing else differs.
+  - `ui-clicks.mjs`: every control responds; issuing has 13, the new floor.
+    `chapter-snapshot.mjs issuing`: the title, both pressed chips, the capped canonical
+    box and the table are there, with no `.content-missing`.
+  - `output-validation` through `/api/verify` for the seven end documents: all pass,
+    with the wording unchanged.
+  - Full suite: 766 pass, 46 skipped. Not committed; waiting for Peter.
+
+# Change set 28 - the UNTP probe on 0.7.0, with the projection's own faults fixed
+
+## Context
+
+The Playground run recorded in change set 24 confirmed the offline schema check and
+nothing else. Step 4 never reached the signature; step 6 failed on a defect in UNTP 0.6.0
+itself. Reading the exported files against the source certificates found faults in the
+projection that pass the schema:
+
+1. `scope.issuingParty` and `authorisation.issuingAuthority` were filled with the scope
+   document itself - the KCDB CMC entry, the SAS scope - so the scheme issued itself. That
+   is the plausible fill the projection's rule forbids, and
+   `test_every_schema_error_is_a_recorded_omission` compared counts, so it could not see
+   a fill.
+2. `credentialStatus` was dropped, and no omission recorded it. UNTP's own VC profile
+   mandates Bitstring Status List.
+3. The credential, the attestation and the assessment shared one identifier, and so did
+   the scheme, its issuer, the endorsement and its authority. In RDF those merge.
+4. The value travelled as `10000.001200000035` with no uncertainty, where the certificate
+   reports `10000.0012 +/- 0.0011 ohm (k = 2)`.
+5. Minor: `registeredId: "type series"`, the IEC named by splitting `IEC 60335-1`, the
+   unit written `ohm` where UNECE Rec 20 has `OHM`, and an invented `linkType`.
+
+UNTP 0.6.0 is marked unmaintained. 0.7.0 was released on 4 May 2026, and change set 23
+already called it current; change set 24 pinned 0.6.0 without recording why. Against
+0.7.0, three of the chapter's claims no longer hold and one has to be retracted:
+
+- `conformance` is optional, so a calibration is no longer forced into a verdict.
+- `conformityTopic` is an open `{id, name}` list, and UNTP's topic vocabulary has
+  `metrology-and-measurement` - "accuracy and traceability of measurements and
+  calibrations to national and international measurement standards" - and
+  `product-safety-standards`.
+- `GlobalMRA` and `Accredited` are gone. `authority-globalmra` is defined as accreditation
+  under the Global Accreditation Cooperation MRA, which is the accreditation arrangement.
+  0.6.0 never defined `GlobalMRA`; reading it as the CIPM MRA was ours, and the claim that
+  UNTP already enumerated the CIPM MRA/accreditation distinction is retracted.
+- Still true: uncertainty has no member (`Measure` carries only `upperTolerance` and
+  `lowerTolerance`, which are limits), and units are Rec 20 codes.
+- New: `referenceScheme`, `assessmentCriteria`, `assessedPerformance`, a top-level `name`,
+  `specifiedCondition`, and `Link` with `digestMultibase`. `statusListIndex` is typed
+  `integer` while its own description says, like the W3C Recommendation of 15 May 2025,
+  "an arbitrary size integer ... expressed as a string in base 10".
+
+## Decisions
+
+Taken with Peter:
+
+- One change set: the 0.6.0 run is the baseline (change set 24), the faults are fixed, and
+  the projection moves to 0.7.0.
+- METAS carries `assessmentLevel: authority-peer` - peer assessment under an
+  intergovernmental body - recorded as a judgement, not a clean fit. The CAB carries
+  `authority-globalmra`, since SAS is a Global ACI signatory here.
+- The calibration's CMC is its `assessmentCriteria`: chapter 4 already checks the
+  certificate against the CMC's `outputValidation` schema.
+- `referenceScheme` is left out and recorded for both. The certificate claims the CIPM MRA
+  by name, and nothing in this world gives the arrangement an identifier; the recognition
+  credential lists signatories and is not the arrangement.
+- The rule is unchanged: carry what the source states, omit and record what it does not,
+  never fill with a plausible value. W3C is what the project answers to, so the status
+  entry is carried as W3C writes it and UNTP's refusal is recorded as a conflict.
+- Not here: Links to the uncertainty data or the traceability chain. A Link could point at
+  them but not say what they are.
+
+## Checklist
+
+- [x] 1. Change set 24 item 6: the 0.6.0 run recorded as the baseline
+- [x] 2. Vendor the 0.7.0 schema and context and the W3C v2 context, pinned by content
+      hash; remove the 0.6.0 schema
+- [x] 3. `domain/uncertainty.py`: the rounding rule as two helpers `format_measurement` uses
+- [x] 4. `vc/untp.py`: `Finding` with four kinds, location-matched schema errors, the
+      0.7.0 projection with the faults fixed, `project(source, lookup)`
+- [x] 5. `vc/jsonld_terms.py`: the offline stand-in for Playground step 6
+- [x] 6. `actors/interop.py` and `web/app.py`: the lookup, `findings`, `accountedFor` by
+      location
+- [x] 7. `untpProbe` in `chapters.js`: a badge and a count per kind
+- [x] 8. Prose: `12-harmonisation.md` probe, `13-exchange.md`, the `certificate-format`,
+      `units` and `uncertainty-transport` items
+- [x] 9. Tests: `test_untp.py` rewritten, `test_domain.py`, `test_web.py`
+- [x] 10. Docs: ARCHITECTURE.md, THIRD_PARTY_NOTICES.md, README.md
+- [x] 11. Verification: suite, `--dump` identical, deliberate break, harnesses
+- [ ] 12. Peter re-runs both `untp` exports through the Playground; table below
+
+## Progress log
+
+- 2026-09-30: plan approved. Branch `feature/untp-0-7-0` from `develop`. Baseline `--dump`
+  (86 documents) and chapter snapshots of issuing, harmonisation and exchange taken.
+- 2026-09-30: items 2-10.
+  - Vendored from the spec repository at tag `v0.7.0`, plus the W3C v2 context. All three
+    match the Playground's manifest by content hash (keys sorted, no whitespace); their raw
+    bytes match nothing, and the UNTP files arrived with CRLF, normalised to LF.
+  - `vc/untp.py`: `Finding` with `dropped`, `required`, `conflict`, `judgement`;
+    `schema_errors` adds `member`; `project(source, lookup)`. Blocking findings are exactly
+    the planned ones: three for each calibration, four for the certificate of conformity.
+  - Deviations from the plan, all small. The authority comes from `issuer.recognizedIn`
+    for every certificate, and the CAB gets a second endorsement for its scope, so callab's
+    SAS scope serves as its criterion (its digest recorded as dropped: a criterion has no
+    member for one). `assessorLevel` is derived from issuer and party rather than
+    hard-coded. `manufacturer` and the test reports' `issuer` are recorded as dropped.
+  - A correction to the plan's own wording: matching by member catches a fill of a member
+    recorded as missing (`test_a_plausible_fill_is_caught`), but a fill that raises no
+    error and records no finding is invisible to any error check. That is the shape of the
+    0.6.0 authority fill, so it is caught by the tests aimed at it -- the authority is the
+    issuer of its evidence, no identifier names two things -- not by the member check.
+  - `vc/jsonld_terms.py`: clean on all three projections. Run over the two 0.6.0 files
+    Peter uploaded, with the 0.6.0 context from the Playground's bundle, it reports exactly
+    the five undefined types, `ProductVerification` first, as the Playground did.
+  - `domain/uncertainty.py`: `reported_decimals` and `rounded_to_uncertainty`, and
+    `format_measurement` uses the first. The projected value is `10000.0012`.
+- 2026-09-30: item 11, verification.
+  - Full suite: 785 pass, 46 skipped (767 before).
+  - `--dump`: byte-identical to the baseline, 86 documents. The world did not change, and
+    the rounding refactor changed no `reported` string.
+  - Port 8000 was taken by a `uv run vc-demo` Peter had started, so the harnesses ran
+    against a server of this branch on port 8011 (`VCQI_BASE`). `ui-clicks.mjs`: every
+    control responds, harmonisation stays at 4. `chapter-snapshot.mjs`, twice: identical.
+    Against the baseline, issuing is identical, exchange differs by the one added
+    sentence, and harmonisation differs from the probe panel to the
+    `uncertainty-transport` item, with no `.content-missing`.
+
+## The Playground run on 0.7.0
+
+To be filled in from an actual run.
+
+| Step | metas-calibration | cab-conformity |
+|---|---|---|
+| 1. Proof Type Detection | | |
+| 2. VCDM Version Detection | | |
+| 3. VCDM Schema Validation | | |
+| 4. Credential Verification | | |
+| 5. UNTP Schema Validation | | |
+| 6. JSON-LD Expansion and Context Validation | | |
+| 7. Extension Schema Validation | | |
+
+Expected going in: 1-3 pass; 4 unchanged, `NotFoundError`, since nothing about the
+signature changed; 5 reports exactly the blocking findings - three for the calibration
+(`credentialStatus/statusListIndex`, `credentialSubject/referenceScheme`, the metric's
+`id`), four for the certificate of conformity (the same first two, the criterion's `id`,
+`assessedPerformance`); 6 passes, and a failure there means `vc/jsonld_terms.py` is wrong;
+7 does not run.
+
+## Git
+
+Branch `feature/untp-0-7-0` from `develop`, into `develop`. The change set 24 baseline is
+its own `docs(plan)` commit.
