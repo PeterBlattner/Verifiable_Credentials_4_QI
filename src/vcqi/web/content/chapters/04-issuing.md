@@ -23,7 +23,7 @@
 
 <!-- block: title -->
 
-Issuing a certificate
+Issuing a Verifiable Credential
 
 <!-- block: eyebrow -->
 
@@ -55,19 +55,33 @@ Documents of this type in this world
 
 <!-- block: data-model -->
 
-Every credential here names its data model, in the member the data model reserves for it, `credentialSchema`. The reference carries two digests of the schema, so the model a credential was issued against cannot be loosened afterwards without the credential noticing. Chapter 4 checks it inside the first step, *Document is a Verifiable Credential*, because it is that question asked properly: not whether this is a credential at all, but whether it is a well-formed one of the type it says it is.
+**Two schemas, two questions.** A credential in this world is held against two JSON Schemas. They look alike, but they answer different questions and sit in different places.
 
-This is not the schema a recognition names in `outputValidation`, which chapter 4 checks as well. That one says what a particular issuer **may** issue — this measurand, this range — and differs from one issuer to the next. The data model says what a document of the type **is**, the same for everybody. It is open by design: it says what each member it lists must be, and forbids nothing it does not list, because a credential is meant to be extended.
+The first is the data model shown above. Every credential names it in `credentialSchema`, the member the W3C Verifiable Credentials standard reserves for it. It says what a document of this type **is**: which members it has, which of them are required, and what kind of value each holds. It is written once per type and is the same for every issuer.
+
+The second is named by the issuer's recognition, in `outputValidation`. It says what this particular issuer **may** issue: this measurand, this unit, this range. The authority granting the recognition writes it, so it differs from one issuer to the next. A recognition may name several, and a document then has to satisfy each of them.
+
+| | `credentialSchema` | `outputValidation` |
+| --- | --- | --- |
+| Named in | the credential itself | the recognition of its issuer |
+| Written by | whoever defines the type | the authority granting the recognition |
+| Answers | is this a well-formed document of its type? | is it within what its issuer is recognised for? |
+| The same for | every issuer of the type | one issuer |
+| Checked in chapter 4 | inside the first step, as *Document has the shape its type declares* | as its own step, *Document matches the schema its recognition names* |
+
+Both references carry a digest of the schema they name, and both digests are signed: the first by the issuer, inside the credential, and the second by the recognising authority, inside the recognition. So neither schema can be loosened at its address afterwards: the verifier fetches it, and it no longer matches the digest. `credentialSchema` gives the same SHA-256 digest in two spellings, `digestSRI` and `digestMultibase`.
+
+The data model is open on purpose. It constrains the members it lists and forbids nothing it does not list, because a credential is meant to be extended.
 
 <!-- block: canonicalization -->
 
-A signature is made over bytes, and a JSON document does not have a single set of bytes: the same certificate can be written with different spacing, different member order, or different ways of writing the same number. So before anything is hashed, the document is put into a **canonical form**, and that is what gets signed. This is why a certificate can be reformatted on its way to a verifier without breaking.
+A signature is made over bytes, and a JSON document does not have a single set of bytes: the same credential can be written with different spacing, different member order, or different ways of writing the same number. So before anything is hashed, the document is put into a **canonical form**, and that is what gets signed. This is why a credential can be reformatted on its way to a verifier without breaking.
 
 Two things are hashed separately and signed together: the document without its proof, and the proof configuration without its signature. Hashing the configuration too is what stops anyone editing the stated purpose, the key or the time after the fact.
 
 <!-- block: doc.bipm-recognition -->
 
-Not a certificate. The BIPM naming the national metrology institutes that take part in the CIPM MRA, each one scoped to the calibration and measurement capabilities it has published in the key comparison database. This is the root everything on the metrology side hangs from.
+The BIPM naming the national metrology institutes that take part in the CIPM MRA, each one scoped to the calibration and measurement capabilities it has published in the key comparison database. This is the root everything on the metrology side hangs from.
 
 <!-- block: doc.global-aci-recognition -->
 
@@ -171,4 +185,4 @@ The proof configuration, plus the signature it covers
 
 <!-- block: what-is-signed -->
 
-Not every type above is a certificate, and one of them is unlike everything else here. Certificate METAS-2026-0420, the one document under *Certificate by reference*, carries no measurement at all — no value, no Expanded Uncertainty, no budget. Its claims are a URL, two digests of a PTB/DKD DCC published elsewhere, and four facts of index about it. Put its data model beside the calibration certificate's: where one describes results with a value, an Expanded Uncertainty and a budget, the other describes an address and a digest. Then pick it and watch the canonical form: there is very little of it, because there is very little being said. Everything the certificate actually reports is in a document this credential vouches for and does not contain. Chapter 6 is where that trade is worked through.
+One of the types above is unlike everything else here. Certificate METAS-2026-0420, the one document under *Certificate by reference*, carries no measurement at all — no value, no Expanded Uncertainty, no budget. Its claims are a URL, two digests of a PTB/DKD DCC published elsewhere, and four facts of index about it. Put its data model beside the calibration certificate's: where one describes results with a value, an Expanded Uncertainty and a budget, the other describes an address and a digest. Then pick it and watch the canonical form: there is very little of it, because there is very little being said. Everything the certificate actually reports is in a document this credential vouches for and does not contain. Chapter 6 is where that trade is worked through.

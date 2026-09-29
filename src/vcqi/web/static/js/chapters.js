@@ -1,7 +1,7 @@
 // The chapters of the demonstration.
 //
 // Each one answers a question in order: what is a credential, who is in this world, how
-// is a certificate signed, what does a recipient check, what does the CMC decide, where
+// is a credential signed, what does a recipient check, what does the CMC decide, where
 // does the uncertainty come from, what breaks it, and what would any of this change.
 
 import { api } from './api.js';
@@ -629,9 +629,9 @@ async function chapterIssuing(context) {
     group.names.push(name);
   }
 
-  // The first calibration in CREDENTIAL_LABELS is METAS-2026-0417, which is why picking
-  // its type below lands on it without being told to.
-  const state = { type: typeOf.get('metas-calibration'), name: 'metas-calibration' };
+  // The chapter opens where the chain starts: on the first type, a recognition, and on
+  // the first document of that type, the BIPM's.
+  const state = { type: typeOf.get('bipm-recognition'), name: 'bipm-recognition' };
   const typeRow = el('div', { class: 'chips' });
   const exampleRow = el('div', { class: 'chips' });
   const modelHolder = el('div', {});
@@ -748,7 +748,9 @@ async function chapterIssuing(context) {
       panel(
         `2. ${t.text('canonical.title')}`,
         t.text('canonical.hint'),
-        el('pre', { class: 'code', text: wrap(trace.canonicalDocument, 110) })
+        // Capped and scrolling, as the data model is: one line of bytes that is meant to
+        // be seen for what it is, not read end to end.
+        el('pre', { class: 'code json json--compact', text: wrap(trace.canonicalDocument, 110) })
       ),
       panel(`3. ${t.text('hashing.title')}`, t.text('hashing.hint'), [
         keyValues([

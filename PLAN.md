@@ -4152,3 +4152,248 @@ compare URL with the body pasted in (`gh` is unavailable).
   - Not committed: the prose in `04-issuing.md` is a draft for Peter, and item 8 is his.
 - 2026-09-29: committed on `feature/data-model-per-type` at Peter's request, not pushed.
   The prose remains open to his edits in a follow-up commit.
+
+# Change set 27 - chapter 3 is about credentials, and outputValidation is checked properly
+
+## Context
+
+Chapter 3 (`04-issuing.md`) is titled *Issuing a certificate* and opens on a calibration
+certificate. Its own type chips show it covers eight kinds of credential, and fewer than
+half of them are certificates. Peter wants the chapter to be about credentials in
+general. That means:
+
+- a new title;
+- opening on the *Recognition* type;
+- no "Not a certificate" disclaimers;
+- a shorter canonical-form box that scrolls;
+- a clearer paragraph on `credentialSchema` against `outputValidation`.
+
+He also asked whether the credentials need to change for `credentialSchema` or
+`outputValidation`. **They do not.** `credentialSchema` matches W3C *VC JSON Schema*
+(`id`, `type: JsonSchema`, optional `digestSRI`), and `digestMultibase` is a term the
+VCDM 2.0 context defines. `outputValidation` matches the Recognized Entities WD of
+6 September 2026, Example 2, member for member.
+
+The check found two gaps next to the credentials, and Peter chose to fix both, in their
+own commit:
+
+1. The WD says `outputValidation` is "one or more data schemas". The Recognition data
+   model allows only one object, and the verifier skips the check when it gets a list.
+2. `_step_output_validation` (`src/vcqi/vc/verify.py:1326`) is looser than
+   `_step_data_model`:
+   - it builds `Draft202012Validator(schema)` without the empty registry, so an outside
+     `$ref` can be fetched past the digest;
+   - it checks neither `type` nor `$schema`;
+   - its PASS says "whose content digest matches" even when no digest was recorded.
+
+One caveat to report, not change: `digestSRI` is computed over the RFC 8785 form. SRI
+proper hashes the bytes fetched. The two agree only if a deployment serves the schema
+in its canonical form.
+
+## Git
+
+Branch `feature/issuing-credentials` from `develop`. Append this plan to `PLAN.md` as
+*Change set 27*, with a checklist and a progress log. Two commits, made only when Peter
+asks:
+
+- first `fix(verify): …` (phase A);
+- then `feat(issuing): …` (phase B), so the prose describes code that already exists.
+
+The PR goes into `develop` via a compare URL, because `gh` is unavailable.
+
+## Phase A - outputValidation: one or more, held to the data-model standard
+
+**`src/vcqi/vc/datamodel.py`, `_recognized_entity`**
+- Move the reference shape (`id`, `type: JsonSchema`, `digestMultibase`, all required,
+  as today) into a local `$def` named `schemaReference`.
+- Make `outputValidation` accept one reference or a list of them:
+  `{"anyOf": [_ref("schemaReference"), _array(_ref("schemaReference"), at_least=1)]}`.
+  Add a one-line comment citing the WD's "one or more".
+- The existing tests should still pass as they are: the walker already follows `anyOf`
+  and `items`, and the new `$def` is used.
+
+**`src/vcqi/vc/model.py`, `recognized_action`**
+- Change the `output_validation` hint to `dict | list[dict] | None`, and update the
+  docstring to say "one reference or several".
+
+**`src/vcqi/vc/verify.py`**
+- Pull the digest-pin logic (lines 1247–1256) out into `_digest_pins(schema, reference)`,
+  which returns `(pinned, broken)`. Use it in `_step_data_model` without changing its
+  behaviour.
+- Rewrite `_step_output_validation` over a list of references:
+  - accept either a dict or a list, and keep the dicts that have a string `id`; if none
+    are left, SKIP as today;
+  - check each reference in its own helper, `_output_schema_outcome`, in the same order
+    as the data-model step:
+    - a `type` other than `JsonSchema` → WARN ("does not evaluate");
+    - the schema cannot be retrieved → FAIL (text as today);
+    - a digest mismatch, using `digestMultibase` and also `digestSRI` if present → FAIL
+      (text as today);
+    - `$schema` other than `JSON_SCHEMA_DIALECT` → WARN (indeterminate);
+    - validate with `validator_for(schema)`; catch `Unresolvable` → WARN;
+    - validation errors → FAIL (text as today);
+    - no digest recorded → WARN ("the recognition recorded no digest of it…");
+    - otherwise PASS.
+  - The worst outcome wins: FAIL, then WARN, then PASS. With one schema, the PASS text
+    and the `evidence={"schema": url}` stay exactly as today. With several, the evidence
+    becomes `schemas: [...]`.
+- Drop the `Draft202012Validator` import at line 45 if nothing else in the file uses it.
+
+**Tests**
+- In `tests/test_pipeline.py`, add a new class `TestOutputValidation`. Its tests call
+  `_step_output_validation` directly with a hand-built action, because reaching a list
+  through the pipeline would need a re-signed recognition. Each test publishes small
+  schemas into a fresh `build_world()` store, with references from
+  `vc/schema.py:schema_reference`, and uses `Resolver(world.store)`. Cases:
+  - two schemas, both satisfied → PASS, with both named;
+  - two schemas, the second not satisfied → FAIL, naming the member;
+  - no digest recorded → WARN;
+  - an outside `$ref`, with `socket.socket.connect` monkeypatched to refuse → WARN and
+    no connection (the pattern from `test_validation_never_reaches_for_the_network`);
+  - a draft other than 2020-12 → WARN;
+  - a `type` other than `JsonSchema` → WARN.
+- In `tests/test_datamodel.py`:
+  - a copy of `bipm-recognition` whose `outputValidation` is a list validates against
+    the Recognition model;
+  - an empty list does not.
+- These must keep passing unchanged:
+  - `test_edit.py:280`, the coverage-factor FAIL;
+  - the *loosened schema* tamper case;
+  - `edit.py` expected steps;
+  - the pipeline's step order.
+
+**Docs**
+- `ARCHITECTURE.md:782`: the `output-validation` row now says "the schema or schemas the
+  recognition names, each pinned by content digest and evaluated without the network".
+- The `_step_output_validation` docstring says the same.
+
+## Phase B - the chapter
+
+**`src/vcqi/web/content/chapters/04-issuing.md`**
+- `title`: `Issuing a Verifiable Credential`.
+- `canonicalization`: "the same certificate can be written" and "a certificate can be
+  reformatted" both become "credential".
+- `doc.bipm-recognition`: drop the opening "Not a certificate." Now that it is the first
+  note a reader sees, it begins with "The BIPM naming…".
+- `what-is-signed`: "Not every type above is a certificate, and one of them is unlike
+  everything else here." becomes "One of the types above is unlike everything else
+  here." The rest stays as it is.
+- `data-model` is rewritten. Tables already render (`01-orientation.md:86`) and
+  `test_every_table_row_has_the_headers_column_count` guards them. Draft:
+
+  > **Two schemas, two questions.** A credential in this world is held against two JSON
+  > Schemas. They look alike, but they answer different questions and sit in different
+  > places.
+  >
+  > The first is the data model shown above. Every credential names it in
+  > `credentialSchema`, the member the W3C Verifiable Credentials standard reserves for
+  > it. It says what a document of this type **is**: which members it has, which of them
+  > are required, and what kind of value each holds. It is written once per type and is
+  > the same for every issuer.
+  >
+  > The second is named by the issuer's recognition, in `outputValidation`. It says what
+  > this particular issuer **may** issue: this measurand, this unit, this range. The
+  > authority granting the recognition writes it, so it differs from one issuer to the
+  > next. A recognition may name several, and a document then has to satisfy each of
+  > them.
+  >
+  > | | `credentialSchema` | `outputValidation` |
+  > | --- | --- | --- |
+  > | Named in | the credential itself | the recognition of its issuer |
+  > | Written by | whoever defines the type | the authority granting the recognition |
+  > | Answers | is this a well-formed document of its type? | is it within what its issuer is recognised for? |
+  > | The same for | every issuer of the type | one issuer |
+  > | Checked in chapter 4 | inside the first step, *Document is a Verifiable Credential* | as its own step, *Document matches the schema its recognition names* |
+  >
+  > Both references carry a digest of the schema they name, and both digests are signed:
+  > the first by the issuer, inside the credential, and the second by the recognising
+  > authority, inside the recognition. So neither schema can be loosened at its address
+  > afterwards: the verifier fetches it, and it no longer matches the digest.
+  > `credentialSchema` gives the same SHA-256 digest in two spellings, `digestSRI` and
+  > `digestMultibase`.
+  >
+  > The data model is open on purpose. It constrains the members it lists and forbids
+  > nothing it does not list, because a credential is meant to be extended.
+
+**`src/vcqi/web/static/js/chapters.js`**
+- Line 634: `state = { type: typeOf.get('bipm-recognition'), name: 'bipm-recognition' }`.
+  Rewrite the comment above it: the chapter opens on the first type in chain order and
+  on its first document.
+- Line 751: the canonical form gets `class: 'code json json--compact'`, the same capped,
+  vertically scrolling box as the data model. There is a precedent at line 1118
+  (`code json json--tall`). Nothing new goes into the CSS.
+- Line 4, file comment: "how is a certificate signed" becomes "how is a credential
+  signed".
+
+**`src/vcqi/web/static/css/app.css:517`**
+- Widen the `.json--compact` comment to cover the canonical form as well.
+
+**`tools/ui-clicks.mjs:113-119`**
+- The issuing floor becomes eight type chips plus five recognitions, so 13. Rewrite the
+  comment to match, and confirm the number with a run.
+
+**Title elsewhere**
+- `CONTENT.md:23` and `README.md:293`: *Issuing a Verifiable Credential*. `PLAN.md` is
+  history, so it stays as it is.
+
+## Verification
+
+- `uv run pytest`: the whole suite, with phase A's new tests. The baseline was 756 pass,
+  46 skipped.
+- `uv run python -m vcqi.actors.scenarios --dump`, run twice: the output must be
+  byte-identical. The recognitions' `credentialSchema` digests and signatures change,
+  because the Recognition model changed. Nothing else should.
+- `uv run vc-demo`, then `node tools/ui-clicks.mjs`: every control responds, and issuing
+  reports at least 13 controls.
+- Chapter 3 by hand:
+  - it opens on *Recognition* and the BIPM document;
+  - the canonical box is capped and scrolls vertically;
+  - the table renders;
+  - no `.content-missing`.
+- Chapter 4 on `metas-calibration`: `output-validation` still passes, with the same
+  wording.
+- Left for Peter: the page by eye in a browser, light and dark, at phone width.
+
+## Checklist
+
+- [x] A1. `vc/datamodel.py` - `outputValidation` takes one reference or several
+- [x] A2. `vc/model.py` - the builder's hint and docstring
+- [x] A3. `vc/verify.py` - `_digest_pins`, `_step_output_validation` over a list
+- [x] A4. Tests in `test_pipeline.py` and `test_datamodel.py`; `ARCHITECTURE.md`
+- [x] B1. `04-issuing.md` - title, wording, the data-model explanation
+- [x] B2. `chapters.js`, `app.css`, `ui-clicks.mjs`, `CONTENT.md`, `README.md`
+- [x] C. Full suite, `--dump` twice, `ui-clicks.mjs`
+- [ ] D. The page by eye in a real browser: light and dark, phone width (Peter)
+
+## Progress log
+
+- 2026-09-29: plan approved. Branch `feature/issuing-credentials` from `develop`.
+- 2026-09-29: phase A, `outputValidation`.
+  - The Recognition model takes one reference or a list of at least one, through a new
+    `schemaReference` in its `$defs`. The recognitions' `credentialSchema` digests move
+    with it, and nothing pinned them.
+  - `_digest_pins` is shared by both schema steps. `output-validation` now checks
+    `type`, `$schema` and `digestSRI` as well, validates through `validator_for`, and
+    warns when no digest was recorded. With one schema, its pass text and evidence are
+    unchanged; the digest-mismatch evidence names `mismatched` instead of
+    `expectedDigest`, which nothing read.
+  - `Draft202012Validator` is no longer imported by `verify.py`.
+  - Nine tests in `TestOutputValidation`, one in `test_datamodel.py`. Full suite: 766
+    pass, 46 skipped (756 before).
+- 2026-09-29: phase B, the chapter, and the final checks.
+  - Title *Issuing a Verifiable Credential*, here and in `CONTENT.md` and `README.md`.
+    The chapter opens on *Recognition* and the BIPM document. "Not a certificate" is
+    gone, and the canonicalization paragraph says "credential". The canonical form is a
+    `json--compact` box.
+  - Deviation: the table's last row places the data-model check "inside the first step,
+    as *Document has the shape its type declares*", which is the nested step's actual
+    title. The draft named the parent step, *Document is a Verifiable Credential*.
+  - `--dump`, run twice: byte-identical, 86 documents. Against `develop`, the documents
+    that differ are the five recognitions, the Recognition data model, and the seven
+    `whois` presentations that carry a recognition. Nothing else differs.
+  - `ui-clicks.mjs`: every control responds; issuing has 13, the new floor.
+    `chapter-snapshot.mjs issuing`: the title, both pressed chips, the capped canonical
+    box and the table are there, with no `.content-missing`.
+  - `output-validation` through `/api/verify` for the seven end documents: all pass,
+    with the wording unchanged.
+  - Full suite: 766 pass, 46 skipped. Not committed; waiting for Peter.

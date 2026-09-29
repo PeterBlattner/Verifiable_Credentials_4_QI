@@ -20,7 +20,7 @@ Every chapter is here.
 | 0 | What a verifiable credential is | [`01-orientation.md`](src/vcqi/web/content/chapters/01-orientation.md) |
 | 1 | Keys: what a signature actually proves | [`02-keys.md`](src/vcqi/web/content/chapters/02-keys.md) |
 | 2 | The quality infrastructure as a trust graph | [`03-graph.md`](src/vcqi/web/content/chapters/03-graph.md) |
-| 3 | Issuing a certificate | [`04-issuing.md`](src/vcqi/web/content/chapters/04-issuing.md) |
+| 3 | Issuing a Verifiable Credential | [`04-issuing.md`](src/vcqi/web/content/chapters/04-issuing.md) |
 | 4 | Verification and recognition discovery | [`05-verification.md`](src/vcqi/web/content/chapters/05-verification.md) |
 | 5 | The CMC decides the logo | [`06-scope.md`](src/vcqi/web/content/chapters/06-scope.md) |
 | 6 | Traceability and uncertainty | [`07-traceability.md`](src/vcqi/web/content/chapters/07-traceability.md) |
