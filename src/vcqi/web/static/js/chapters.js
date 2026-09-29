@@ -608,26 +608,96 @@ async function chapterIssuing(context) {
   // Prose: web/content/chapters/04-issuing.md
   const t = context.text('issuing');
   const fragment = document.createDocumentFragment();
-  fragment.append(t.prose('canonicalization'));
 
+  // Two rows of chips: the credential types first, then the documents of the type
+  // picked. A document's type is read from the world rather than kept here, so the
+  // grouping cannot drift from what the server issues, and the types come in the order
+  // CREDENTIAL_LABELS first mentions them, which is the order the chain runs. The label
+  // on a type chip is its data model's own title, so the button and the schema under it
+  // cannot disagree about what the type is called.
+  const typeOf = new Map(context.world.credentials.map((entry) => [entry.name, entry.type]));
+  const published = new Map((context.world.credentialTypes || []).map((entry) => [entry.type, entry]));
+  const types = [];
+  for (const name of MAIN_CREDENTIALS) {
+    const type = typeOf.get(name) || 'VerifiableCredential';
+    let group = types.find((item) => item.type === type);
+    if (!group) {
+      const model = published.get(type) || {};
+      group = { type, title: model.title || type, schema: model.schema, names: [] };
+      types.push(group);
+    }
+    group.names.push(name);
+  }
+
+  // The first calibration in CREDENTIAL_LABELS is METAS-2026-0417, which is why picking
+  // its type below lands on it without being told to.
+  const state = { type: typeOf.get('metas-calibration'), name: 'metas-calibration' };
+  const typeRow = el('div', { class: 'chips' });
+  const exampleRow = el('div', { class: 'chips' });
+  const modelHolder = el('div', {});
   const holder = el('div', {});
   const noteHolder = el('div', {});
-  const picker = el(
-    'div',
-    { class: 'chips' },
-    MAIN_CREDENTIALS.map((name) =>
-      el('button', {
-        class: 'chip',
-        text: CREDENTIAL_LABELS[name],
-        'aria-pressed': name === 'metas-calibration',
-        onclick: (event) => {
-          picker.querySelectorAll('.chip').forEach((chip) => chip.setAttribute('aria-pressed', 'false'));
-          event.target.setAttribute('aria-pressed', 'true');
-          show(name);
-        },
-      })
-    )
-  );
+
+  function drawChips() {
+    // String(), because el() writes a boolean true as an empty attribute and drops a
+    // false one, and `.chip[aria-pressed="true"]` would match neither.
+    clear(typeRow).append(
+      ...types.map((group) =>
+        el('button', {
+          class: 'chip',
+          text: group.title,
+          title: group.type,
+          'aria-pressed': String(group.type === state.type),
+          onclick: () => select(group.type, group.names[0]),
+        })
+      )
+    );
+    const group = types.find((item) => item.type === state.type);
+    clear(exampleRow).append(
+      ...(group ? group.names : []).map((name) =>
+        el('button', {
+          class: 'chip',
+          text: CREDENTIAL_LABELS[name],
+          'aria-pressed': String(name === state.name),
+          onclick: () => select(state.type, name),
+        })
+      )
+    );
+  }
+
+  async function select(type, name) {
+    const changedType = type !== state.type || !modelHolder.firstChild;
+    state.type = type;
+    state.name = name;
+    drawChips();
+    const group = types.find((item) => item.type === type);
+    await Promise.all([changedType && group ? showDataModel(group) : null, show(name)]);
+  }
+
+  // Each fetch holds a ticket, and only the latest may write. A reader clicking quickly
+  // would otherwise watch an earlier, slower answer land on top of the one they asked for
+  // last -- which reads as an answer rather than as a race.
+  let modelTicket = 0;
+  async function showDataModel(group) {
+    const ticket = ++modelTicket;
+    clear(modelHolder).append(el('p', { class: 'spinner', text: 'Fetching the data model…' }));
+    // Its own request, and one that must not take the chapter down with it: a server
+    // started before the data models existed answers 404 here, and the signing panels
+    // below do not depend on this box at all.
+    let body;
+    try {
+      if (!group.schema) throw new Error(`no data model is published for ${group.type}`);
+      const data = await api.document(group.schema);
+      body = jsonView(data.document, context.inspect, { compact: true });
+    } catch (error) {
+      body = el('div', { class: 'callout' }, [
+        el('p', { text: t.text('schema.unavailable') }),
+        el('p', { class: 'muted', text: String(error && error.message ? error.message : error) }),
+      ]);
+    }
+    if (ticket !== modelTicket) return;
+    clear(modelHolder).append(panel(t.text('schema.title'), t.text('schema.hint'), body));
+  }
 
   // One note per document, so that a chip says what it picked. Written out rather than
   // looped over MAIN_CREDENTIALS because tests/test_content.py requires every content key
@@ -656,7 +726,9 @@ async function chapterIssuing(context) {
   // you picked", so it takes the quiet variant.
   for (const note of Object.values(NOTES)) note.classList.add('callout--quiet');
 
+  let signTicket = 0;
   async function show(name) {
+    const ticket = ++signTicket;
     // Before the await, and cleared whether or not there is a note to put back: the
     // failure worth designing against is the box quietly keeping the previous
     // document's explanation, which reads as an answer. Spread rather than a bare
@@ -665,6 +737,7 @@ async function chapterIssuing(context) {
     clear(noteHolder).append(...(NOTES[name] ? [NOTES[name]] : []));
     clear(holder).append(el('p', { class: 'spinner', text: 'Signing…' }));
     const data = await api.credential(name);
+    if (ticket !== signTicket) return;
     const trace = data.trace;
     clear(holder).append(
       panel(`1. ${t.text('claims.title')}`, t.text('claims.hint'), jsonView(
@@ -691,8 +764,22 @@ async function chapterIssuing(context) {
     );
   }
 
-  fragment.append(picker, noteHolder, holder, t.prose('what-is-signed'));
-  await show('metas-calibration');
+  // Type, its data model, the documents of that type, then what one of them is and how it
+  // is signed. The canonicalization prose moved down to here from the top of the chapter,
+  // because it explains the panels rather than the choice above them.
+  fragment.append(
+    el('p', { class: 'muted', text: t.text('types.title') }),
+    typeRow,
+    modelHolder,
+    el('p', { class: 'muted', text: t.text('examples.title') }),
+    exampleRow,
+    noteHolder,
+    t.prose('data-model'),
+    t.prose('canonicalization'),
+    holder,
+    t.prose('what-is-signed')
+  );
+  await select(state.type, state.name);
   return fragment;
 }
 

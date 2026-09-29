@@ -749,9 +749,10 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
         demonstrated=(
             "Chapter 10 measures this without naming it. Verifying one certificate of "
-            "conformity reads 32 distinct documents from 7 hosts. The credential itself "
-            "travels with its holder and is safe. The other 31 - DID documents, "
-            "accreditation scopes, KCDB entries, validation schemas, status lists, the "
+            "conformity reads 35 distinct documents from 8 hosts. The credential itself "
+            "travels with its holder and is safe. The other 34 - DID documents, "
+            "accreditation scopes, KCDB entries, validation schemas, the data model of "
+            "each credential type, status lists, the "
             "uncertainty representations published by reference rather than inline, and "
             "now an answer from a register that publishes no document at all - are "
             "fetched from wherever they live, and every one of them is a way for a "

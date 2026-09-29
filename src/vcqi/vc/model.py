@@ -1,11 +1,16 @@
 """Builders for the credential shapes this demonstration uses.
 
-Seven credential types carry the story:
+Eight credential types carry the story:
 
 ``RecognizedEntityCredential``
     Straight from the Recognized Entities specification. A recognising authority lists
     the entities it recognises and what each is recognised to do. Both the CIPM MRA and
     an ISO/IEC 17025 accreditation fit this shape without stretching it.
+
+``AccreditationScopeCredential``
+    What one accreditation covers, signed by the body that granted it, so that a copy
+    from any source can be checked. The CMC entries in the KCDB are deliberately not
+    given this treatment; see :func:`accreditation_scope_credential`.
 
 ``CalibrationCertificateCredential``
     A calibration certificate. It states results with their Expanded Uncertainty,
@@ -36,6 +41,12 @@ Seven credential types carry the story:
     Recommendation, references the type evaluation report it rests on, and says in
     ``legalEffect`` that it authorises nothing anywhere.
 
+Each of the eight names its data model in ``credentialSchema``, a JSON Schema published
+per type and pinned by digest; ``vc/datamodel.py`` holds them, and says why they are a
+different thing from the ``outputValidation`` schemas a recognition names. A test keeps
+the two files in step: a member a builder here writes and the data model there does not
+declare fails the suite.
+
 The credential subjects are kept deliberately readable rather than being modelled on
 the PTB/DKD DCC schema. A calibration certificate additionally carries a PTB/DKD DCC
 alongside its readable subject, so the same calibration appears in both forms; see
@@ -49,6 +60,7 @@ from typing import Any
 from vcqi.config import CONTEXT_CREDENTIALS_V2, CONTEXT_VCQI_V1
 from vcqi.crypto.jcs import canonicalize
 from vcqi.crypto.multibase import digest_multibase, digest_sri
+from vcqi.vc.datamodel import data_model_reference
 from vcqi.domain.unclib_blobs import (
     UNAVAILABLE_NOTE as UNCLIB_BINARY_UNAVAILABLE_NOTE,
 )
@@ -278,6 +290,7 @@ def accreditation_scope_credential(
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
+    credential["credentialSchema"] = data_model_reference("AccreditationScopeCredential")
     return credential
 
 
@@ -440,6 +453,7 @@ def recognized_entity_credential(
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
+    credential["credentialSchema"] = data_model_reference("RecognizedEntityCredential")
     return credential
 
 
@@ -607,6 +621,9 @@ def calibration_certificate_credential(
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
+    credential["credentialSchema"] = data_model_reference(
+        "CalibrationCertificateCredential"
+    )
     return credential
 
 
@@ -727,6 +744,7 @@ def external_document_credential(
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
+    credential["credentialSchema"] = data_model_reference("ExternalDocumentCredential")
     return credential
 
 
@@ -793,6 +811,7 @@ def test_report_credential(
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
+    credential["credentialSchema"] = data_model_reference("TestReportCredential")
     return credential
 
 
@@ -861,6 +880,7 @@ def product_conformity_credential(
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
+    credential["credentialSchema"] = data_model_reference("ProductConformityCredential")
     return credential
 
 
@@ -949,6 +969,9 @@ def type_evaluation_report_credential(
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
+    credential["credentialSchema"] = data_model_reference(
+        "TypeEvaluationReportCredential"
+    )
     return credential
 
 
@@ -1045,6 +1068,7 @@ def oiml_certificate_credential(
     }
     if credential_status is not None:
         credential["credentialStatus"] = credential_status
+    credential["credentialSchema"] = data_model_reference("OimlCertificateCredential")
     return credential
 
 

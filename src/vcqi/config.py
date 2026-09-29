@@ -66,6 +66,12 @@ CONTEXT_CREDENTIALS_V2: Final[str] = "https://www.w3.org/ns/credentials/v2"
 #: The context defining the metrology terms this demonstrator adds.
 CONTEXT_VCQI_V1: Final[str] = "https://vcqi.example/contexts/v1"
 
+#: Where the data model of each credential type is published. The same origin as the
+#: context, because whoever defines the terms also defines the shapes they are used in.
+#: Unlike the context, these are fetched: every credential names one in
+#: ``credentialSchema``, and the verifier checks the credential against it.
+DATA_MODEL_BASE: Final[str] = "https://vcqi.example/schemas"
+
 #: Where the demonstrator's own documents live. Resolved locally, never fetched.
 BIPM_ORIGIN: Final[str] = "https://bipm.example"
 GLOBAL_ACI_ORIGIN: Final[str] = "https://global-aci.example"

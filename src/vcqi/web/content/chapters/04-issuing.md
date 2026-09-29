@@ -6,13 +6,20 @@
      name. Edit the words freely; renaming a key breaks the page, and the test suite
      will say which one. Read ../README.md first if you have not before.
 
+     The chapter opens with two rows of chips: the credential types, and then the
+     documents of the type picked. The labels on the type chips are not here -- each is
+     the title of that type's data model, in src/vcqi/vc/datamodel.py -- and the labels
+     on the document chips are in chapters.js.
+
      The four panels are numbered "1." to "4." by the code, not here: markdown reads a
      line beginning "1. " as a list item and would swallow the number. The words after
      it are yours.
 
-     The "doc." blocks are the note shown under the picker, one for every chip. Adding a
-     document to the demonstration means adding a block here *and* a line in chapters.js;
-     the tests fail if the two ever disagree. They are in the order the chips are. -->
+     The "doc." blocks are the note shown under the document chips, one for every
+     document. Adding a document to the demonstration means adding a block here *and* a
+     line in chapters.js; the tests fail if the two ever disagree. They are grouped by
+     type, in the order the type chips are, and a note is only ever read beside the
+     other documents of its own type. -->
 
 <!-- block: title -->
 
@@ -24,7 +31,33 @@ How signing works
 
 <!-- block: lede -->
 
-From the claims an institute wants to make, through canonicalization and hashing, to the signature itself. Every intermediate value shown.
+Pick a type of credential and see its data model, then one of its documents: from the claims its issuer wants to make, through canonicalization and hashing, to the signature itself. Every intermediate value shown.
+
+<!-- block: types.title -->
+
+Type of credential
+
+<!-- block: schema.title -->
+
+The data model of this type
+
+<!-- block: schema.hint -->
+
+A JSON Schema, draft 2020-12, which every credential of this type names in its credentialSchema
+
+<!-- block: schema.unavailable -->
+
+The data model could not be fetched, so it is not shown here. The documents below do not depend on it.
+
+<!-- block: examples.title -->
+
+Documents of this type in this world
+
+<!-- block: data-model -->
+
+Every credential here names its data model, in the member the data model reserves for it, `credentialSchema`. The reference carries two digests of the schema, so the model a credential was issued against cannot be loosened afterwards without the credential noticing. Chapter 4 checks it inside the first step, *Document is a Verifiable Credential*, because it is that question asked properly: not whether this is a credential at all, but whether it is a well-formed one of the type it says it is.
+
+This is not the schema a recognition names in `outputValidation`, which chapter 4 checks as well. That one says what a particular issuer **may** issue — this measurand, this range — and differs from one issuer to the next. The data model says what a document of the type **is**, the same for everybody. It is open by design: it says what each member it lists must be, and forbids nothing it does not list, because a credential is meant to be extended.
 
 <!-- block: canonicalization -->
 
@@ -42,7 +75,15 @@ The other root. The Global ACI naming the accreditation bodies that have signed 
 
 <!-- block: doc.sas-recognition -->
 
-One accreditation body naming the laboratories and certification bodies it has accredited, each scoped to its published accreditation. Below this the documents stop being arrangements and start being about somebody in particular.
+One accreditation body naming the laboratories and certification bodies it has accredited, each scoped to its published accreditation. It is the last recognition on this side of the chain: every other type here is about somebody in particular.
+
+<!-- block: doc.oiml-ia-recognition -->
+
+A third arrangement, and it knows nothing of the other two. OIML naming the Issuing Authorities recognised to certify against a Recommendation — here R 46, and only R 46.
+
+<!-- block: doc.oiml-tl-recognition -->
+
+OIML naming the laboratories recognised to evaluate against R 46. The laboratory named here is the same one SAS accredited under STS 0456: one laboratory, one identifier, two arrangements above it, neither aware of the other.
 
 <!-- block: doc.scope-scs-0123 -->
 
@@ -62,7 +103,7 @@ The reference calibration of this world. METAS calibrates Alpine Calibration's 1
 
 <!-- block: doc.callab-calibration -->
 
-The mirror image of the one above: the accredited laboratory's own certificate, resting on METAS-2026-0417 by content digest. Accredited under SCS 0123, and no MRA logo.
+The mirror image of METAS-2026-0417: the accredited laboratory's own certificate, resting on it by content digest. Accredited under SCS 0123, and no MRA logo.
 
 <!-- block: doc.metas-check-a -->
 
@@ -74,7 +115,7 @@ Check standard B, serial `SR10K-0092`. Same institute, same national standard, s
 
 <!-- block: doc.metas-external-dcc -->
 
-The odd one out: a credential with no measurement in it at all. The last paragraph of this chapter is about this one.
+The only document of its type, and the odd one out: a calibration certificate with no measurement in it at all, only a pointer to one. Its data model has a place for an address and a digest and none for a result. The last paragraph of this chapter is about it.
 
 <!-- block: doc.testlab-report -->
 
@@ -82,15 +123,7 @@ A test report rather than a calibration. A kettle against IEC 60335-1, two claus
 
 <!-- block: doc.cab-conformity -->
 
-A certificate of conformity: this product meets IEC 60335-1. It contains no measurement and no uncertainty of its own, resting entirely on the test report above.
-
-<!-- block: doc.oiml-ia-recognition -->
-
-A third arrangement, and it knows nothing of the other two. OIML naming the Issuing Authorities recognised to certify against a Recommendation — here R 46, and only R 46.
-
-<!-- block: doc.oiml-tl-recognition -->
-
-OIML naming the laboratories recognised to evaluate against R 46. The laboratory named here is the same one SAS accredited under STS 0456: one laboratory, one identifier, two arrangements above it, neither aware of the other.
+A certificate of conformity: this product meets IEC 60335-1. It contains no measurement and no uncertainty of its own, resting entirely on test report HTS-2026-3391.
 
 <!-- block: doc.oiml-evaluation -->
 
@@ -98,7 +131,7 @@ A type evaluation of an electricity meter design against R 46, three clauses wit
 
 <!-- block: doc.oiml-certificate -->
 
-The type approval certificate itself, issued by the Issuing Authority on the strength of that evaluation report. The one document here with two roots of trust above it and nothing in common between them but the laboratory in the middle.
+The type approval certificate itself, issued by the Issuing Authority on the strength of evaluation report HTS-TE-2024-0114. The one document here with two roots of trust above it and nothing in common between them but the laboratory in the middle.
 
 <!-- block: claims.title -->
 
@@ -138,4 +171,4 @@ The proof configuration, plus the signature it covers
 
 <!-- block: what-is-signed -->
 
-Not all of the documents above are certificates, and one of them is unlike everything else here. Certificate METAS-2026-0420 carries no measurement at all — no value, no Expanded Uncertainty, no budget. Its claims are a URL, two digests of a PTB/DKD DCC published elsewhere, and four facts of index about it. Pick it and watch the canonical form: there is very little of it, because there is very little being said. Everything the certificate actually reports is in a document this credential vouches for and does not contain. Chapter 6 is where that trade is worked through.
+Not every type above is a certificate, and one of them is unlike everything else here. Certificate METAS-2026-0420, the one document under *Certificate by reference*, carries no measurement at all — no value, no Expanded Uncertainty, no budget. Its claims are a URL, two digests of a PTB/DKD DCC published elsewhere, and four facts of index about it. Put its data model beside the calibration certificate's: where one describes results with a value, an Expanded Uncertainty and a budget, the other describes an address and a digest. Then pick it and watch the canonical form: there is very little of it, because there is very little being said. Everything the certificate actually reports is in a document this credential vouches for and does not contain. Chapter 6 is where that trade is worked through.

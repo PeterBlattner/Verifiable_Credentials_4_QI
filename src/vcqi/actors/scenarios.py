@@ -79,6 +79,7 @@ from vcqi.vc.model import (
     type_evaluation_report_credential,
     uncertainty_representations,
 )
+from vcqi.vc.datamodel import data_models
 from vcqi.vc.resolver import DocumentStore
 from vcqi.vc.schema import (
     calibration_certificate_schema,
@@ -237,7 +238,11 @@ class World:
         credentials: The signed credentials, by short name.
         traces: The signing trace of each credential, by the same short name.
         results: The evaluated measurement results, by short name.
-        schemas: The generated JSON Schemas, by URL.
+        schemas: The generated ``outputValidation`` schemas, by URL. What a recognised
+            issuer may issue.
+        data_models: The data model of each credential type, by URL. What a credential
+            of that type is. Kept apart from ``schemas`` because the two answer
+            different questions; see ``vc/datamodel.py``.
     """
 
     store: DocumentStore = field(default_factory=DocumentStore)
@@ -245,6 +250,7 @@ class World:
     traces: dict[str, ProofTrace] = field(default_factory=dict)
     results: dict[str, MeasurementResult] = field(default_factory=dict)
     schemas: dict[str, dict[str, Any]] = field(default_factory=dict)
+    data_models: dict[str, dict[str, Any]] = field(default_factory=dict)
     artefacts: dict[str, tuple[str, bytes]] = field(default_factory=dict)
 
     def publish_artefacts(self, artefacts: dict[str, tuple[str, bytes]]) -> None:
@@ -1795,6 +1801,20 @@ def _whois_presentations(world: World) -> None:
         world.store.publish(url, signed, "presentation")
 
 
+def _publish_data_models(world: World) -> None:
+    """Publish the data model of every credential type at the address credentials cite.
+
+    Published by the owner of the vocabulary rather than by any issuer, which is why the
+    address is on ``vcqi.example``, where the context is, and not on an actor's origin.
+
+    Args:
+        world: The world being built.
+    """
+    for url, schema in data_models().items():
+        world.data_models[url] = schema
+        world.store.publish(url, schema, "data-model")
+
+
 def build_world() -> World:
     """Build and sign every document in the demonstration.
 
@@ -1806,6 +1826,7 @@ def build_world() -> World:
     _publish_did_documents(world)
     _publish_registries(world)
     schemas = _build_schemas(world)
+    _publish_data_models(world)
     _status_lists(world)
     _accreditation_scope_credentials(world)
     _accreditation_query_endpoints(world)

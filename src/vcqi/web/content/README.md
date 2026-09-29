@@ -119,8 +119,10 @@ you are not left hunting:
   reads them.
 - **The names and descriptions of the organisations, certificates and failure cases.**
   Those are data rather than prose; they live in `src/vcqi/actors/`. The one exception is
-  the short note under each chip in chapter 3, which *is* prose: those are the `doc.`
-  blocks in `chapters/04-issuing.md` and you can edit them like any other.
+  the short note under each document chip in chapter 3, which *is* prose: those are the
+  `doc.` blocks in `chapters/04-issuing.md` and you can edit them like any other. The
+  labels on chapter 3's *type* chips are the titles of the data models, in
+  `src/vcqi/vc/datamodel.py`, because the box under the chips shows the same title.
 - **The deployment, harmonisation and portability tables** behind chapters 10, 11 and 12,
   for the same reason — they are records with many fields, which a markdown file
   expresses badly.

@@ -61,6 +61,7 @@ from vcqi.crypto.keys import build_did_document, derive_key
 from vcqi.domain.instruments import instrument_by_id
 from vcqi.domain.oiml import recommendation_by_id
 from vcqi.domain.uncertainty import evaluate, from_expanded_uncertainty, normal, rectangular
+from vcqi.vc.datamodel import DATA_MODEL_URLS
 from vcqi.vc.model import (
     budget_to_json,
     credential_reference,
@@ -203,6 +204,22 @@ def _substituted_schema() -> TamperResult:
     properties = branch["properties"]["credentialSubject"]["properties"]["calibration"]
     properties["properties"]["results"]["items"]["properties"]["value"]["maximum"] = 1.0e12
     world.store.publish(url, schema, "schema")
+    return TamperResult(world, world.credential("metas-calibration"), DEMO_NOW)
+
+
+def _loosened_data_model() -> TamperResult:
+    """Loosen a type's published data model after certificates were issued against it."""
+    world = build_world()
+    url = DATA_MODEL_URLS["CalibrationCertificateCredential"]
+    schema = copy.deepcopy(world.data_models[url])
+    # Any edit at all breaks the digest, so the edit chosen is one somebody would want:
+    # a certificate that no longer has to state its uncertainty budget is a certificate
+    # that no longer has to show its working.
+    calibration = schema["properties"]["credentialSubject"]["properties"]["calibration"]
+    calibration["required"] = [
+        name for name in calibration["required"] if name != "uncertaintyBudget"
+    ]
+    world.store.publish(url, schema, "data-model")
     return TamperResult(world, world.credential("metas-calibration"), DEMO_NOW)
 
 
@@ -473,6 +490,22 @@ TAMPER_CASES: tuple[TamperCase, ...] = (
             "against, so editing the published file makes it stop matching."
         ),
         apply=_substituted_schema,
+    ),
+    TamperCase(
+        key="loosened-data-model",
+        title="Loosen the published data model",
+        group="forgery",
+        description=(
+            "The data model every calibration certificate names is edited at its address, "
+            "so that a certificate no longer has to state its uncertainty budget."
+        ),
+        expected_step="shape.data-model",
+        catches=(
+            "Each certificate records the digest of the data model it was issued "
+            "against, and the digest is checked before the model is used, so the edited "
+            "file is refused rather than applied."
+        ),
+        apply=_loosened_data_model,
     ),
     TamperCase(
         key="broken-traceability",
