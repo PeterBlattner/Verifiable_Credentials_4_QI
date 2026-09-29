@@ -3637,7 +3637,7 @@ Three things blocked this before any of it could be tried, and only two were fix
       harmonisation chapter; `.takeaway` styles; the control floor
 - [x] 5. The `certificate-format` item rewritten around what the probe found; prose in
       `12-harmonisation.md`; `tests/test_untp.py` and three tests in `test_web.py`
-- [ ] 6. Run the `untp` file of each certificate through the Playground and record the
+- [x] 6. Run the `untp` file of each certificate through the Playground and record the
       steps below (the other two forms are refused at upload since Playground 0.4.0)
 - [x] 7. Docs corrected for the Playground's type check at upload: ARCHITECTURE.md, the
       `interop.py` docstring, the `get_export` docstring, and two comments in `vc/untp.py`
@@ -3704,9 +3704,7 @@ convention in `scenarios.py`; the context one is what step 6 needs, and it stays
 uploaded `bipm-recognition-native.json` to the current release at
 `https://test.uncefact.org/test-untp-playground` and got one error and no steps:
 *unsupported credential type - the declared type(s) "VerifiableCredential",
-"RecognizedEntityCredential" are not a UNTP credential type the Playground validates*. A
-colleague's NATA `DigitalIdentityAnchor` (an enveloped JWT under a resolvable `did:web`,
-with the UNTP 0.7.0 context) passed all six steps it ran.
+"RecognizedEntityCredential" are not a UNTP credential type the Playground validates*.
 
 The cause is in the Playground's source (`uncefact/tests-untp`, branch `next`): the upload
 handler in `packages/untp-playground/src/app/page.tsx` compares `type` with
@@ -3747,22 +3745,51 @@ UNTP form. It is a plain callout, not the quiet variant, because it is a caution
   recognition and for AC-2026-1182 (none of the files) and for METAS-2026-0417 and
   CPC-2026-0055 (only the UNTP one).
 
+**2026-09-30: the run (item 6).** Peter ran both `untp` exports through the Playground
+0.4.2 on 29 September; the reports are `temp/untp-test-report-*-untp.json`, and the files
+uploaded are identical to what `GET /api/export/{name}?form=untp` serves. The table below
+has the result. Four readings:
+
+- **Step 4 never checked the signature.** The verifier behind the Playground is Veramo
+  with `@digitalcredentials/jsonld-signatures` 10.0.1, whose `ProofSet.js` matches each
+  proof to a purpose and a loaded suite before verifying anything; with no match it
+  verifies nothing and throws `NotFoundError`. So no suite there accepts `ecdsa-jcs-2019`.
+  That is the unsupported-cryptosuite answer, and nothing outside this repository has yet
+  checked a signature made here. The Playground's own sample credential is an enveloped
+  JWT signed EdDSA.
+- **Step 5 is the one independent confirmation.** The errors are the offline check's,
+  path for path, and the vendored 0.6.0 schema parses identical to the copy the
+  Playground bundles.
+- **Step 6 is a UNTP 0.6.0 defect, not ours.** The 0.6.0 schema defaults five type names
+  (`ProductVerification`, `Metric`, `Measure`, `SecureLink`, `Link`) that the 0.6.0
+  context never defines, and the W3C context declares no `@vocab`, so each is a relative
+  `@type`. The Playground reports the first and calls the cause unknown. UNTP 0.7.0 drops
+  `type` from those objects.
+- **What the Playground could not see was worse.** The projection filled
+  `scope.issuingParty` and `authorisation.issuingAuthority` with the scope document
+  itself, dropped `credentialStatus` without recording it, gave the credential, the
+  attestation and the assessment one identifier, and carried the value as
+  `10000.001200000035` with no uncertainty. The first is exactly the plausible fill the
+  projection's rule forbids, and the counts-only test could not catch it. All of it, and
+  the move to 0.7.0, is change set 28.
+
 ## The Playground run
 
-To be filled in from an actual run. One file per certificate - the `untp` form, from
-*As a UNTP credential* in the "Take it away" row of chapter 3 or the probe panel in
-chapter 11, or `GET /api/export/{name}?form=untp`. The `native` and `portable` forms are
-refused at upload since Playground 0.4.0 and have no column.
+One file per certificate - the `untp` form, from *As a UNTP credential* in the "Take it
+away" row of chapter 3 or the probe panel in chapter 11, or
+`GET /api/export/{name}?form=untp`. The `native` and `portable` forms are refused at upload
+since Playground 0.4.0 and have no column. Run on 2026-09-29 against Playground 0.4.2,
+UNTP 0.6.0.
 
 | Step | metas-calibration | cab-conformity |
 |---|---|---|
-| 1. Proof Type Detection | | |
-| 2. VCDM Version Detection | | |
-| 3. VCDM Schema Validation | | |
-| 4. Credential Verification | | |
-| 5. UNTP Schema Validation | | |
-| 6. JSON-LD Expansion and Context Validation | | |
-| 7. Extension Schema Validation | | |
+| 1. Proof Type Detection | pass, embedded | pass, embedded |
+| 2. VCDM Version Detection | pass, v2 | pass, v2 |
+| 3. VCDM Schema Validation | pass | pass |
+| 4. Credential Verification | fail: `NotFoundError`, no suite for `ecdsa-jcs-2019` | same |
+| 5. UNTP Schema Validation | fail: `conformance`, `conformityTopic` required | fail: `conformityTopic`, `referenceStandard.issuingParty.id` required |
+| 6. JSON-LD Expansion and Context Validation | fail: relative `@type` `ProductVerification` | same |
+| 7. Extension Schema Validation | not run | not run |
 
 Expected going in: 1-3 pass; 4 is the open question, since `ecdsa-jcs-2019` is a valid W3C
 cryptosuite that the Playground's verifier may or may not implement, and the `did:key`
@@ -4452,3 +4479,4 @@ The PR goes into `develop` via a compare URL, because `gh` is unavailable.
   - `output-validation` through `/api/verify` for the seven end documents: all pass,
     with the wording unchanged.
   - Full suite: 766 pass, 46 skipped. Not committed; waiting for Peter.
+
