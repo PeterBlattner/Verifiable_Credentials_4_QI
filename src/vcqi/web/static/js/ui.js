@@ -125,10 +125,17 @@ const LINKABLE = /^(https:\/\/|did:web:)/;
  * Making the references clickable is the point. A credential that says it was issued
  * under CMC CH-EM-0042 is only as good as the reader's ability to go and look at
  * CH-EM-0042, and the same is true for the verifier.
+ *
+ * `compact` is for a JSON Schema in a small box. A schema is mostly one-member objects
+ * -- `{ "type": "string" }` -- and written out one member per line, the model of a
+ * calibration certificate runs past six hundred lines of which most say nothing. With
+ * it, anything that fits on one line is written on one line, links and colouring kept,
+ * and everything else as before.
  */
 export function jsonView(value, onFollow, options) {
-  const pre = el('pre', { class: `json${options && options.tall ? ' json--tall' : ''}` });
-  render(value, 0, pre, onFollow);
+  const variant = options && options.tall ? ' json--tall' : options && options.compact ? ' json--compact' : '';
+  const pre = el('pre', { class: `json${variant}` });
+  render(value, 0, pre, onFollow, options && options.compact ? 0 : null);
   return pre;
 }
 
@@ -187,9 +194,77 @@ function span(cls, text) {
   return el('span', { class: cls, text });
 }
 
-function render(value, depth, out, onFollow) {
+// How wide a line the compact view is allowed to write, in characters.
+const COMPACT_WIDTH = 80;
+
+// The width of a value written on one line, or Infinity as soon as it passes `limit`.
+function inlineWidth(value, limit) {
+  if (value === null || typeof value !== 'object') {
+    return typeof value === 'number' ? formatJsonNumber(value).length : JSON.stringify(value).length;
+  }
+  const isArray = Array.isArray(value);
+  const entries = isArray ? value.map((item) => [null, item]) : Object.entries(value);
+  if (entries.length === 0) return 2;
+  let width = isArray ? 2 : 4;
+  for (const [index, [name, item]] of entries.entries()) {
+    if (index > 0) width += 2;
+    if (name !== null) width += JSON.stringify(name).length + 2;
+    width += inlineWidth(item, limit - width);
+    if (width > limit) return Infinity;
+  }
+  return width;
+}
+
+function renderInline(value, out, onFollow) {
+  if (value === null || typeof value !== 'object') return render(value, 0, out, onFollow, null);
+  const isArray = Array.isArray(value);
+  const entries = isArray ? value.map((item) => [null, item]) : Object.entries(value);
+  if (entries.length === 0) return out.append(document.createTextNode(isArray ? '[]' : '{}'));
+  out.append(document.createTextNode(isArray ? '[' : '{ '));
+  entries.forEach(([name, item], index) => {
+    if (name !== null) {
+      out.append(span('tok-key', JSON.stringify(name)));
+      out.append(document.createTextNode(': '));
+    }
+    renderInline(item, out, onFollow);
+    if (index < entries.length - 1) out.append(document.createTextNode(', '));
+  });
+  return out.append(document.createTextNode(isArray ? ']' : ' }'));
+}
+
+// `column` is where the value starts on its line in the compact view, and null outside
+// it. One character is kept back for the comma that may follow.
+function render(value, depth, out, onFollow, column) {
   const pad = '  '.repeat(depth);
   const padInner = '  '.repeat(depth + 1);
+  const compact = column !== null && column !== undefined;
+
+  if (compact && value !== null && typeof value === 'object') {
+    const room = COMPACT_WIDTH - column - 1;
+    if (inlineWidth(value, room) <= room) return renderInline(value, out, onFollow);
+    // A list of plain values too long for one line -- the `required` of a schema, most
+    // often -- is filled line by line like a paragraph, rather than one name per line.
+    if (Array.isArray(value) && value.every((item) => item === null || typeof item !== 'object')) {
+      out.append(document.createTextNode(`[\n${padInner}`));
+      let used = padInner.length;
+      value.forEach((item, index) => {
+        const width = inlineWidth(item, COMPACT_WIDTH) + (index < value.length - 1 ? 1 : 0);
+        if (index > 0) {
+          if (used + 1 + width > COMPACT_WIDTH) {
+            out.append(document.createTextNode(`\n${padInner}`));
+            used = padInner.length;
+          } else {
+            out.append(document.createTextNode(' '));
+            used += 1;
+          }
+        }
+        render(item, depth + 1, out, onFollow, null);
+        if (index < value.length - 1) out.append(document.createTextNode(','));
+        used += width;
+      });
+      return out.append(document.createTextNode(`\n${pad}]`));
+    }
+  }
 
   if (value === null) return out.append(span('tok-lit', 'null'));
   if (typeof value === 'boolean') return out.append(span('tok-lit', String(value)));
@@ -208,7 +283,7 @@ function render(value, depth, out, onFollow) {
     out.append(document.createTextNode('[\n'));
     value.forEach((item, index) => {
       out.append(document.createTextNode(padInner));
-      render(item, depth + 1, out, onFollow);
+      render(item, depth + 1, out, onFollow, compact ? padInner.length : null);
       out.append(document.createTextNode(index < value.length - 1 ? ',\n' : '\n'));
     });
     return out.append(document.createTextNode(`${pad}]`));
@@ -221,7 +296,7 @@ function render(value, depth, out, onFollow) {
     out.append(document.createTextNode(padInner));
     out.append(span('tok-key', JSON.stringify(name)));
     out.append(document.createTextNode(': '));
-    render(item, depth + 1, out, onFollow);
+    render(item, depth + 1, out, onFollow, compact ? padInner.length + JSON.stringify(name).length + 2 : null);
     out.append(document.createTextNode(index < entries.length - 1 ? ',\n' : '\n'));
   });
   return out.append(document.createTextNode(`${pad}}`));

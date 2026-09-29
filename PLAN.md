@@ -3719,3 +3719,436 @@ used. An unsupported-cryptosuite answer at step 4 would be as useful as a pass.
 ## Git
 
 Branch `feature/untp-playground-check` from `develop`, into `develop`.
+
+# Change set 25 - what a credential looks like, and an everyday recognition
+
+## Context
+
+Chapter 0 explains a verifiable credential and Recognized Entities in the abstract, then
+goes straight to the QI mapping. A newcomer never sees what a credential looks like, how
+JSON-LD gives its member names meaning, or a recognition chain outside metrology. Peter
+asked for all three, with examples from daily life rather than from the QI.
+
+## Decisions taken
+
+**One story, the university degree** (Peter's choice). The generic credential is a
+bachelor's degree. The Recognized Entities example is the same degree with
+`recognizedIn` on its issuer, the state education authority's list it points into, and
+the walk an employer's software makes. This mirrors the live spec's §2.1 *Education* and
+its Example 4 (WD 06 September 2026, fetched while planning). Member names follow that
+draft: `recognizedTo` / `RecognizedAction` / `recognizedBy` / `outputValidation` on the
+entity, and `recognizedIn` on the leaf's issuer.
+
+**The examples say `ecdsa-rdfc-2019`**, as the spec's examples and a production system
+would. A callout says what this demonstration does instead (`ecdsa-jcs-2019`, fictional
+context), taken from ARCHITECTURE.md. Canonicalisation is only pointed at, because
+chapter 3 already shows it byte by byte.
+
+**The JSON lives in the markdown as fenced blocks**, so the pencil-edit route still
+works. `chapterOrientation` swaps each `json` fence that parses for `jsonView` output,
+with no `onFollow`, so the `.example` addresses are not clickable. A new test makes sure
+every JSON fence parses, so a stray comma fails CI instead of quietly falling back to
+plain text.
+
+## Checklist
+
+- [x] `01-orientation.md`: `json-ld`, `example-vc.*`, `securing`, `json-ld-here`, `example-re.*`
+- [x] `chapters.js`: render the new blocks; `colourJsonExamples`
+- [x] `app.css`: `.prose pre` spacing
+- [x] `test_content.py`: `test_every_json_example_parses`
+- [x] `content/README.md`: code/JSON row in "What you can write"
+- [x] Tests, the deliberate break, the jsdom snapshot and click harness
+- [ ] The page by eye in a real browser: light and dark, phone width (Peter)
+- [x] Commit, PR body
+
+## Progress log
+
+- 2026-09-29: branch `feature/orientation-json-ld` from `develop`. Plan approved. PLAN.md
+  was first overwritten by mistake with the plan alone, then restored from git before
+  anything was committed, and this section was appended.
+- 2026-09-29: content, renderer, CSS, test and editing guide written. Deviations from the
+  approved plan:
+  - Shortened signatures and digests end in a plain `…`, not a literal "…shortened…". The
+    panel hint and a sentence in the prose say they are shortened.
+  - A second live read of the spec showed that §4.1 checks only the list's proof, its
+    validity, and that the issuer is in it. The action and `outputValidation` are defined
+    but not required. So the walk lists the spec's steps, and `example-re.closing`
+    explains the scope check as something the spec leaves to the verifier and this
+    demonstration performs. The leaf's issuer is typed `RecognizedIssuer`, as §3.4
+    requires.
+  - "The quality infrastructure already works exactly this way" moved from
+    `the-gap-signatures-leave` to `example-re.closing`, so it follows the everyday
+    example instead of preceding it.
+  - The examples render with `json--tall`, because the degree would otherwise scroll by
+    a few lines.
+- 2026-09-29: verification.
+  - `uv run pytest`: 654 pass, 46 skipped.
+  - Deliberate break (one comma removed from the degree): the new test fails with
+    `orientation/example-vc.body: JSON example 1 does not parse`. Restored.
+  - `tools/chapter-snapshot.mjs orientation`: three `json json--tall` views, no plain
+    `pre.code` left, no `content-missing`, no `tok-link`, three panels, two tables, one
+    `<ol>`, two callouts.
+  - `tools/ui-clicks.mjs`: every control on all fourteen chapters responds.
+  - Not done: no real-browser look (Chrome extension declined). Light/dark theme and
+    phone width are unchecked by eye; `.json` already scrolls horizontally.
+- 2026-09-29: pre-PR check. The chapter 0 line in `README.md` now names the new material.
+  There is no CHANGELOG in this repository. The full suite gives 654 pass and 46 skipped,
+  the same as before; the skips were already there. Committed on
+  `feature/orientation-json-ld`, not pushed.
+
+## Git
+
+Branch `feature/orientation-json-ld` from `develop`, into `develop`.
+
+# Change set 26 - a data model per credential type, cited by every credential
+
+## Context
+
+Chapter 3 (*Issuing a certificate*, `src/vcqi/web/content/chapters/04-issuing.md`,
+rendered by `chapterIssuing()` in `src/vcqi/web/static/js/chapters.js:607`) opens today
+with seventeen chips, one per document. The reader never sees that those seventeen
+documents belong to only **eight credential types**, or what shape a type fixes.
+
+Peter asked for the chapter to **start** with a picker for the credential type, then a
+**small box showing that type's data model as a JSON Schema**, then the picker for the
+examples of that type. The signing panels follow as they do now.
+
+The project has no per-type data model yet. The only schemas are the capability-bound
+`outputValidation` schemas (`vc/schema.py`, `scenarios.py` `_build_schemas`). They say
+what a recognised issuer **may** issue, not what shape a credential **has**. Peter chose
+the stronger variant:
+
+- every credential **cites** its data model through VCDM 2.0 `credentialSchema`;
+- the verifier **checks** it.
+
+Peter also chose the scope: the eight types behind the current seventeen chips. Status
+lists, the scope-coverage answer and the UNTP projection are left out.
+
+| Type | Examples |
+| --- | --- |
+| RecognizedEntityCredential | bipm, global-aci, sas, oiml-ia, oiml-tl recognitions |
+| AccreditationScopeCredential | scope-SCS-0123, scope-STS-0456, scope-SCESp-0789 |
+| CalibrationCertificateCredential | metas-calibration, callab-calibration, metas-SR10K-0091/0092 |
+| ExternalDocumentCredential | metas-external-dcc |
+| TestReportCredential | testlab-report |
+| ProductConformityCredential | cab-conformity |
+| TypeEvaluationReportCredential | oiml-evaluation |
+| OimlCertificateCredential | oiml-certificate |
+
+Specs checked on 2026-09-29:
+
+- **Recognized Entities WD (6 Sep 2026):** unchanged, and publishes no JSON Schema.
+- **VC JSON Schema (CRD, Feb 2025):** `credentialSchema {id, type: "JsonSchema"}`. The
+  schema must be draft 2020-12 and must carry a `$id`. `digestSRI` is permitted and an
+  integrity check before evaluation is RECOMMENDED. `additionalProperties: false` is
+  discouraged.
+
+## Decisions
+
+**Shape versus permission.** Data models are a new thing, kept apart from
+`world.schemas`:
+
+- they live in `World.data_models`;
+- they are published with the store kind `"data-model"`;
+- they are never the `outputValidation` schemas.
+
+Prose never says "the schema" unqualified, because chapters 0 and 5 already use that
+word for `outputValidation`.
+
+**Self-contained schemas, no remote `$ref`.** A `digestSRI` on `credentialSchema` pins
+one document. A remote `$ref` inside it would stay unpinned and could be swapped to
+loosen the model. So each type's schema is one compound document:
+
+- shared shapes (the envelope, organisation, capability reference, credential reference,
+  test result, OIML recommendation, uncertainty representation) sit in its local
+  `$defs`, generated from one Python builder each so they cannot drift;
+- the root carries `"$ref": "#/$defs/verifiableCredential"` beside its own `properties`,
+  so the type-specific part comes first in the box and the envelope comes last.
+
+Validation needs no network. An explicit empty `referencing.Registry` stops jsonschema
+from falling back to HTTP.
+
+**Open schemas.** No `additionalProperties: false`, as VC JSON Schema advises. A test
+does the job instead: it walks every example and fails if any member the credential
+carries is not declared in its schema. That way the box cannot silently leave a field
+out.
+
+**The reference.** Each builder adds this to the credential:
+
+```json
+"credentialSchema": {"id": "https://vcqi.example/schemas/<type>.json", "type": "JsonSchema", "digestSRI": "…", "digestMultibase": "…"}
+```
+
+- `digestSRI` is there because VC JSON Schema names it.
+- `digestMultibase` is there because every other pinned reference in this project uses
+  it; `relatedResource` at `model.py:723` already carries both.
+- Both are taken over the JCS canonical form, as `schema_reference()` does.
+- The host is `vcqi.example`, the owner of `https://vcqi.example/contexts/v1`: whoever
+  defines the vocabulary also defines its shapes.
+- Every signature and digest in the world changes. No test pins one; this was checked.
+
+**Nested, not a new top-level step.** `test_the_top_level_pipeline_is_still_eleven_steps`
+(`tests/test_dependencies.py:354`) records the rule that new checks nest. So the check
+becomes `shape.data-model`, a child of `shape` ("Document is a Verifiable Credential").
+Chapter 4's "eleven checks… four are generic" stays true.
+
+- A failure of the child marks `shape` failed, but does **not** return early, unlike the
+  generic shape failure.
+- The verifier pins which data model belongs to which type, using `DATA_MODEL_URLS`.
+  Otherwise an issuer could cite a permissive schema of its own and pass.
+
+| Situation | Status |
+| --- | --- |
+| no `credentialSchema`, type has no known data model (status lists, coverage answers, UNTP) | skip |
+| no `credentialSchema`, type has one | warn: "shape not checked" |
+| `type` is not `JsonSchema`, or `$schema` is not 2020-12 | warn: indeterminate (VC JSON Schema's third outcome) |
+| cites a URL other than its type's | fail |
+| cannot be retrieved | fail |
+| digest mismatch | fail: "changed since the credential was issued" |
+| validation errors | fail: first four, reusing `_schema_failures` / `_schema_message` |
+| otherwise | pass |
+
+**One new failure case, *a loosened data model*** (group `forgery`). It parallels the
+existing *loosened schema* (`tamper.py:193`):
+
+- the published data model for CalibrationCertificateCredential is replaced at its
+  address with a permissive one;
+- the credential itself is untouched, so the signature and everything else pass;
+- only the digest in `credentialSchema` catches it, which is exactly why the reference
+  carries one;
+- expected step: `shape.data-model`.
+
+There are twenty-four cases now; this makes twenty-five.
+
+**Page order.** The chapter starts with the type picker, as asked:
+
+1. type chips
+2. data-model panel (small box)
+3. example chips
+4. the note under the example (the existing `NOTES`)
+5. a new `data-model` paragraph
+6. `canonicalization` (moved down from the top; it explains the panels)
+7. the four panels, and the takeaway
+8. `what-is-signed`
+
+The default is the CalibrationCertificateCredential type with `metas-calibration`,
+unchanged.
+
+## Changes
+
+1. **`src/vcqi/config.py`:** add `DATA_MODEL_BASE = "https://vcqi.example/schemas"` beside
+   `CONTEXT_VCQI_V1`.
+2. **`src/vcqi/vc/datamodel.py` (new).**
+   - Module docstring: shape versus permission; open schemas; self-contained so the digest
+     covers everything; the verifier pins per type; `format` is annotation only.
+   - `DATA_MODEL_URLS` (type → URL, in chain order); one builder per type; shared `$defs`
+     builders.
+   - `data_models()`; `data_model_reference(type)`, cached and deterministic;
+     `validator_for(schema)` with an empty `Registry`.
+   - Constants come from `vcqi.config` (`CONTEXT_CREDENTIALS_V2`, `CONTEXT_VCQI_V1`, the
+     cryptosuite).
+   - `sameAs` is `anyOf: [string, array of string]`: a list at `scenarios.py:923`, a
+     string at `:1596`.
+   - A `coverageFactor` is `number`.
+   - Short `description`s, because `.json` does not wrap.
+3. **`src/vcqi/vc/model.py`:** `"credentialSchema": data_model_reference("<Type>")` in the
+   eight builders (`:227`, `:403`, `:512`, `:613`, `:733`, `:799`, `:867`, `:955`), next to
+   `credentialStatus`. Not in `scope_coverage_answer_credential` or in status lists. Also
+   fix the module docstring, which says "seven types" and omits AccreditationScope.
+4. **`src/vcqi/actors/scenarios.py`:** add a `World.data_models` attribute and
+   `_publish_data_models(world)` (kind `"data-model"`), called in `build_world` beside
+   `_build_schemas`.
+5. **`src/vcqi/vc/verify.py`:** `_step_data_model(credential, resolver)`, attached as a
+   child of the shape step at `:2024`, following the pattern of `uncertainty` and
+   `representations` (`:2072-2077`). Covers the outcomes in the table above.
+6. **`src/vcqi/actors/tamper.py`:** the `loosened-data-model` case in `forgery`, built like
+   the loosened-schema case.
+7. **`src/vcqi/actors/portability.py`:** add `"data-model"` to the `travels` kinds (`:123`),
+   because it is pinned by a digest inside a signed credential, and extend the `why`.
+   **`deployment.py` `ONLINE_KINDS`** stays as it is, with a comment explaining why: the
+   data model belongs to the vocabulary, not to any issuer, and `vcqi.example` runs no
+   actor.
+8. **`src/vcqi/web/app.py`:** `/api/world` gains `credentialTypes: [{type, title, schema}]`
+   in chain order. `title` is the schema's own `title` and becomes the chip label, so no
+   JS copy is needed.
+9. **`src/vcqi/web/static/js/ui.js`:** `jsonView(…, {compact: true})` adds `json--compact`
+   and prints flat objects and arrays of up to about 80 characters on one line, keeping
+   the token spans and links. It is opt-in, so no other chapter changes.
+   **`app.css`:** `.json--compact { max-height: min(340px, 45vh) }` after `.json--tall`
+   (`:516`).
+10. **`src/vcqi/web/static/js/chapters.js` `chapterIssuing`.**
+    - Build the types from `MAIN_CREDENTIALS` grouped by `world.credentials[].type`, in
+      order of first appearance. Titles and schema URLs come from `credentialTypes`, with
+      the type string as the fallback.
+    - Use `{type, name}` state and a `drawChips()` that sets `aria-pressed` with
+      `String(...)`. This fixes the existing bug where the default chip is never
+      highlighted.
+    - `showDataModel()` fetches via `api.document(url)`, with a ticket guard, a spinner,
+      and try/catch that falls back to `schema.unavailable`.
+    - `show(name)` gets a ticket guard, so a slow earlier response cannot overwrite a
+      newer one.
+    - Picking a type selects its first example.
+    - `CREDENTIAL_LABELS`, `MAIN_CREDENTIALS` and `NOTES` stay flat and unchanged, as
+      `tests/test_web.py:59,77` parse them. Every new `t.*` call stays inside
+      `chapterIssuing`, for `referenced_keys()`.
+11. **`04-issuing.md`.**
+    - New plain-text blocks `types.title`, `schema.title`, `schema.hint`, `examples.title`
+      and `schema.unavailable`, plus a short prose block `data-model`. It will cover:
+      cited in `credentialSchema`, pinned by a digest, checked in chapter 4 under the
+      shape step, not the `outputValidation` schema, open by design.
+    - Rewrite the header comment: example chips, grouped by type.
+    - Reword the notes that assume the old chip order: `doc.sas-recognition` ("Below
+      this…"), `doc.callab-calibration` ("the one above"), `doc.cab-conformity` ("the
+      test report above"), `doc.oiml-certificate`.
+    - Reword `what-is-signed` ("the documents above… Pick it"), naming the *external
+      document* type, whose data model is visibly small.
+    - Reorder the `doc.*` blocks into type order.
+    - This is draft prose; Peter edits it.
+12. **Counts in the prose.**
+    - `08-break.md:9,29` and `09-tamper.md:16,33`: "twenty-four" becomes "twenty-five".
+    - `tests/test_web.py:551`: the number-word map gains "twenty-five".
+    - `README.md:297,304`: "23" is already stale; it becomes 25, and the Forgery row gains
+      *loosened data model* / `shape.data-model`.
+    - The document count goes from 78 to 86 in `README.md:78`, `13-exchange.md:52` and
+      `ARCHITECTURE.md:297` (confirm with `--dump`).
+    - Re-derive "32 documents one verification reads, 17 can arrive with the holder"
+      (`README.md:300`) and any fetch counts in chapters 10–13 from the audit, because
+      the verifier now fetches one more document.
+13. **`tools/ui-clicks.mjs:113`:** `MINIMUM_CONTROLS.issuing` goes from 17 to 12 (8 type
+    chips and 4 example chips). The reason goes in the comment. The harness clicks by
+    fixed index, so it will exercise the type chips but not the example chips; a jsdom
+    pass covers those instead (see Verification).
+14. **Docs.**
+    - `ARCHITECTURE.md`: a decision section *A data model is not a permission*, and a
+      `shape.data-model` row in the step table (`:738`).
+    - `README.md:293`: the chapter 3 summary. The layout section gains `vc/datamodel.py`.
+    - `src/vcqi/web/content/README.md:121-123`: "each example chip".
+    - `CONTENT.md:23` if the wording needs it.
+15. **`PLAN.md`:** append this plan as *Change set 26*, with a checklist and a progress
+    log, before starting.
+
+## Tests
+
+**New `tests/test_datamodel.py`:**
+
+- the served non-status types equal `DATA_MODEL_URLS`, in both directions;
+- `$id` equals the URL, the store kind is `data-model`, and `check_schema` passes;
+- every `$ref` is local and names a `$defs` entry that exists;
+- each of the seventeen examples validates, both signed and without `proof` (the panel 1
+  view);
+- no example carries an undeclared member, using a path walker over
+  `properties`/`items`/`$ref`/`allOf`/`anyOf`/`oneOf` that fails on any keyword it does
+  not understand;
+- a non-vacuity check: an extra member is named by the walker, and a missing required
+  member fails validation;
+- every example's `credentialSchema` equals `data_model_reference(type)`;
+- `world.schemas` and `world.data_models` are disjoint.
+
+**Pipeline tests** (in `test_pipeline.py`):
+
+- every one of the seventeen passes `shape.data-model`;
+- the status lists skip;
+- a wrong URL fails, a mismatched digest fails, and a broken structure fails with its
+  path named;
+- no network access is attempted.
+
+**Updates to existing tests:**
+
+- `test_pipeline.py:285` keeps the top-level order; the child is asserted.
+- `test_web.py`: `credentialTypes` covers every non-status type, and each URL returns 200
+  from `/api/document` with kind `data-model`.
+- The tamper suite picks up the new case automatically (`expected_step` in failures).
+- `test_portability.py:238` (`unclassified == []`) now covers `data-model`.
+
+## Verification
+
+- `uv run pytest`: all pass.
+- `python -m vcqi.actors.scenarios --dump`, run twice: byte-identical, 86 documents.
+- `node tools/ui-clicks.mjs` and `node tools/chapter-snapshot.mjs`: clean, and
+  deterministic across two runs.
+- A jsdom pass through chapter 3:
+  - click all eight types, then every example chip of each;
+  - there are seventeen distinct notes and eight distinct data-model boxes;
+  - the right chip is pressed;
+  - there is no `console.warn` or `console.error` and no `.content-missing`.
+- A deliberate break: rename `schema.title` in the markdown, see the marker and the test
+  failure, then restore it.
+- Chapter 4 by eye: `shape.data-model` appears under "Document is a Verifiable
+  Credential" and passes for all seventeen. The *loosened data model* case fails only
+  that check.
+- Peter, in a real browser: the box in light and dark mode and at phone width. The site
+  is unreachable from this shell.
+
+## Git
+
+Branch `feature/data-model-per-type` from `develop`, then a PR into `develop` via a
+compare URL with the body pasted in (`gh` is unavailable).
+
+## Checklist
+
+- [x] 1. `config.py`, `vc/datamodel.py` - the eight data models and the reference
+- [x] 2. `vc/model.py` - `credentialSchema` in the eight builders; `scenarios.py` publishes
+- [x] 3. `vc/verify.py` - `shape.data-model`; `portability.py`, `deployment.py`
+- [x] 4. `tamper.py` - the loosened data model; counts in the prose
+- [x] 5. `app.py` `credentialTypes`; `ui.js` compact view; `app.css`
+- [x] 6. `chapterIssuing` and `04-issuing.md`
+- [x] 7. Tests, the harnesses, documentation
+- [ ] 8. The page by eye in a real browser: light and dark, phone width (Peter)
+
+## Progress log
+
+- 2026-09-29: plan approved. Branch `feature/data-model-per-type` from `develop`.
+- 2026-09-29: the eight data models in `vc/datamodel.py`, cited by every builder, published
+  by `_publish_data_models`. Before wiring in: all seventeen examples validate and carry no
+  undeclared member. The world now holds 86 documents. Full suite unchanged, 654 pass and
+  46 skipped: nothing pinned a signature, so re-signing everything cost nothing.
+  - `model.py` briefly went CRLF from a script that wrote through Python's text mode;
+    restored to LF before anything was committed.
+- 2026-09-29: the check, the failure case, the page.
+  - `shape.data-model` passes for all seventeen and skips the nine status lists. The new
+    case, *Loosen the published data model*, fails `shape` and `shape.data-model` and
+    nothing else.
+  - The verifier now fetches one data model per credential it checks. The conformity
+    certificate reads 35 distinct documents from 8 hosts (was 32 from 7), and 20 of them
+    travel (was 17). `test_the_retrieval_item_quotes_what_was_actually_measured` caught
+    the sentence in `harmonisation.py`. The same figures were corrected in `README.md`,
+    `ARCHITECTURE.md` and the `portability.py` docstring, which already said 31.
+  - README's failure-case table said 23 while there were 24: *withdrawn after issue*
+    (`status`) was missing. Both counts now say 25.
+  - `jsonView` got `compact`, which puts anything fitting in 80 columns on one line and
+    fills long lists of plain values like a paragraph. The OIML certificate's model goes
+    from 521 lines to 222.
+  - `tools/ui-clicks.mjs`: every control on all fourteen chapters responds. The issuing
+    floor goes from 17 to 12, and break goes from 24 to 25 because it gained a chip.
+  - A jsdom pass (scratch script, not committed) clicked all eight type chips and every
+    document chip under each. The pressed chip was right every time. There were 17
+    distinct notes and 8 distinct models, with no `console.error`, no `console.warn` and
+    no `.content-missing`.
+  - Deviation: the pipeline tests went into `tests/test_datamodel.py` next to the rest,
+    not into `test_pipeline.py`. Its top-level order is unchanged, and the new file
+    asserts the nesting.
+  - Deviation: `what-is-signed` does not claim the external document's model is
+    "visibly small". The envelope dominates every model, so the eight are close in
+    length. It compares what the two describe instead: results against an address and a
+    digest.
+  - Full suite: 756 pass, 46 skipped.
+- 2026-09-29: documentation and final checks.
+  - `ARCHITECTURE.md` gains *A data model is not a permission*, a `shape.data-model`
+    row in the step table, and a *Not implemented* item: the models resolve nowhere
+    outside this world, which is the same gap as the context. The README's chapter 3
+    line, its layout section and the 78-document counts (86 now, also in
+    `13-exchange.md`) are updated, as is the content README's note on what is not in the
+    markdown.
+  - `--dump`, run twice: byte-identical, 86 documents. `chapter-snapshot.mjs`, run
+    twice: identical. `ui-clicks.mjs`: every control responds.
+  - Deliberate break: renaming `schema.title` in the markdown failed
+    `test_every_referenced_key_exists` and `test_no_block_is_orphaned`, naming the key
+    and the line. Restored.
+  - The reader-signed copies in the keys chapter (all three modes) and both portable
+    exports pass `shape.data-model`. The portable exports carry their `credentialSchema`
+    to a verifier elsewhere, which will find nothing at `vcqi.example`. That is recorded
+    in ARCHITECTURE.md, and it is worth watching for when the Playground run from change
+    set 24 happens.
+  - Not committed: the prose in `04-issuing.md` is a draft for Peter, and item 8 is his.
+- 2026-09-29: committed on `feature/data-model-per-type` at Peter's request, not pushed.
+  The prose remains open to his edits in a follow-up commit.

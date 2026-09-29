@@ -75,7 +75,7 @@ modules and hand-written CSS served straight from `src/vcqi/web/static/`.
 ```
 uv run pytest                                  # the whole suite
 uv run python -m vcqi.actors.scenarios         # list every signed credential
-uv run python -m vcqi.actors.scenarios --dump out/   # write all 78 documents as JSON
+uv run python -m vcqi.actors.scenarios --dump out/   # write all 86 documents as JSON
 ```
 
 Two extras, both optional and neither needed to run the demonstration:
@@ -240,7 +240,7 @@ Helvetia ──test report──▶ Confoederatio ──certificate of conformit
 ```
 
 That authority runs eleven checks, and reaches a verified path from the kettle down to
-a national measurement standard, having made 94 retrievals across 32 distinct
+a national measurement standard, having made 98 retrievals across 35 distinct
 documents and known none of the parties in advance.
 
 ## Three arrangements, and where they join
@@ -287,28 +287,28 @@ them: what distinguishes OIML-CS Scheme A from Scheme B, and what SMART stands f
 
 ## Chapters
 
-0. **What a verifiable credential is** — for someone who has not met one before
+0. **What a verifiable credential is** — for someone who has not met one before: how one is written in JSON-LD and signed, an everyday example (a university degree), and the same degree followed up to the authority that recognises the university
 1. **Keys: what a signature actually proves** — make a keypair, sign something, break it four ways, then try to forge a certificate with it
 2. **The quality infrastructure as a trust graph** — thirteen organisations, three arrangements, filterable; click any organisation or edge
-3. **Issuing a certificate** — canonical form, hashes, signature, step by step
+3. **Issuing a certificate** — pick one of the eight credential types and see its data model as a JSON Schema, then one of its documents: canonical form, hashes, signature, step by step
 4. **Verification and recognition discovery** — the full pipeline, with the clock and the trust anchors under your control
 5. **The CMC decides the logo** — sliders; the verdict changes where the published capability says it should
 6. **Traceability and uncertainty** — budgets at each level, U growing down the chain, the same measurement shown four ways including as a PTB/DKD DCC, what gets said twice as a result, and what two certificates resting on one shared standard let a customer do
-7. **Break it** — 23 failure cases, each naming the check that catches it
+7. **Break it** — 25 failure cases, each naming the check that catches it
 8. **Break it yourself** — pick one of five documents, change a field, decide whether the issuer signs it again, and find out which check notices
 9. **What this would mean in practice** — the argument, and the open questions
 10. **What it would take to run** — the hosting burden computed per role, from the trust anchor down to a fifteen-person laboratory, and what a verifier actually fetches
 11. **What would have to be agreed** — global harmonisation in three tiers, what cannot be decided later, and a ladder of next steps ordered by who is able to act
-12. **How a credential moves** — three architectures that disagree about almost everything. UN/CEFACT's portable model, where the signed document travels and no protocol is needed; the one in between, where the document still travels and the issuer publishes a list of what it has since taken back; and VCALM's exchange, where the parties talk. The measurement is the point: of the 32 documents one verification reads, 17 can arrive with the holder — three of them accreditation scopes, and one an answer from a register that publishes no document at all, both of which travel only because somebody signed them — and what cannot be handed over second-hand is each organisation's key, its revocation list, and the one register still published unsigned. The nine status lists that make the middle model work reserve 1,179,648 positions between them, cover every credential in the world, and weigh less than one calibration certificate
+12. **How a credential moves** — three architectures that disagree about almost everything. UN/CEFACT's portable model, where the signed document travels and no protocol is needed; the one in between, where the document still travels and the issuer publishes a list of what it has since taken back; and VCALM's exchange, where the parties talk. The measurement is the point: of the 35 documents one verification reads, 20 can arrive with the holder — three of them accreditation scopes, three the data models the credentials name, and one an answer from a register that publishes no document at all, both of which travel only because somebody signed them — and what cannot be handed over second-hand is each organisation's key, its revocation list, and the one register still published unsigned. The nine status lists that make the middle model work reserve 1,179,648 positions between them, cover every credential in the world, and weigh less than one calibration certificate
 
-## The 23 failure cases
+## The 25 failure cases
 
 Grouped by what it takes to notice them.
 
 | Group | Cases | Caught by |
 | --- | --- | --- |
-| **Forgery** | edited value, invented issuer, loosened schema, reissued parent, a different accreditation scope served at the same address | proof, recognition, output-validation, traceability, scope |
-| **Standing** | expired, suspended accreditation, issuing outside the accredited activity, granting an accreditation the arrangement does not recognise, certifying a type against a Recommendation nobody approved, resting a certificate on an unrecognised laboratory, testing against a standard the scope did not yet cover | validity, recognition, action, scope, scope.covered, traceability |
+| **Forgery** | edited value, invented issuer, loosened schema, loosened data model, reissued parent, a different accreditation scope served at the same address | proof, recognition, output-validation, shape.data-model, traceability, scope |
+| **Standing** | expired, suspended accreditation, withdrawn after issue, issuing outside the accredited activity, granting an accreditation the arrangement does not recognise, certifying a type against a Recommendation nobody approved, resting a certificate on an unrecognised laboratory, testing against a standard the scope did not yet cover | validity, recognition, status, action, scope, scope.covered, traceability |
 | **Metrology** | uncertainty below the CMC, level outside the range, unjustified MRA logo, understated inheritance, dependency data disagreeing with the printed line, traceability claimed but not inherited, the PTB/DKD DCC contradicting the printed value, the PTB/DKD DCC crediting a different laboratory, a type evaluation made with equipment out of calibration, a chain followed to a certificate about a different object, a calibration at a frequency the accreditation does not cover | scope, scope.row, mra-logo, traceability, traceability.inherited, uncertainty.agreement, traceability.shared-inputs, uncertainty.duplication, traceability.object-identity |
 
 The third group is the interesting one: in every case the signature is valid, the issuer
@@ -322,7 +322,7 @@ src/vcqi/
   crypto/    jcs.py  multibase.py  keys.py  ecdsa_p256.py  dataintegrity.py
              xmlc14n.py  xmldsig.py
   vc/        model.py  checks.py  recognition.py  verify.py  schema.py  status.py  resolver.py
-             portable.py  untp.py
+             portable.py  untp.py  datamodel.py
   domain/    scope.py  scope_query.py  kcdb.py  accreditation.py  arrangement.py
              oiml.py  uncertainty.py  instruments.py  dcc.py  external_dcc.py
              engine.py  linprop.py  gtc_archive.py

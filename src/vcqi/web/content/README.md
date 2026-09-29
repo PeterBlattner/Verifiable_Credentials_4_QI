@@ -60,6 +60,21 @@ Changing the words inside a block is always safe.
 | a small heading | `### Like this` |
 | a quotation | lines beginning `> ` |
 
+An example of code or JSON goes between two fence lines. The first reads ```` ```json ````
+and the last reads ```` ``` ````, and everything between them is shown exactly as written:
+
+````markdown
+```json
+{
+  "type": ["VerifiableCredential", "ExampleDegreeCredential"]
+}
+```
+````
+
+A JSON example is shown coloured, like the credentials elsewhere on the site, and a test
+checks that it still parses after an edit, because a missing comma would otherwise turn it
+back into plain text with nothing to say why.
+
 Tables are written with pipes. The second line, with the dashes, is required:
 
 ```markdown
@@ -104,8 +119,10 @@ you are not left hunting:
   reads them.
 - **The names and descriptions of the organisations, certificates and failure cases.**
   Those are data rather than prose; they live in `src/vcqi/actors/`. The one exception is
-  the short note under each chip in chapter 3, which *is* prose: those are the `doc.`
-  blocks in `chapters/04-issuing.md` and you can edit them like any other.
+  the short note under each document chip in chapter 3, which *is* prose: those are the
+  `doc.` blocks in `chapters/04-issuing.md` and you can edit them like any other. The
+  labels on chapter 3's *type* chips are the titles of the data models, in
+  `src/vcqi/vc/datamodel.py`, because the box under the chips shows the same title.
 - **The deployment, harmonisation and portability tables** behind chapters 10, 11 and 12,
   for the same reason — they are records with many fields, which a markdown file
   expresses badly.

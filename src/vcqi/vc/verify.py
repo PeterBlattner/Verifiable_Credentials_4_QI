@@ -43,6 +43,7 @@ from datetime import datetime
 from typing import Any, Final
 
 from jsonschema import Draft202012Validator
+from referencing.exceptions import Unresolvable
 
 from vcqi.crypto.jcs import canonicalize
 from vcqi.crypto.multibase import verify_digest_multibase, verify_digest_sri
@@ -61,6 +62,7 @@ from vcqi.domain.scope import (
 )
 from vcqi.domain.dcc import parse_dcc_administrative, parse_dcc_result
 from vcqi.domain.uncertainty import parse_input_quantities
+from vcqi.vc.datamodel import DATA_MODEL_URLS, JSON_SCHEMA_DIALECT, validator_for
 from vcqi.vc.model import artefact_payload
 from vcqi.vc.checks import (
     CheckOutcome,
@@ -1159,6 +1161,168 @@ def _schema_message(error: Any) -> str:
     return f"{message[:_SCHEMA_MESSAGE_LIMIT]}..."
 
 
+_DATA_MODEL_TITLE: Final[str] = "Document has the shape its type declares"
+
+
+def _step_data_model(credential: dict[str, Any], resolver: Resolver) -> Step:
+    """Check the credential against the data model it names for its type.
+
+    Nested under the shape step rather than beside it, because it is the same question
+    asked properly: the shape step asks whether this is a Verifiable Credential at all,
+    this one whether it is a well-formed credential *of the type it says it is*.
+
+    The data model is the credential's own choice, so it is not taken on trust. The
+    verifier knows which model is published for which type, and a credential naming any
+    other fails -- otherwise an issuer could cite a schema that admits anything and pass.
+    The digest in the reference is checked before the schema is used, as the JSON Schema
+    profile for credentials recommends, so that a model loosened at its address after
+    the credential was signed is caught rather than applied.
+
+    A credential of a type with no published model, and naming none, is skipped: status
+    lists and coverage answers are defined by their own specifications, not here.
+
+    Args:
+        credential: The credential being verified.
+        resolver: Used to retrieve the data model.
+
+    Returns:
+        The step.
+    """
+    type_name = _most_specific_type(credential)
+    expected = DATA_MODEL_URLS.get(type_name)
+    declared = credential.get("credentialSchema")
+    references = (
+        [item for item in declared if isinstance(item, dict)]
+        if isinstance(declared, list)
+        else [declared] if isinstance(declared, dict) else []
+    )
+
+    def step(status: str, detail: str, **evidence: Any) -> Step:
+        """Return the step with this outcome; every branch below ends in one."""
+        return Step(
+            id="shape.data-model",
+            title=_DATA_MODEL_TITLE,
+            status=status,
+            detail=detail,
+            evidence=evidence,
+        )
+
+    if not references:
+        if expected is None:
+            return step(
+                SKIP, f"a {type_name} names no data model, and none is published for it"
+            )
+        return step(
+            WARN,
+            f"names no data model, so its shape was not checked against {expected}",
+            expected=expected,
+        )
+
+    named = [reference.get("id") for reference in references]
+    if expected is not None and expected not in named:
+        return step(
+            FAIL,
+            f"names {', '.join(str(url) for url in named)} as its data model, but the one "
+            f"published for a {type_name} is {expected}",
+            named=named,
+            expected=expected,
+        )
+
+    reference = next(
+        (item for item in references if item.get("id") == expected), references[0]
+    )
+    url = reference.get("id")
+    if reference.get("type") != "JsonSchema" or not isinstance(url, str):
+        return step(
+            WARN,
+            f"names a data model of type {reference.get('type')!r}, which this verifier "
+            f"does not evaluate",
+            dataModel=url,
+        )
+
+    schema = resolver.fetch(url)
+    if schema is None:
+        return step(FAIL, f"the data model at {url} could not be retrieved", dataModel=url)
+
+    canonical = canonicalize(schema)
+    pins = [
+        (name, check(canonical, reference[name]))
+        for name, check in (
+            ("digestSRI", verify_digest_sri),
+            ("digestMultibase", verify_digest_multibase),
+        )
+        if isinstance(reference.get(name), str)
+    ]
+    broken = [name for name, matched in pins if not matched]
+    if broken:
+        mismatch = (
+            f"matches neither the {broken[0]} nor the {broken[1]}"
+            if len(broken) == 2
+            else f"does not match the {broken[0]}"
+        )
+        return step(
+            FAIL,
+            f"the data model at {url} {mismatch} the credential recorded for it, so it "
+            f"has been changed since the credential was issued",
+            dataModel=url,
+            mismatched=broken,
+        )
+
+    if schema.get("$schema") != JSON_SCHEMA_DIALECT:
+        return step(
+            WARN,
+            f"the data model at {url} declares {schema.get('$schema')!r}, and only draft "
+            f"2020-12 is evaluated here, so the outcome is indeterminate",
+            dataModel=url,
+        )
+
+    try:
+        errors = sorted(
+            _schema_failures(validator_for(schema).iter_errors(credential)),
+            key=lambda e: list(e.absolute_path),
+        )
+    except Unresolvable as error:
+        return step(
+            WARN,
+            f"the data model at {url} refers outside itself ({error.ref}), which its "
+            f"digest does not cover, so it was not evaluated",
+            dataModel=url,
+        )
+    if errors:
+        return step(
+            FAIL,
+            "; ".join(
+                f"{'/'.join(str(part) for part in error.absolute_path) or 'document'}: "
+                f"{_schema_message(error)}"
+                for error in errors[:4]
+            ),
+            dataModel=url,
+            errorCount=len(errors),
+        )
+
+    if expected is None:
+        return step(
+            WARN,
+            f"validates against {url}, but no data model is published for a {type_name}, "
+            f"so the issuer chose the yardstick",
+            dataModel=url,
+        )
+    if not pins:
+        return step(
+            WARN,
+            f"validates against {url}, but the credential recorded no digest of it, so "
+            f"the model may have changed since the credential was issued",
+            dataModel=url,
+        )
+    pinned = " and ".join(name for name, _ in pins)
+    return step(
+        PASS,
+        f"validates against {url}, the data model published for a {type_name}, whose "
+        f"{pinned} matches the one the credential recorded",
+        dataModel=url,
+    )
+
+
 def _step_output_validation(
     credential: dict[str, Any], action: dict[str, Any] | None, resolver: Resolver
 ) -> Step:
@@ -2022,10 +2186,20 @@ def verify_credential(
     )
 
     shape = check_shape(credential)
-    report.steps.append(Step.from_outcome("shape", "Document is a Verifiable Credential", shape))
+    shape_step = Step.from_outcome("shape", "Document is a Verifiable Credential", shape)
+    report.steps.append(shape_step)
     if not shape.passed:
         report.fetches = [record.to_json() for record in resolver.log]
         return report
+    # The data model nests here rather than becoming a step of its own, as the
+    # representations nest under the uncertainty. Unlike a generic shape failure it does
+    # not stop the pipeline: a certificate missing a member its type requires is still a
+    # credential, and what the remaining steps make of it is worth seeing.
+    data_model_step = _step_data_model(credential, resolver)
+    shape_step.children.append(data_model_step)
+    if data_model_step.status == FAIL:
+        shape_step.status = FAIL
+        shape_step.detail = data_model_step.detail
 
     proof_outcome, _ = check_proof(credential, resolver)
     report.steps.append(

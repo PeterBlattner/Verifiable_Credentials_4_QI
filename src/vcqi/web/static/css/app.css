@@ -248,6 +248,9 @@ a { color: var(--accent); }
 
 .prose p { color: var(--ink-soft); }
 .prose strong { color: var(--ink); font-weight: 590; }
+/* A code example inside prose: pre.code and .json carry no margin of their own, so without
+   this the paragraph after one sits flush against it. */
+.prose pre { margin: 0 0 12px; }
 
 /* ---------- panels ---------- */
 
@@ -511,6 +514,8 @@ pre.code, .json {
 
 .json { max-height: min(460px, 55vh); overflow-y: auto; }
 .json--tall { max-height: min(720px, 70vh); }
+/* A data model in chapter 3: a glance at the shape, not a document to read end to end. */
+.json--compact { max-height: min(340px, 45vh); }
 
 .tok-key { color: var(--accent); }
 .tok-str { color: var(--pass); }
