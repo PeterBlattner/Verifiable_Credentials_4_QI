@@ -287,7 +287,7 @@ them: what distinguishes OIML-CS Scheme A from Scheme B, and what SMART stands f
 
 ## Chapters
 
-0. **What a verifiable credential is** — for someone who has not met one before
+0. **What a verifiable credential is** — for someone who has not met one before: how one is written in JSON-LD and signed, an everyday example (a university degree), and the same degree followed up to the authority that recognises the university
 1. **Keys: what a signature actually proves** — make a keypair, sign something, break it four ways, then try to forge a certificate with it
 2. **The quality infrastructure as a trust graph** — thirteen organisations, three arrangements, filterable; click any organisation or edge
 3. **Issuing a certificate** — canonical form, hashes, signature, step by step

@@ -60,6 +60,21 @@ Changing the words inside a block is always safe.
 | a small heading | `### Like this` |
 | a quotation | lines beginning `> ` |
 
+An example of code or JSON goes between two fence lines. The first reads ```` ```json ````
+and the last reads ```` ``` ````, and everything between them is shown exactly as written:
+
+````markdown
+```json
+{
+  "type": ["VerifiableCredential", "ExampleDegreeCredential"]
+}
+```
+````
+
+A JSON example is shown coloured, like the credentials elsewhere on the site, and a test
+checks that it still parses after an edit, because a missing comma would otherwise turn it
+back into plain text with nothing to say why.
+
 Tables are written with pipes. The second line, with the dashes, is required:
 
 ```markdown

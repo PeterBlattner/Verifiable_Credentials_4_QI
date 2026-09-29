@@ -16,7 +16,9 @@ here unable to see it.
 
 from __future__ import annotations
 
+import json
 import re
+from html import unescape
 from pathlib import Path
 
 import pytest
@@ -297,6 +299,27 @@ class TestBlocksSuitTheSlotsTheyFill:
                             f"{chapter_id}/{key}: a row has {cells} cells but the header "
                             f"has {headers} columns"
                         )
+
+    def test_every_json_example_parses(self) -> None:
+        """A ```json fence is shown coloured only if it parses.
+
+        chapters.js falls back to the plain text when it does not, so a stray comma in an
+        example would reach a reader looking unlike every other credential on the site,
+        with nothing to say why. Caught here instead, naming the block.
+        """
+        fence = re.compile(r'<pre class="code" data-language="json">(.*?)</pre>', re.DOTALL)
+        found = 0
+        for chapter_id, blocks in content_payload()["chapters"].items():
+            for key, block in blocks.items():
+                for number, body in enumerate(fence.findall(block["html"]), start=1):
+                    found += 1
+                    try:
+                        json.loads(unescape(body))
+                    except json.JSONDecodeError as error:
+                        pytest.fail(
+                            f"{chapter_id}/{key}: JSON example {number} does not parse: {error}"
+                        )
+        assert found, "no JSON examples found in any content file; this test is not working"
 
     def test_placeholders_only_appear_in_interpolated_blocks(self) -> None:
         """A {name} in a block nothing fills would be shown to the reader as-is."""

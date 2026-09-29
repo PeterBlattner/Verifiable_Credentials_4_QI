@@ -131,6 +131,26 @@ function triangle() {
   ]);
 }
 
+// A ```json fence in a content file arrives as plain preformatted text. Where it parses it
+// is shown the way every other credential on the site is shown; where an edit has broken
+// it, it stays as written rather than disappearing. tests/test_content.py checks that
+// every such fence parses, so the fallback only covers an edit nobody has tested yet.
+// No onFollow: the addresses in these examples are .example ones this world does not
+// publish, so a link would lead to an error. Tall, because an example is there to be read
+// whole, and the degree would otherwise scroll by a few lines inside the default height.
+function colourJsonExamples(node) {
+  for (const pre of node.querySelectorAll('pre.code[data-language="json"]')) {
+    let value;
+    try {
+      value = JSON.parse(pre.textContent);
+    } catch (error) {
+      continue;
+    }
+    pre.replaceWith(jsonView(value, null, { tall: true }));
+  }
+  return node;
+}
+
 async function chapterOrientation(context) {
   // Prose: web/content/chapters/01-orientation.md
   const t = context.text('orientation');
@@ -138,7 +158,26 @@ async function chapterOrientation(context) {
 
   fragment.append(t.prose('what-it-is'));
   fragment.append(triangle());
+  fragment.append(t.prose('json-ld'));
+
+  fragment.append(
+    panel(t.text('example-vc.title'), t.text('example-vc.hint'), [
+      colourJsonExamples(t.prose('example-vc.body')),
+      t.block('example-vc.reading'),
+    ])
+  );
+
+  fragment.append(t.prose('securing'));
+  fragment.append(t.callout('json-ld-here'));
   fragment.append(t.prose('the-gap-signatures-leave'));
+
+  fragment.append(
+    panel(t.text('example-re.title'), t.text('example-re.hint'), [
+      colourJsonExamples(t.prose('example-re.body')),
+      t.block('example-re.walk'),
+      t.prose('example-re.closing'),
+    ])
+  );
 
   fragment.append(
     panel(t.text('mapping.title'), t.text('mapping.hint'), t.block('mapping.rows'))
