@@ -88,19 +88,23 @@ One of them tried rather than argued
 
 <!-- block: probe.hint -->
 
-both certificates really projected, really validated, against pinned UNTP schema
+both certificates really projected, validated and expanded, against pinned UNTP
 
 <!-- block: probe.body -->
 
-The certificate-format item below says the quality infrastructure has one mature format without international standing and one format with standing that does not reach metrology. That is a claim, and a claim on a page like this is worth more once somebody has run it. So two of this demonstration's certificates were expressed in UN/CEFACT's Digital Conformity Credential and the result validated against the published UNTP schema — a calibration certificate, which the format was not built for, and a certificate of conformity, which it was.
+The certificate-format item below weighs one mature format without international standing against one with standing. That is a claim, and a claim on a page like this is worth more once somebody has run it. So two of this demonstration's certificates are expressed in UN/CEFACT's Digital Conformity Credential, validated against the published UNTP schema and expanded against the published contexts — a calibration certificate, which the format was not built for, and a certificate of conformity, which it was.
 
-The rule the projection follows is the only thing that makes the result mean anything: **where UNTP requires something the certificate does not state, it is left out and the reason recorded, never filled in with a plausible value.** A required field satisfied by invention would turn a measurement into a misstatement, and the schema complaining is the finding rather than a fault to be tidied away.
+The rule the projection follows is the only thing that makes the result mean anything: **where UNTP requires something the certificate does not state, it is left out and the reason recorded, never filled in with a plausible value.** Where the certificate states something UNTP refuses, it is carried anyway and the refusal recorded. Where the projection supplies a value the certificate does not literally state — a code from one of UNTP's lists — that is recorded too, as a judgement. The schema complaining is the finding rather than a fault to be tidied away.
 
-What came back is more interesting than the claim it was testing. UNTP's envelope anticipates this work: `attestationType` already includes `calibration`, and `assessmentLevel` already distinguishes `GlobalMRA` from `Accredited` — the CIPM MRA and accreditation distinction four chapters here are about, already enumerated. The accreditation behind a body maps cleanly onto `authorisation`, which UNTP describes using a national accreditation body authorising a laboratory as its own example.
+More arrives than the first run of this probe, against UNTP 0.6.0, suggested. A calibration is no longer forced into a verdict: `conformance` is optional. `conformityTopic` is an open list, and UNTP's own topic vocabulary has `metrology-and-measurement` — the accuracy and traceability of measurements and calibrations to national and international measurement standards — and `product-safety-standards` for the kettle. The conditions of measurement travel as text in `specifiedCondition`. The authority behind each certificate travels as an endorsement naming whoever issued the recognition or the accreditation, with a link to it.
 
-What does not arrive is the measurement. `conformance` is a required boolean, and a calibration does not pass or fail — it reports a value, and whether that value is good enough is a judgement for whoever is using the instrument. `conformityTopic` is required and is drawn from fifteen sustainability codes, so neither a calibration of a resistance standard nor a kettle certified to IEC 60335-1 has an honest one to give. And `Metric` and `Measure` are closed to extension, so uncertainty has nowhere to go at the only two places it could: the nearest member, `accuracy`, is a fraction meaning the value lies within that much of the claim, which is a bound, where an Expanded Uncertainty at k=2 is a coverage interval. Writing one into the other would quietly restate a 95 % statement as a certainty, so the projected value travels with no uncertainty at all.
+What still does not arrive is the uncertainty. `Measure` holds a value, a unit and two tolerances, and a tolerance is a limit — UNTP's own example reads 10 kg + 0.1 kg — where an Expanded Uncertainty at k=2 is a coverage interval. Writing one into the other would restate a 95 % statement as a certainty, so the value travels rounded as the certificate reports it, and without its uncertainty. Three identifiers UNTP requires do not exist on this side: one for the measurand, which ISO and IEC are still defining; one for the scheme, since nothing here gives the CIPM MRA an identifier; and one for IEC 60335-1, which the certificate names by its designation. The unit arrives as a UNECE Recommendation 20 code, `OHM`, expanded against UN/CEFACT's code list — a second register beside the BIPM's.
 
-That is a sharper reading than the item below had. It is not that UNTP is the testing case and not the calibration one — UNTP's envelope reaches calibration perfectly well. It is that the envelope arrives and the measurement does not.
+One thing is carried and refused. The W3C Bitstring Status List Recommendation says a status index is an integer written as a string, and so does UNTP's own description of the member, but UNTP's schema types it as a number. The projection writes it the way W3C does, and the schema says so.
+
+Two things this panel said before are withdrawn. It read UNTP 0.6.0's `GlobalMRA` as the CIPM MRA and said UNTP already distinguished it from accreditation. UNTP 0.7.0 defines `authority-globalmra` as accreditation under the Global Accreditation Cooperation MRA and has no code for the CIPM MRA at all, so the calibration here carries `authority-peer`, recorded as a judgement rather than presented as a fit. And the 0.6.0 projection filled two required parties with the scope document itself, so the scheme appeared to have issued itself — exactly the plausible value the rule forbids, and invisible to a check that only counted errors. Each authority is now whoever issued the document it rests on, and a test says so.
+
+So the reading is sharper again. UNTP's envelope now reaches calibration, and what stops at the border is the uncertainty and the identifiers: the parts that make a measurement comparable rather than merely reported.
 
 <!-- block: probe.unavailable -->
 
@@ -116,7 +120,19 @@ the validator's own words, not a summary of them
 
 <!-- block: probe.accounted -->
 
-Every error above corresponds to an omission this projection chose and can explain. The test suite asserts that, so a projection that starts failing for a reason nobody wrote down fails the build instead of being read as a finding.
+Every error above is a finding this projection recorded at the same member and can explain, and the test suite asserts that member by member. A projection that starts failing for a reason nobody wrote down fails the build instead of being read as a finding, and so does one that quietly fills a member it had recorded as missing.
+
+<!-- block: probe.terms.title -->
+
+Terms that do not expand
+
+<!-- block: probe.terms.hint -->
+
+against the pinned W3C and UNTP contexts, checked offline
+
+<!-- block: probe.expands -->
+
+Every type and property in both documents expands against the pinned contexts. That is this project's own check standing in for the Playground's JSON-LD step, written by the same hand as the projection; what the Playground itself says is recorded in PLAN.md.
 
 <!-- block: probe.unaccounted -->
 

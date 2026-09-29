@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from vcqi.actors.tamper import TAMPER_CASES
+from vcqi.vc.untp import KINDS
 from vcqi.web.app import STATIC_ROOT, app
 from vcqi.web.content import blocks_for, content_payload
 
@@ -710,3 +711,17 @@ def test_the_untp_panel_cannot_take_its_chapter_down() -> None:
     guard = re.search(r"try \{\s*data = await api\.untp\(\);\s*\} catch", body.group(0))
     assert guard, "untpProbe must not let a failed /api/untp reach the chapter renderer"
     assert "probe.unavailable" in body.group(0), "the reason has to be shown, not swallowed"
+
+
+def test_the_untp_panel_has_a_badge_for_every_kind_of_finding() -> None:
+    """A finding the panel has no badge for would show as a bare word nobody explained.
+
+    The kinds come from the server, which refuses any other, so the panel's table of
+    badges has to name every one of them.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    body = re.search(r"async function untpProbe\(.*?\n\}\n", source, re.DOTALL)
+    assert body, "could not find untpProbe in chapters.js"
+
+    for kind in KINDS:
+        assert re.search(rf"\b{kind}: \[", body.group(0)), f"no badge for {kind}"

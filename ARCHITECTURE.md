@@ -68,11 +68,12 @@ quantities in D-SI 2.2.1 in `https://ptb.de/si`.
 
 That qualification has since earned its keep. UN/CEFACT's Digital Conformity Credential,
 under the UN Transparency Protocol, is also the DCC, and it is a different document for a
-different purpose -- third-party conformity assessment rather than calibration, with no
-traceability chain and no uncertainty at all. Two live specifications share the acronym,
-so an unqualified "DCC" in a metrology conversation is now genuinely ambiguous. The
-harmonisation chapter treats them as one mature format without international standing and
-one standing format that does not reach metrology.
+different purpose -- third-party conformity assessment, which since UNTP 0.7.0 reaches
+calibration in its envelope, with no traceability chain and no uncertainty at all. Two
+live specifications share the acronym, so an unqualified "DCC" in a metrology
+conversation is now genuinely ambiguous. The harmonisation chapter treats them as one
+mature format without international standing and one standing format whose envelope
+reaches calibration while the uncertainty and the identifiers stop at the border.
 
 Every calibration certificate now *carries* a PTB/DKD DCC alongside its readable subject,
 in `domain/dcc.py`. It uses the real namespaces, element names and nesting, and includes
@@ -713,29 +714,65 @@ form is not wasted by that, since it still answers the signature question for an
 verifier that takes an arbitrary W3C credential. It is the Playground that stopped being
 one.
 
+When the `untp` form was finally run, on 29 September 2026 against UNTP 0.6.0, the
+Playground confirmed the schema step error for error and answered nothing else. Its
+verifier -- Veramo over `@digitalcredentials/jsonld-signatures` -- matches a proof to a
+loaded suite before checking anything, has none for `ecdsa-jcs-2019`, and so never reached
+the signature. **Nothing outside this repository has yet checked a signature made here.**
+The Playground's own sample credential is an enveloped JWT signed with EdDSA. Its JSON-LD
+step failed too, on UNTP 0.6.0 itself, whose schema fills in type names its own context
+never defines. Change sets 24 and 28 of PLAN.md have the run and what followed from it.
+
 ### The UNTP projection is a probe, not a conformance target
 
 `vc/untp.py` expresses a calibration certificate and a certificate of conformity as
-UN/CEFACT Digital Conformity Credentials, and `actors/interop.py` validates the result
-against `vendor/untp/untp-dcc-schema-0.6.0.json` — the same document the Playground
-fetches, vendored so the answer cannot change without a visible diff and so the check runs
-with no network.
+UN/CEFACT Digital Conformity Credentials, UNTP 0.7.0, and `actors/interop.py` validates
+the result against `vendor/untp/untp-dcc-schema-0.7.0.json` and expands it against the
+vendored contexts. The schema and the UNTP context come from the UNTP specification
+repository at tag `v0.7.0`, which is the copy the Playground bundles, and both are pinned
+by content hash, computed the way the Playground's artefact manifest computes it. Vendored
+so the answer cannot change without a visible diff and so the check runs with no network.
 
 Nothing obliges a calibration certificate to be an UNTP credential. The projection exists
 to find out what the vocabulary can carry, and the rule that makes the answer mean
 anything is that **where UNTP requires something the certificate does not state, the
 member is omitted and the omission recorded, never filled with a plausible value.** A
-required field satisfied by invention would turn a measurement into a misstatement.
-`tests/test_untp.py` asserts that every error the validator reports is one of those
-recorded choices, so a projection failing for an unrecorded reason breaks the build rather
-than being read as a finding about the format.
+required field satisfied by invention would turn a measurement into a misstatement. So
+every decision is a `Finding` of one of four kinds: `dropped` (the certificate says it and
+UNTP has no place), `required` (UNTP wants it and the certificate does not say it),
+`conflict` (carried as the certificate states it and refused by the schema), and
+`judgement` (a value the certificate does not literally state, such as a code chosen from
+UNTP's lists). `tests/test_untp.py` asserts that the members the validator reports are
+exactly the members of the `required` and `conflict` findings. It used to compare counts,
+which is how the 0.6.0 projection could name each scope document as its own issuing
+authority without any test noticing: a fill that raises no error and records no finding is
+invisible to a count. Each authority is now whoever issued the document it rests on, read
+through a lookup into the world, and a test says so.
 
-What it found is in the harmonisation chapter and in change set 24 of PLAN.md. In short:
-UNTP's envelope reaches calibration — `attestationType` enumerates `calibration`,
-`assessmentLevel` separates `GlobalMRA` from `Accredited` — and the measurement does not
-arrive, because `conformance` is a required boolean, `conformityTopic` is required and
-sustainability-only, and `Metric` and `Measure` are closed to extension so uncertainty has
-nowhere to go.
+The Playground's JSON-LD step has a stand-in here too, `vc/jsonld_terms.py`. It walks the
+document the way JSON-LD 1.1 expansion resolves terms -- embedded, property-scoped and
+type-scoped contexts, with type-scoped ones not propagating into nested nodes -- and
+reports any type or property that does not expand. It is stricter than the Playground's
+safe mode in one respect: a property that resolves only through a scoped `@vocab` expands
+to something, so a misspelling passes there, and is reported here. It was written by the
+same hand as the projection, so a clean result is necessary for the Playground's step to
+pass and no substitute for running it.
+
+What it found is in the harmonisation chapter and in change sets 24 and 28 of PLAN.md. In
+short, against 0.7.0: the envelope reaches calibration -- `attestationType` enumerates
+`calibration`, `conformance` is optional, the topic vocabulary has
+`metrology-and-measurement`, conditions have a member -- and what does not arrive is the
+uncertainty, since `Measure` is closed and offers only tolerances, together with the
+identifiers UNTP requires for the measurand, the scheme and a standard. `assessmentLevel`
+has no code for the CIPM MRA; reading 0.6.0's undefined `GlobalMRA` as one was this
+project's mistake and is withdrawn. And UNTP types the status index as an integer where
+the W3C Recommendation, and UNTP's own description of it, say a string: the projection
+writes it the W3C way and records the conflict.
+
+The projection keeps the source credential's `id`, although it makes different claims
+under a different issuer identifier. That is the trade the portable copy already makes,
+and it is recorded here rather than solved: minting a new identifier would be a statement
+about a document nobody published.
 
 ### A data model is not a permission
 
