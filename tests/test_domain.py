@@ -28,6 +28,8 @@ from vcqi.domain.uncertainty import (
     from_expanded_uncertainty,
     normal,
     rectangular,
+    reported_decimals,
+    rounded_to_uncertainty,
 )
 from vcqi.vc.status import BitstringStatusList, read_status
 
@@ -121,6 +123,32 @@ class TestUncertainty:
     ) -> None:
         """U is shown to two significant figures and the value matched to it."""
         assert format_measurement(value, expanded, "ohm") == expected
+
+    @pytest.mark.parametrize(
+        ("value", "expanded", "expected"),
+        [
+            (10000.0012, 0.0011313708, "10000.0012 +/- 0.0011 ohm (k = 2)"),
+            (10000.032, 0.052, "10000.032 +/- 0.052 ohm (k = 2)"),
+            (0.28, 0.02, "0.280 +/- 0.020 ohm (k = 2)"),
+        ],
+    )
+    def test_the_rounded_number_is_the_reported_one(
+        self, value: float, expanded: float, expected: str
+    ) -> None:
+        """The number a UNTP projection carries is the value the string reports.
+
+        One rule, :func:`reported_decimals`, behind both, so a document carrying the
+        number without its uncertainty cannot drift from the certificate's own statement.
+        """
+        decimals = reported_decimals(expanded)
+        assert decimals == len(expected.split()[0].split(".")[1])
+        assert rounded_to_uncertainty(value, expanded) == float(expected.split()[0])
+
+    def test_nothing_to_round_to_leaves_the_value_alone(self) -> None:
+        """Without a usable U there is no reported decimal place to round to."""
+        assert reported_decimals(0.0) is None
+        assert reported_decimals(float("nan")) is None
+        assert rounded_to_uncertainty(10000.001200000035, 0.0) == 10000.001200000035
 
 
 class TestScope:

@@ -322,13 +322,14 @@ src/vcqi/
   crypto/    jcs.py  multibase.py  keys.py  ecdsa_p256.py  dataintegrity.py
              xmlc14n.py  xmldsig.py
   vc/        model.py  checks.py  recognition.py  verify.py  schema.py  status.py  resolver.py
-             portable.py  untp.py  datamodel.py
+             portable.py  untp.py  jsonld_terms.py  datamodel.py
   domain/    scope.py  scope_query.py  kcdb.py  accreditation.py  arrangement.py
              oiml.py  uncertainty.py  instruments.py  dcc.py  external_dcc.py
              engine.py  linprop.py  gtc_archive.py
   actors/    registry.py  scenarios.py  tamper.py  deployment.py  harmonisation.py
              portability.py  exchange.py  interop.py  edit.py
-  vendor/    untp/  the pinned UNTP schema, so the check runs with no network
+  vendor/    untp/  w3c/  the pinned UNTP 0.7.0 schema and contexts, so the checks run
+             with no network
   web/       app.py  static/
 tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_xmlc14n.py
              test_xmldsig.py  test_keys.py  test_domain.py  test_dcc.py  test_pipeline.py

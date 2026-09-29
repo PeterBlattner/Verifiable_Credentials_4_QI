@@ -2346,19 +2346,20 @@ async function chapterHarmonisation(context) {
 
 // One thing on the list above that was actually tried rather than argued about.
 //
-// The certificate-format item says the quality infrastructure has one mature format
-// without international standing and one standing format that does not reach metrology.
-// That is a claim, and a claim in this chapter is worth more if somebody has run it. So
-// both a calibration certificate and a certificate of conformity are really projected
-// into UN/CEFACT's Digital Conformity Credential, and the result is really validated
-// against the UNTP schema vendored in this repository -- the same document the UNTP
-// Playground fetches, pinned so the answer cannot change without a visible diff.
+// The certificate-format item weighs a mature format without international standing
+// against a standing one, and a claim in this chapter is worth more if somebody has run
+// it. So both a calibration certificate and a certificate of conformity are really
+// projected into UN/CEFACT's Digital Conformity Credential, the result is really validated
+// against the UNTP schema vendored in this repository -- the artefact the UNTP Playground
+// bundles, pinned so the answer cannot change without a visible diff -- and every term is
+// really expanded against the vendored contexts.
 //
-// The omissions are the finding. Where UNTP requires something the source certificate
-// does not state, the projection leaves it out and says why, rather than supplying a
-// plausible value; a required field satisfied by invention would turn a measurement
-// into a misstatement. Every schema error below is therefore one of those choices, and
-// the panel says so only when the server confirms the two lists agree.
+// The findings are the result. Where UNTP requires something the source certificate does
+// not state, the projection leaves it out and says why, rather than supplying a plausible
+// value; where it carries something UNTP refuses, it says so; where it supplies a value
+// the source does not literally state, it says that too. Every schema error below is one
+// of those findings, and the panel says so only when the server confirms the two agree
+// member by member.
 async function untpProbe(context, t) {
   // One panel's request must not take the chapter down with it. This chapter is mostly
   // an argument in prose plus twenty-odd harmonisation items, none of which depend on
@@ -2379,30 +2380,52 @@ async function untpProbe(context, t) {
   }
   const holder = el('div', {});
 
+  // One badge per kind of finding. Required and conflict are the two that fail the
+  // schema, so they share the colour a failure has everywhere else on these pages.
+  const KINDS = {
+    required: ['fail', 'required'],
+    conflict: ['fail', 'conflict'],
+    dropped: ['warn', 'dropped'],
+    judgement: ['neutral', 'judgement'],
+  };
+  const count = (entry, kind) => entry.findings.filter((item) => item.kind === kind).length;
+
   function show(entry) {
-    const omissions = entry.omissions.map((item) => [
-      item.required ? badge('fail', 'required') : badge('warn', 'dropped'),
+    const findings = entry.findings.map((item) => [
+      badge(...(KINDS[item.kind] || ['neutral', item.kind])),
       item.source,
       item.path,
       item.reason,
     ]);
-    clear(holder).append(
+    // Filtered rather than passed through: this is the native append, which would write
+    // the string "null" for a panel that has nothing to show.
+    clear(holder).append(...[
       el('div', { class: 'stat-row' }, [
-        stat(entry.omissions.length, 'members that could not be carried'),
-        stat(entry.blocking, 'of them required by UNTP'),
+        stat(count(entry, 'dropped'), 'said by the certificate, not carried'),
+        stat(count(entry, 'required'), 'required by UNTP, not stated'),
+        stat(count(entry, 'conflict'), 'carried as stated, refused'),
+        stat(count(entry, 'judgement'), 'supplied by judgement'),
         stat(entry.schemaErrors.length, 'errors the UNTP schema reports'),
       ]),
-      table(['', 'What the certificate says', 'Where it would have gone', 'Why it stayed behind'], omissions),
+      table(['', 'What the certificate says', 'Where', 'Why'], findings),
       entry.schemaErrors.length
         ? panel(t.text('probe.errors.title'), t.text('probe.errors.hint'), [
             table(
               ['Where', 'What the validator says'],
-              entry.schemaErrors.map((error) => [error.path, error.message])
+              entry.schemaErrors.map((error) => [error.member, error.message])
             ),
           ])
         : null,
-      takeaway(entry.name, exportForms(entry.name).filter((form) => form.key === 'untp'), null)
-    );
+      entry.termProblems.length
+        ? panel(t.text('probe.terms.title'), t.text('probe.terms.hint'), [
+            table(
+              ['Where', 'Term', 'What is wrong'],
+              entry.termProblems.map((item) => [item.path, item.term, `${item.kind} ${item.problem}`])
+            ),
+          ])
+        : null,
+      takeaway(entry.name, exportForms(entry.name).filter((form) => form.key === 'untp'), null),
+    ].filter(Boolean));
   }
 
   const picker = el(
@@ -2430,6 +2453,7 @@ async function untpProbe(context, t) {
     data.accountedFor
       ? el('p', { class: 'muted', text: t.text('probe.accounted') })
       : el('div', { class: 'callout', text: t.text('probe.unaccounted') }),
+    data.expands ? el('p', { class: 'muted', text: t.text('probe.expands') }) : null,
   ]);
 }
 

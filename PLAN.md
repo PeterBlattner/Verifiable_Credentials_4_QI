@@ -4480,3 +4480,147 @@ The PR goes into `develop` via a compare URL, because `gh` is unavailable.
     with the wording unchanged.
   - Full suite: 766 pass, 46 skipped. Not committed; waiting for Peter.
 
+# Change set 28 - the UNTP probe on 0.7.0, with the projection's own faults fixed
+
+## Context
+
+The Playground run recorded in change set 24 confirmed the offline schema check and
+nothing else. Step 4 never reached the signature; step 6 failed on a defect in UNTP 0.6.0
+itself. Reading the exported files against the source certificates found faults in the
+projection that pass the schema:
+
+1. `scope.issuingParty` and `authorisation.issuingAuthority` were filled with the scope
+   document itself - the KCDB CMC entry, the SAS scope - so the scheme issued itself. That
+   is the plausible fill the projection's rule forbids, and
+   `test_every_schema_error_is_a_recorded_omission` compared counts, so it could not see
+   a fill.
+2. `credentialStatus` was dropped, and no omission recorded it. UNTP's own VC profile
+   mandates Bitstring Status List.
+3. The credential, the attestation and the assessment shared one identifier, and so did
+   the scheme, its issuer, the endorsement and its authority. In RDF those merge.
+4. The value travelled as `10000.001200000035` with no uncertainty, where the certificate
+   reports `10000.0012 +/- 0.0011 ohm (k = 2)`.
+5. Minor: `registeredId: "type series"`, the IEC named by splitting `IEC 60335-1`, the
+   unit written `ohm` where UNECE Rec 20 has `OHM`, and an invented `linkType`.
+
+UNTP 0.6.0 is marked unmaintained. 0.7.0 was released on 4 May 2026, and change set 23
+already called it current; change set 24 pinned 0.6.0 without recording why. Against
+0.7.0, three of the chapter's claims no longer hold and one has to be retracted:
+
+- `conformance` is optional, so a calibration is no longer forced into a verdict.
+- `conformityTopic` is an open `{id, name}` list, and UNTP's topic vocabulary has
+  `metrology-and-measurement` - "accuracy and traceability of measurements and
+  calibrations to national and international measurement standards" - and
+  `product-safety-standards`.
+- `GlobalMRA` and `Accredited` are gone. `authority-globalmra` is defined as accreditation
+  under the Global Accreditation Cooperation MRA, which is the accreditation arrangement.
+  0.6.0 never defined `GlobalMRA`; reading it as the CIPM MRA was ours, and the claim that
+  UNTP already enumerated the CIPM MRA/accreditation distinction is retracted.
+- Still true: uncertainty has no member (`Measure` carries only `upperTolerance` and
+  `lowerTolerance`, which are limits), and units are Rec 20 codes.
+- New: `referenceScheme`, `assessmentCriteria`, `assessedPerformance`, a top-level `name`,
+  `specifiedCondition`, and `Link` with `digestMultibase`. `statusListIndex` is typed
+  `integer` while its own description says, like the W3C Recommendation of 15 May 2025,
+  "an arbitrary size integer ... expressed as a string in base 10".
+
+## Decisions
+
+Taken with Peter:
+
+- One change set: the 0.6.0 run is the baseline (change set 24), the faults are fixed, and
+  the projection moves to 0.7.0.
+- METAS carries `assessmentLevel: authority-peer` - peer assessment under an
+  intergovernmental body - recorded as a judgement, not a clean fit. The CAB carries
+  `authority-globalmra`, since SAS is a Global ACI signatory here.
+- The calibration's CMC is its `assessmentCriteria`: chapter 4 already checks the
+  certificate against the CMC's `outputValidation` schema.
+- `referenceScheme` is left out and recorded for both. The certificate claims the CIPM MRA
+  by name, and nothing in this world gives the arrangement an identifier; the recognition
+  credential lists signatories and is not the arrangement.
+- The rule is unchanged: carry what the source states, omit and record what it does not,
+  never fill with a plausible value. W3C is what the project answers to, so the status
+  entry is carried as W3C writes it and UNTP's refusal is recorded as a conflict.
+- Not here: Links to the uncertainty data or the traceability chain. A Link could point at
+  them but not say what they are.
+
+## Checklist
+
+- [x] 1. Change set 24 item 6: the 0.6.0 run recorded as the baseline
+- [x] 2. Vendor the 0.7.0 schema and context and the W3C v2 context, pinned by content
+      hash; remove the 0.6.0 schema
+- [x] 3. `domain/uncertainty.py`: the rounding rule as two helpers `format_measurement` uses
+- [x] 4. `vc/untp.py`: `Finding` with four kinds, location-matched schema errors, the
+      0.7.0 projection with the faults fixed, `project(source, lookup)`
+- [x] 5. `vc/jsonld_terms.py`: the offline stand-in for Playground step 6
+- [x] 6. `actors/interop.py` and `web/app.py`: the lookup, `findings`, `accountedFor` by
+      location
+- [x] 7. `untpProbe` in `chapters.js`: a badge and a count per kind
+- [x] 8. Prose: `12-harmonisation.md` probe, `13-exchange.md`, the `certificate-format`,
+      `units` and `uncertainty-transport` items
+- [x] 9. Tests: `test_untp.py` rewritten, `test_domain.py`, `test_web.py`
+- [x] 10. Docs: ARCHITECTURE.md, THIRD_PARTY_NOTICES.md, README.md
+- [x] 11. Verification: suite, `--dump` identical, deliberate break, harnesses
+- [ ] 12. Peter re-runs both `untp` exports through the Playground; table below
+
+## Progress log
+
+- 2026-09-30: plan approved. Branch `feature/untp-0-7-0` from `develop`. Baseline `--dump`
+  (86 documents) and chapter snapshots of issuing, harmonisation and exchange taken.
+- 2026-09-30: items 2-10.
+  - Vendored from the spec repository at tag `v0.7.0`, plus the W3C v2 context. All three
+    match the Playground's manifest by content hash (keys sorted, no whitespace); their raw
+    bytes match nothing, and the UNTP files arrived with CRLF, normalised to LF.
+  - `vc/untp.py`: `Finding` with `dropped`, `required`, `conflict`, `judgement`;
+    `schema_errors` adds `member`; `project(source, lookup)`. Blocking findings are exactly
+    the planned ones: three for each calibration, four for the certificate of conformity.
+  - Deviations from the plan, all small. The authority comes from `issuer.recognizedIn`
+    for every certificate, and the CAB gets a second endorsement for its scope, so callab's
+    SAS scope serves as its criterion (its digest recorded as dropped: a criterion has no
+    member for one). `assessorLevel` is derived from issuer and party rather than
+    hard-coded. `manufacturer` and the test reports' `issuer` are recorded as dropped.
+  - A correction to the plan's own wording: matching by member catches a fill of a member
+    recorded as missing (`test_a_plausible_fill_is_caught`), but a fill that raises no
+    error and records no finding is invisible to any error check. That is the shape of the
+    0.6.0 authority fill, so it is caught by the tests aimed at it -- the authority is the
+    issuer of its evidence, no identifier names two things -- not by the member check.
+  - `vc/jsonld_terms.py`: clean on all three projections. Run over the two 0.6.0 files
+    Peter uploaded, with the 0.6.0 context from the Playground's bundle, it reports exactly
+    the five undefined types, `ProductVerification` first, as the Playground did.
+  - `domain/uncertainty.py`: `reported_decimals` and `rounded_to_uncertainty`, and
+    `format_measurement` uses the first. The projected value is `10000.0012`.
+- 2026-09-30: item 11, verification.
+  - Full suite: 785 pass, 46 skipped (767 before).
+  - `--dump`: byte-identical to the baseline, 86 documents. The world did not change, and
+    the rounding refactor changed no `reported` string.
+  - Port 8000 was taken by a `uv run vc-demo` Peter had started, so the harnesses ran
+    against a server of this branch on port 8011 (`VCQI_BASE`). `ui-clicks.mjs`: every
+    control responds, harmonisation stays at 4. `chapter-snapshot.mjs`, twice: identical.
+    Against the baseline, issuing is identical, exchange differs by the one added
+    sentence, and harmonisation differs from the probe panel to the
+    `uncertainty-transport` item, with no `.content-missing`.
+
+## The Playground run on 0.7.0
+
+To be filled in from an actual run.
+
+| Step | metas-calibration | cab-conformity |
+|---|---|---|
+| 1. Proof Type Detection | | |
+| 2. VCDM Version Detection | | |
+| 3. VCDM Schema Validation | | |
+| 4. Credential Verification | | |
+| 5. UNTP Schema Validation | | |
+| 6. JSON-LD Expansion and Context Validation | | |
+| 7. Extension Schema Validation | | |
+
+Expected going in: 1-3 pass; 4 unchanged, `NotFoundError`, since nothing about the
+signature changed; 5 reports exactly the blocking findings - three for the calibration
+(`credentialStatus/statusListIndex`, `credentialSubject/referenceScheme`, the metric's
+`id`), four for the certificate of conformity (the same first two, the criterion's `id`,
+`assessedPerformance`); 6 passes, and a failure there means `vc/jsonld_terms.py` is wrong;
+7 does not run.
+
+## Git
+
+Branch `feature/untp-0-7-0` from `develop`, into `develop`. The change set 24 baseline is
+its own `docs(plan)` commit.

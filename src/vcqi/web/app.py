@@ -709,11 +709,13 @@ def get_untp() -> dict[str, Any]:
 
     Computed rather than editorial, like the portability and revocation audits: the
     credentials are really projected, the result is really validated against the UNTP
-    schema vendored in this repository, and the errors reported are the validator's.
+    schema vendored in this repository and expanded against the vendored contexts, and
+    the errors reported are the validator's.
 
     Returns:
-        The UNTP version probed, one entry per credential, and whether every schema
-        error corresponds to an omission the projection recorded and can explain.
+        The UNTP version probed, one entry per credential with its findings, schema
+        errors and unexpanded terms, whether every schema error is a finding the
+        projection recorded at that member, and whether every term expands.
     """
     return untp_audit(world())
 
