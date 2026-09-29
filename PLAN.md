@@ -3719,3 +3719,83 @@ used. An unsupported-cryptosuite answer at step 4 would be as useful as a pass.
 ## Git
 
 Branch `feature/untp-playground-check` from `develop`, into `develop`.
+
+# Change set 25 - what a credential looks like, and an everyday recognition
+
+## Context
+
+Chapter 0 explains a verifiable credential and Recognized Entities in the abstract, then
+goes straight to the QI mapping. A newcomer never sees what a credential looks like, how
+JSON-LD gives its member names meaning, or a recognition chain outside metrology. Peter
+asked for all three, with examples from daily life rather than from the QI.
+
+## Decisions taken
+
+**One story, the university degree** (Peter's choice). The generic credential is a
+bachelor's degree. The Recognized Entities example is the same degree with
+`recognizedIn` on its issuer, the state education authority's list it points into, and
+the walk an employer's software makes. This mirrors the live spec's §2.1 *Education* and
+its Example 4 (WD 06 September 2026, fetched while planning). Member names follow that
+draft: `recognizedTo` / `RecognizedAction` / `recognizedBy` / `outputValidation` on the
+entity, and `recognizedIn` on the leaf's issuer.
+
+**The examples say `ecdsa-rdfc-2019`**, as the spec's examples and a production system
+would. A callout says what this demonstration does instead (`ecdsa-jcs-2019`, fictional
+context), taken from ARCHITECTURE.md. Canonicalisation is only pointed at, because
+chapter 3 already shows it byte by byte.
+
+**The JSON lives in the markdown as fenced blocks**, so the pencil-edit route still
+works. `chapterOrientation` swaps each `json` fence that parses for `jsonView` output,
+with no `onFollow`, so the `.example` addresses are not clickable. A new test makes sure
+every JSON fence parses, so a stray comma fails CI instead of quietly falling back to
+plain text.
+
+## Checklist
+
+- [x] `01-orientation.md`: `json-ld`, `example-vc.*`, `securing`, `json-ld-here`, `example-re.*`
+- [x] `chapters.js`: render the new blocks; `colourJsonExamples`
+- [x] `app.css`: `.prose pre` spacing
+- [x] `test_content.py`: `test_every_json_example_parses`
+- [x] `content/README.md`: code/JSON row in "What you can write"
+- [x] Tests, the deliberate break, the jsdom snapshot and click harness
+- [ ] The page by eye in a real browser: light and dark, phone width (Peter)
+- [x] Commit, PR body
+
+## Progress log
+
+- 2026-09-29: branch `feature/orientation-json-ld` from `develop`. Plan approved. PLAN.md
+  was first overwritten by mistake with the plan alone, then restored from git before
+  anything was committed, and this section was appended.
+- 2026-09-29: content, renderer, CSS, test and editing guide written. Deviations from the
+  approved plan:
+  - Shortened signatures and digests end in a plain `…`, not a literal "…shortened…". The
+    panel hint and a sentence in the prose say they are shortened.
+  - A second live read of the spec showed that §4.1 checks only the list's proof, its
+    validity, and that the issuer is in it. The action and `outputValidation` are defined
+    but not required. So the walk lists the spec's steps, and `example-re.closing`
+    explains the scope check as something the spec leaves to the verifier and this
+    demonstration performs. The leaf's issuer is typed `RecognizedIssuer`, as §3.4
+    requires.
+  - "The quality infrastructure already works exactly this way" moved from
+    `the-gap-signatures-leave` to `example-re.closing`, so it follows the everyday
+    example instead of preceding it.
+  - The examples render with `json--tall`, because the degree would otherwise scroll by
+    a few lines.
+- 2026-09-29: verification.
+  - `uv run pytest`: 654 pass, 46 skipped.
+  - Deliberate break (one comma removed from the degree): the new test fails with
+    `orientation/example-vc.body: JSON example 1 does not parse`. Restored.
+  - `tools/chapter-snapshot.mjs orientation`: three `json json--tall` views, no plain
+    `pre.code` left, no `content-missing`, no `tok-link`, three panels, two tables, one
+    `<ol>`, two callouts.
+  - `tools/ui-clicks.mjs`: every control on all fourteen chapters responds.
+  - Not done: no real-browser look (Chrome extension declined). Light/dark theme and
+    phone width are unchecked by eye; `.json` already scrolls horizontally.
+- 2026-09-29: pre-PR check. The chapter 0 line in `README.md` now names the new material.
+  There is no CHANGELOG in this repository. The full suite gives 654 pass and 46 skipped,
+  the same as before; the skips were already there. Committed on
+  `feature/orientation-json-ld`, not pushed.
+
+## Git
+
+Branch `feature/orientation-json-ld` from `develop`, into `develop`.
