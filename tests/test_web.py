@@ -650,6 +650,26 @@ def test_the_untp_chip_list_matches_what_the_server_projects(client: TestClient)
     )
 
 
+def test_the_playground_note_names_the_documents_that_have_a_untp_form() -> None:
+    """The note under every other document sends the reader to these two by name.
+
+    It is prose, so it is a third copy of UNTP_PROJECTED, written as the chip labels a
+    reader would look for. Checked against the labels rather than the short names,
+    because a label is what the note has to match for the reader to find the chip.
+    """
+    source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
+    block = re.search(r"const UNTP_PROJECTED = \[(.*?)\];", source, re.DOTALL)
+    assert block, "could not find UNTP_PROJECTED in chapters.js"
+    note = blocks_for("issuing")["takeaway.no-untp"]["text"]
+
+    for name in re.findall(r"'([a-zA-Z0-9-]+)'", block.group(1)):
+        label = re.search(rf"'{re.escape(name)}': '([^']+)'", source)
+        assert label, f"no chip label for {name} in chapters.js"
+        assert label.group(1) in note, (
+            f"the issuing chapter's takeaway.no-untp note does not name {label.group(1)!r}"
+        )
+
+
 def test_every_export_form_downloads_as_a_file(client: TestClient) -> None:
     """The reader has to end up with a file, since the Playground takes a file.
 

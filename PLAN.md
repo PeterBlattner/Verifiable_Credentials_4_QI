@@ -3642,6 +3642,8 @@ Three things blocked this before any of it could be tried, and only two were fix
 - [x] 7. Docs corrected for the Playground's type check at upload: ARCHITECTURE.md, the
       `interop.py` docstring, the `get_export` docstring, and two comments in `vc/untp.py`
       and the tests
+- [x] 8. A note under the "Take it away" row in chapter 3 saying which file, if any, the
+      Playground accepts
 
 ## Progress log
 
@@ -3726,6 +3728,24 @@ arise at the Playground for the same reason. Docs corrected (item 7); no code ch
 
 Adding a UNTP type to get past the check is no way round it: the UNTP schema step would
 then fail the credential, and it would claim to be something it is not.
+
+**2026-09-29: chapter 3 now says so where the files are (item 8).** The "Take it away" row
+offered *As issued* and *Signed as did:key* for every document with nothing to say the
+Playground refuses both, which is how the refusal was found. A callout under the row now
+answers it per document, from two blocks in `04-issuing.md`: `takeaway.untp` for the two
+in `UNTP_PROJECTED`, saying only *As a UNTP credential* gets in, and `takeaway.no-untp`
+for the rest, saying none of the files does and naming the two documents that have a
+UNTP form. It is a plain callout, not the quiet variant, because it is a caution.
+
+- The second block names the two documents by their chip labels, so it is a third copy of
+  `UNTP_PROJECTED`. `test_the_playground_note_names_the_documents_that_have_a_untp_form`
+  checks it against the labels. Deliberate break: changing CPC-2026-0055 to 0056 in the
+  note failed it on that label. Restored.
+- The chapter 11 probe panel is unchanged: its row offers only the UNTP form already.
+- `ui-clicks.mjs`: every control responds, and the issuing floor stays at 13, since the
+  note adds a link and no button. A jsdom click-through printed the note for the opening
+  recognition and for AC-2026-1182 (none of the files) and for METAS-2026-0417 and
+  CPC-2026-0055 (only the UNTP one).
 
 ## The Playground run
 
