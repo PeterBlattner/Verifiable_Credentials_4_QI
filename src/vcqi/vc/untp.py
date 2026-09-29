@@ -59,7 +59,8 @@ UNTP_DCC_CONTEXT = f"https://test.uncefact.org/vocabulary/untp/dcc/{UNTP_VERSION
 #: The context array of a projected credential.
 UNTP_CONTEXT = [CONTEXT_CREDENTIALS_V2, UNTP_DCC_CONTEXT]
 
-#: The type array the Playground matches on to select a schema.
+#: The type array the Playground matches on, first to accept the upload at all and then to
+#: select a schema.
 UNTP_DCC_TYPE = ["VerifiableCredential", "DigitalConformityCredential"]
 
 #: The vendored copy of the schema the Playground fetches for this version. Vendored

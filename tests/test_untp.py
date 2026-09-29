@@ -115,9 +115,10 @@ class TestUntpProjection:
     """The mapping probe: what UNTP's vocabulary can carry, and what it cannot."""
 
     def test_the_playground_can_recognise_what_it_is(self) -> None:
-        # Both halves of what the Playground keys on: the type it matches to pick a
-        # schema, and a versioned test.uncefact.org context, without which its version
-        # detection reports "unknown" and the schema step never runs.
+        # Both halves of what the Playground keys on: the type, without which it refuses
+        # the upload outright and which it then matches to pick a schema, and a versioned
+        # test.uncefact.org context, without which its version detection reports
+        # "unknown" and the schema step never runs.
         world = build_world()
         projected = project(world.credential("metas-calibration")).credential
 

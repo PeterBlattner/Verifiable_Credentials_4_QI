@@ -12,6 +12,11 @@ JSON-LD context expansion -- and those are the ones this project answers to. The
 UNTP Schema Validation, is about UNTP conformance, which a calibration certificate is
 under no obligation to achieve; it is run here as a mapping probe rather than a target.
 
+It runs them only over UNTP's own credential types. Since its release 0.4.0 of
+21 September 2026 the Playground refuses any other ``type`` at upload, before the first
+step, so of the three forms below only ``untp`` reaches it. The other two remain the
+forms to hand to a verifier that takes an arbitrary W3C credential.
+
 This module produces the three artefacts to hand over and reports what can be determined
 without leaving the machine:
 
@@ -22,7 +27,8 @@ without leaving the machine:
   confirmation rather than news.
 * **portable** -- the same claims, same key, re-issued under the ``did:key`` that key
   stands for. This is the one that makes the cryptographic step answerable by a stranger.
-* **untp** -- the projection into UNTP's vocabulary, signed the same portable way.
+* **untp** -- the projection into UNTP's vocabulary, signed the same portable way. The
+  only form the Playground accepts, and it carries published contexts only.
 
 What the schema step says about the projection is computed here, offline, against the
 vendored schema. What the other steps say has to come from the Playground itself, and is

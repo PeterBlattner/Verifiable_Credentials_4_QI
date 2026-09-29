@@ -3637,7 +3637,11 @@ Three things blocked this before any of it could be tried, and only two were fix
       harmonisation chapter; `.takeaway` styles; the control floor
 - [x] 5. The `certificate-format` item rewritten around what the probe found; prose in
       `12-harmonisation.md`; `tests/test_untp.py` and three tests in `test_web.py`
-- [ ] 6. Run the three files through the Playground and record the seven steps below
+- [ ] 6. Run the `untp` file of each certificate through the Playground and record the
+      steps below (the other two forms are refused at upload since Playground 0.4.0)
+- [x] 7. Docs corrected for the Playground's type check at upload: ARCHITECTURE.md, the
+      `interop.py` docstring, the `get_export` docstring, and two comments in `vc/untp.py`
+      and the tests
 
 ## Progress log
 
@@ -3694,27 +3698,58 @@ the trade-off `did_key_document` already argued in its docstring, now demonstrab
 resolvable. Both would tie issuance to the deployed instance and break the `.example`
 convention in `scenarios.py`; the context one is what step 6 needs, and it stays open.
 
+**2026-09-29: the Playground now refuses everything that is not a UNTP type.** Peter
+uploaded `bipm-recognition-native.json` to the current release at
+`https://test.uncefact.org/test-untp-playground` and got one error and no steps:
+*unsupported credential type - the declared type(s) "VerifiableCredential",
+"RecognizedEntityCredential" are not a UNTP credential type the Playground validates*. A
+colleague's NATA `DigitalIdentityAnchor` (an enveloped JWT under a resolvable `did:web`,
+with the UNTP 0.7.0 context) passed all six steps it ran.
+
+The cause is in the Playground's source (`uncefact/tests-untp`, branch `next`): the upload
+handler in `packages/untp-playground/src/app/page.tsx` compares `type` with
+`permittedCredentialTypes` in `constants.ts` - DigitalProductPassport,
+DigitalConformityCredential, DigitalFacilityRecord, DigitalIdentityAnchor,
+DigitalTraceabilityEvent - and returns before any step on a miss. The release notes for
+0.4.0 (2026-09-21) introduce it: "unsupported types ... fail schema selection before a
+schema is fetched". This change set was built on 2026-09-18 against 0.3.0, and the
+expectations below assumed a non-UNTP credential would run through and show `Unknown` at
+step 5. It no longer does.
+
+What that changes: only the `untp` form of the two certificates can reach the Playground
+at all. The native and portable forms of every credential, recognitions and accreditations
+included, are refused unread, so the Playground has stopped being an outside check of the
+W3C layer for anything that is not UNTP's. The portable form keeps its purpose for any
+verifier that takes an arbitrary W3C credential. The watch item recorded in change set 26,
+that the portable exports carry a `credentialSchema` nobody outside can fetch, does not
+arise at the Playground for the same reason. Docs corrected (item 7); no code changed.
+
+Adding a UNTP type to get past the check is no way round it: the UNTP schema step would
+then fail the credential, and it would claim to be something it is not.
+
 ## The Playground run
 
-To be filled in from an actual run. Three files per credential, from the "Take it away"
-row in chapter 3 or the probe panel in chapter 11.
+To be filled in from an actual run. One file per certificate - the `untp` form, from
+*As a UNTP credential* in the "Take it away" row of chapter 3 or the probe panel in
+chapter 11, or `GET /api/export/{name}?form=untp`. The `native` and `portable` forms are
+refused at upload since Playground 0.4.0 and have no column.
 
-| Step | native | portable | untp |
-|---|---|---|---|
-| 1. Proof Type Detection | | | |
-| 2. VCDM Version Detection | | | |
-| 3. VCDM Schema Validation | | | |
-| 4. Credential Verification | | | |
-| 5. UNTP Schema Validation | | | |
-| 6. JSON-LD Expansion and Context Validation | | | |
-| 7. Extension Schema Validation | | | |
+| Step | metas-calibration | cab-conformity |
+|---|---|---|
+| 1. Proof Type Detection | | |
+| 2. VCDM Version Detection | | |
+| 3. VCDM Schema Validation | | |
+| 4. Credential Verification | | |
+| 5. UNTP Schema Validation | | |
+| 6. JSON-LD Expansion and Context Validation | | |
+| 7. Extension Schema Validation | | |
 
-Expected going in: 1-3 pass for all three; 4 fails for `native` and is the open question
-for the other two, since `ecdsa-jcs-2019` is a valid W3C cryptosuite that the Playground's
-verifier may or may not implement; 5 reports `Unknown` for the first two and the two
-recorded errors for `untp`; 6 fails for all three, for `native` and `portable` on the
-fictional context and for `untp` only if the UNTP vocabulary does not expand every term
-used. An unsupported-cryptosuite answer at step 4 would be as useful as a pass.
+Expected going in: 1-3 pass; 4 is the open question, since `ecdsa-jcs-2019` is a valid W3C
+cryptosuite that the Playground's verifier may or may not implement, and the `did:key`
+issuer needs no lookup; 5 reports the two recorded errors; 6 passes unless the UNTP
+vocabulary does not expand every term used, since the projection carries only the W3C and
+`test.uncefact.org/vocabulary/untp/dcc/0.6.0/` contexts; 7 does not run, as there is no
+extension. An unsupported-cryptosuite answer at step 4 would be as useful as a pass.
 
 ## Git
 

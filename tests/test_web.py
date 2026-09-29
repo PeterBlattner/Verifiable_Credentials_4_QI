@@ -654,7 +654,8 @@ def test_every_export_form_downloads_as_a_file(client: TestClient) -> None:
     """The reader has to end up with a file, since the Playground takes a file.
 
     A JSON body rendered in a browser tab would be the same bytes and no use: the
-    Playground's uploader accepts a drop or a file picker, not a tab.
+    Playground's uploader accepts a drop, a file picker, or a URL it fetches itself, and
+    it refuses private addresses, so a URL cannot reach a demonstrator on localhost.
     """
     for form in ("native", "portable", "untp"):
         response = client.get(f"/api/export/metas-calibration?form={form}")
