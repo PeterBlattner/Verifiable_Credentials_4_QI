@@ -3,18 +3,24 @@
 from __future__ import annotations
 
 import copy
+import socket
 from datetime import datetime, timezone
+from typing import Any
 
 import pytest
 
 from vcqi.actors.registry import TRUST_ANCHORS
 from vcqi.actors.scenarios import BIPM_RECOGNITION, DEMO_NOW, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
+from vcqi.crypto.jcs import canonicalize
+from vcqi.crypto.multibase import digest_sri
 from vcqi.domain import accreditation as accreditation_registry
 from vcqi.domain import arrangement as arrangement_registry
+from vcqi.vc.datamodel import JSON_SCHEMA_DIALECT
 from vcqi.vc.recognition import discover_recognition
-from vcqi.vc.resolver import Resolver
-from vcqi.vc.verify import verify_credential
+from vcqi.vc.resolver import DocumentStore, Resolver
+from vcqi.vc.schema import schema_reference
+from vcqi.vc.verify import _step_output_validation, verify_credential
 
 #: Every credential the base world issues, which
 #: :meth:`TestWorld.test_every_credential_verifies` checks end to end. Status lists are
@@ -635,3 +641,136 @@ class TestArrangementScope:
         outcome = dict(chain.hops[1].checks)["arrangement-scope"]
         assert outcome.evidence["grantedTo"] == "did:web:callab.example"
         assert outcome.evidence["granted"] == ["Calibration under ISO/IEC 17025:2017"]
+
+
+def _output_schema(name: str, **body: Any) -> dict[str, Any]:
+    """Return a small draft 2020-12 schema published under a recogniser's address."""
+    return {
+        "$schema": JSON_SCHEMA_DIALECT,
+        "$id": f"https://recogniser.example/schemas/{name}.json",
+        **body,
+    }
+
+
+#: Satisfied by every credential, which is what makes it useful beside the one below.
+_ANY_CREDENTIAL = {"type": "object", "required": ["credentialSubject"]}
+
+#: Satisfied by none, and naming the member it wants.
+_NO_CREDENTIAL = {
+    "properties": {"credentialSubject": {"required": ["nonesuch"]}},
+}
+
+
+class TestOutputValidation:
+    """``output-validation``: one schema or several, each held to the data model's standard.
+
+    The step is called directly, with a recognised action written here, because reaching
+    a list of schemas through the pipeline would need a recognition re-signed to carry
+    one -- and what is under test is what the step makes of it, not the signing.
+    """
+
+    @staticmethod
+    def _step(world, reference: Any, *schemas: dict[str, Any]):
+        """Publish the schemas, then check metas-calibration against the reference."""
+        store = DocumentStore()
+        for schema in schemas:
+            store.publish(schema["$id"], schema, "schema")
+        resolver = Resolver(store)
+        step = _step_output_validation(
+            world.credential("metas-calibration"),
+            {"type": "RecognizedAction", "outputValidation": reference},
+            resolver,
+        )
+        return step, resolver
+
+    def test_one_reference_is_reported_as_it_always_was(self, world) -> None:
+        """The world's recognitions name one schema each; their step must not change."""
+        schema = _output_schema("any", **_ANY_CREDENTIAL)
+        step, _ = self._step(world, schema_reference(schema), schema)
+        assert step.status == "pass"
+        assert step.detail == (
+            f"validates against {schema['$id']}, whose content digest matches the one "
+            f"recorded in the recognition"
+        )
+        assert step.evidence == {"schema": schema["$id"]}
+
+    def test_every_schema_named_is_evaluated(self, world) -> None:
+        """Two schemas, both satisfied: a pass that names both."""
+        first = _output_schema("first", **_ANY_CREDENTIAL)
+        second = _output_schema("second", **_ANY_CREDENTIAL)
+        step, _ = self._step(
+            world, [schema_reference(first), schema_reference(second)], first, second
+        )
+        assert step.status == "pass", step.detail
+        assert step.evidence == {"schemas": [first["$id"], second["$id"]]}
+
+    def test_one_unsatisfied_schema_fails_the_document(self, world) -> None:
+        """A document issued under the recognition has to satisfy each, not one of them."""
+        satisfied = _output_schema("satisfied", **_ANY_CREDENTIAL)
+        unsatisfied = _output_schema("unsatisfied", **_NO_CREDENTIAL)
+        step, _ = self._step(
+            world,
+            [schema_reference(satisfied), schema_reference(unsatisfied)],
+            satisfied,
+            unsatisfied,
+        )
+        assert step.status == "fail"
+        assert "nonesuch" in step.detail
+        # Which of the two refused it, because the complaint alone does not say.
+        assert unsatisfied["$id"] in step.detail
+
+    def test_a_list_that_names_nothing_is_skipped(self, world) -> None:
+        """No schema to evaluate, which is said rather than passed."""
+        step, _ = self._step(world, [])
+        assert step.status == "skip"
+
+    def test_a_schema_with_no_digest_is_a_warning(self, world) -> None:
+        """It validates, but nothing says it is the schema the recognition was made against."""
+        schema = _output_schema("unpinned", **_ANY_CREDENTIAL)
+        reference = {"id": schema["$id"], "type": "JsonSchema"}
+        step, _ = self._step(world, reference, schema)
+        assert step.status == "warn"
+        assert "recorded no digest" in step.detail
+
+    def test_a_digest_sri_is_checked_as_well(self, world) -> None:
+        """The data model's second spelling, and a mismatch in it is a changed schema."""
+        schema = _output_schema("sri", **_ANY_CREDENTIAL)
+        reference = {
+            "id": schema["$id"],
+            "type": "JsonSchema",
+            "digestSRI": digest_sri(canonicalize({**schema, "title": "as recognised"})),
+        }
+        step, _ = self._step(world, reference, schema)
+        assert step.status == "fail"
+        assert "changed since recognition was granted" in step.detail
+        assert step.evidence["mismatched"] == ["digestSRI"]
+
+    def test_validation_never_reaches_for_the_network(self, world, monkeypatch) -> None:
+        """A reference outside the schema is past its digest, so it is not followed."""
+
+        def refuse(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the validator tried to open a connection")
+
+        monkeypatch.setattr(socket.socket, "connect", refuse)
+        schema = _output_schema("elsewhere", **{"$ref": "https://elsewhere.example/loose.json"})
+        step, _ = self._step(world, schema_reference(schema), schema)
+        assert step.status == "warn"
+        assert "refers outside itself" in step.detail
+
+    def test_another_draft_is_indeterminate(self, world) -> None:
+        """Only draft 2020-12 is evaluated, as the JSON Schema profile for credentials asks."""
+        schema = {
+            **_output_schema("draft-07", **_ANY_CREDENTIAL),
+            "$schema": "http://json-schema.org/draft-07/schema#",
+        }
+        step, _ = self._step(world, schema_reference(schema), schema)
+        assert step.status == "warn"
+        assert "indeterminate" in step.detail
+
+    def test_another_type_is_not_evaluated_or_fetched(self, world) -> None:
+        """A validator of a kind this verifier does not run is named, not guessed at."""
+        reference = {"id": "https://recogniser.example/shapes/any.ttl", "type": "ShaclValidator"}
+        step, resolver = self._step(world, reference)
+        assert step.status == "warn"
+        assert "does not evaluate" in step.detail
+        assert resolver.log == []
