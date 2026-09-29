@@ -42,7 +42,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Final
 
-from jsonschema import Draft202012Validator
 from referencing.exceptions import Unresolvable
 
 from vcqi.crypto.jcs import canonicalize
@@ -1161,6 +1160,34 @@ def _schema_message(error: Any) -> str:
     return f"{message[:_SCHEMA_MESSAGE_LIMIT]}..."
 
 
+def _digest_pins(
+    schema: dict[str, Any], reference: dict[str, Any]
+) -> tuple[list[str], list[str]]:
+    """Check a fetched schema against the digests its reference recorded.
+
+    Both spellings, over the RFC 8785 canonical form, which is what the references in
+    this world record. Either may be absent; one that is present and does not match
+    breaks the pin.
+
+    Args:
+        schema: The schema as fetched.
+        reference: The ``credentialSchema`` or ``outputValidation`` reference to it.
+
+    Returns:
+        The digests the reference recorded, and those among them the schema fails.
+    """
+    canonical = canonicalize(schema)
+    checks = [
+        (name, check(canonical, reference[name]))
+        for name, check in (
+            ("digestSRI", verify_digest_sri),
+            ("digestMultibase", verify_digest_multibase),
+        )
+        if isinstance(reference.get(name), str)
+    ]
+    return [name for name, _ in checks], [name for name, matched in checks if not matched]
+
+
 _DATA_MODEL_TITLE: Final[str] = "Document has the shape its type declares"
 
 
@@ -1244,16 +1271,7 @@ def _step_data_model(credential: dict[str, Any], resolver: Resolver) -> Step:
     if schema is None:
         return step(FAIL, f"the data model at {url} could not be retrieved", dataModel=url)
 
-    canonical = canonicalize(schema)
-    pins = [
-        (name, check(canonical, reference[name]))
-        for name, check in (
-            ("digestSRI", verify_digest_sri),
-            ("digestMultibase", verify_digest_multibase),
-        )
-        if isinstance(reference.get(name), str)
-    ]
-    broken = [name for name, matched in pins if not matched]
+    pins, broken = _digest_pins(schema, reference)
     if broken:
         mismatch = (
             f"matches neither the {broken[0]} nor the {broken[1]}"
@@ -1314,7 +1332,7 @@ def _step_data_model(credential: dict[str, Any], resolver: Resolver) -> Step:
             f"the model may have changed since the credential was issued",
             dataModel=url,
         )
-    pinned = " and ".join(name for name, _ in pins)
+    pinned = " and ".join(pins)
     return step(
         PASS,
         f"validates against {url}, the data model published for a {type_name}, whose "
@@ -1323,87 +1341,152 @@ def _step_data_model(credential: dict[str, Any], resolver: Resolver) -> Step:
     )
 
 
-def _step_output_validation(
-    credential: dict[str, Any], action: dict[str, Any] | None, resolver: Resolver
-) -> Step:
-    """Validate the credential against the schema its recognition names.
+_OUTPUT_VALIDATION_TITLE: Final[str] = "Document matches the schema its recognition names"
+
+
+def _output_schema_outcome(
+    credential: dict[str, Any], reference: dict[str, Any], resolver: Resolver
+) -> tuple[str, str, dict[str, Any]]:
+    """Validate the credential against one schema its recognition names.
+
+    In the order ``shape.data-model`` takes, and to the same standard: the digest is
+    checked before the schema is used, only draft 2020-12 is evaluated, and nothing is
+    fetched that the digest does not cover.
 
     Args:
         credential: The credential being verified.
-        action: The recognised action that authorised it, if one was matched.
+        reference: One ``outputValidation`` reference, with a string ``id``.
         resolver: Used to retrieve the schema.
 
     Returns:
-        The step.
+        The status, the detail and the evidence.
     """
-    if action is None:
-        return Step(
-            id="output-validation",
-            title="Document matches the schema its recognition names",
-            status=SKIP,
-            detail="not evaluated, because no recognised action was matched",
+    url = reference["id"]
+    if reference.get("type") != "JsonSchema":
+        return (
+            WARN,
+            f"the recognition names an output schema of type {reference.get('type')!r}, "
+            f"which this verifier does not evaluate",
+            {"schema": url},
         )
 
-    reference = action.get("outputValidation")
-    if not isinstance(reference, dict) or not isinstance(reference.get("id"), str):
-        return Step(
-            id="output-validation",
-            title="Document matches the schema its recognition names",
-            status=SKIP,
-            detail="the recognition names no output schema",
-        )
-
-    schema_url = reference["id"]
-    schema = resolver.fetch(schema_url)
+    schema = resolver.fetch(url)
     if schema is None:
-        return Step(
-            id="output-validation",
-            title="Document matches the schema its recognition names",
-            status=FAIL,
-            detail=f"the schema at {schema_url} could not be retrieved",
-            evidence={"schema": schema_url},
+        return FAIL, f"the schema at {url} could not be retrieved", {"schema": url}
+
+    pins, broken = _digest_pins(schema, reference)
+    if broken:
+        return (
+            FAIL,
+            f"the schema at {url} does not match the digest recorded in the recognition, "
+            f"so it has been changed since recognition was granted",
+            {"schema": url, "mismatched": broken},
         )
 
-    expected_digest = reference.get("digestMultibase")
-    if isinstance(expected_digest, str):
-        if not verify_digest_multibase(canonicalize(schema), expected_digest):
-            return Step(
-                id="output-validation",
-                title="Document matches the schema its recognition names",
-                status=FAIL,
-                detail=(
-                    f"the schema at {schema_url} does not match the digest recorded in "
-                    f"the recognition, so it has been changed since recognition was granted"
-                ),
-                evidence={"schema": schema_url, "expectedDigest": expected_digest},
-            )
+    if schema.get("$schema") != JSON_SCHEMA_DIALECT:
+        return (
+            WARN,
+            f"the schema at {url} declares {schema.get('$schema')!r}, and only draft "
+            f"2020-12 is evaluated here, so the outcome is indeterminate",
+            {"schema": url},
+        )
 
-    errors = sorted(
-        _schema_failures(Draft202012Validator(schema).iter_errors(credential)),
-        key=lambda e: list(e.absolute_path),
-    )
+    try:
+        errors = sorted(
+            _schema_failures(validator_for(schema).iter_errors(credential)),
+            key=lambda e: list(e.absolute_path),
+        )
+    except Unresolvable as error:
+        return (
+            WARN,
+            f"the schema at {url} refers outside itself ({error.ref}), which its digest "
+            f"does not cover, so it was not evaluated",
+            {"schema": url},
+        )
     if errors:
-        return Step(
-            id="output-validation",
-            title="Document matches the schema its recognition names",
-            status=FAIL,
-            detail="; ".join(
+        return (
+            FAIL,
+            "; ".join(
                 f"{'/'.join(str(part) for part in error.absolute_path) or 'document'}: "
                 f"{_schema_message(error)}"
                 for error in errors[:4]
             ),
-            evidence={"schema": schema_url, "errorCount": len(errors)},
+            {"schema": url, "errorCount": len(errors)},
         )
 
-    return Step(
-        id="output-validation",
-        title="Document matches the schema its recognition names",
-        status=PASS,
-        detail=(
-            f"validates against {schema_url}, whose content digest matches the one "
-            f"recorded in the recognition"
-        ),
-        evidence={"schema": schema_url},
+    if not pins:
+        return (
+            WARN,
+            f"validates against {url}, but the recognition recorded no digest of it, so "
+            f"the bounds may have changed since recognition was granted",
+            {"schema": url},
+        )
+    return (
+        PASS,
+        f"validates against {url}, whose content digest matches the one recorded in the "
+        f"recognition",
+        {"schema": url},
+    )
+
+
+def _step_output_validation(
+    credential: dict[str, Any], action: dict[str, Any] | None, resolver: Resolver
+) -> Step:
+    """Validate the credential against every schema its recognition names.
+
+    The specification allows "one or more data schemas", and a document issued under the
+    recognition has to satisfy each of them, so the worst outcome among them is the
+    step's. Each is pinned by its content digest and evaluated without the network.
+
+    Args:
+        credential: The credential being verified.
+        action: The recognised action that authorised it, if one was matched.
+        resolver: Used to retrieve the schemas.
+
+    Returns:
+        The step.
+    """
+
+    def step(status: str, detail: str, evidence: dict[str, Any] | None = None) -> Step:
+        """Return the step with this outcome; every branch below ends in one."""
+        return Step(
+            id="output-validation",
+            title=_OUTPUT_VALIDATION_TITLE,
+            status=status,
+            detail=detail,
+            evidence=evidence or {},
+        )
+
+    if action is None:
+        return step(SKIP, "not evaluated, because no recognised action was matched")
+
+    declared = action.get("outputValidation")
+    references = [
+        item
+        for item in (declared if isinstance(declared, list) else [declared])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    ]
+    if not references:
+        return step(SKIP, "the recognition names no output schema")
+
+    outcomes = [
+        _output_schema_outcome(credential, reference, resolver) for reference in references
+    ]
+    if len(outcomes) == 1:
+        return step(*outcomes[0])
+
+    for status in (FAIL, WARN):
+        for outcome_status, detail, evidence in outcomes:
+            if outcome_status == status:
+                # Which of several schemas is speaking, when the detail does not say.
+                url = evidence["schema"]
+                return step(status, detail if url in detail else f"{url}: {detail}", evidence)
+    urls = [evidence["schema"] for _, _, evidence in outcomes]
+    return step(
+        PASS,
+        f"validates against all {len(urls)} schemas the recognition names, "
+        f"{', '.join(urls)}, and each matches the content digest recorded for it",
+        {"schemas": urls},
     )
 
 

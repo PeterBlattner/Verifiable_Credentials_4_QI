@@ -779,7 +779,7 @@ belongs to whoever owns the vocabulary, as the context does.
 | `status` | a signature says what was true at issue; only the status list says what is true now |
 | `recognition` | the Recognized Entities contribution: getting from an unknown issuer to a trusted identifier, and at each hop whether the recognition granted there was the granting body's to grant |
 | `action` | being recognised is not being recognised *for this*, at *this time*, under *this capability* |
-| `output-validation` | the schema the recognition names, pinned by content digest |
+| `output-validation` | the schema or schemas the recognition names, each pinned by content digest and evaluated without the network, to the same standard as `shape.data-model` |
 | `scope` | the numeric decision a schema cannot express — and, first, which row of a published table that decision is to be taken against |
 | `mra-logo` | whether a claim of international recognition is justified |
 | `uncertainty` | whether the stated U is supported by the budget offered for it, whether every representation matches its recorded digest, and whether the printed line agrees with the dependency data |

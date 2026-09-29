@@ -439,13 +439,14 @@ def _recognized_entity() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
                 "action": _string(),
                 "recognizedBy": _string(),
                 "description": _string(),
-                "outputValidation": _object(
-                    {
-                        "id": _url(),
-                        "type": _const("JsonSchema"),
-                        "digestMultibase": _string(),
-                    }
-                ),
+                # "One or more data schemas", in the specification's words: one here,
+                # but a recognition naming two is as well-formed as one naming one.
+                "outputValidation": {
+                    "anyOf": [
+                        _ref("schemaReference"),
+                        _array(_ref("schemaReference"), at_least=1),
+                    ]
+                },
                 "capabilityReference": _ref("capabilityReference"),
                 "mainScope": _object(
                     {
@@ -462,6 +463,13 @@ def _recognized_entity() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
             "mainScope",
             "validFrom",
             "validUntil",
+        ),
+        "schemaReference": _object(
+            {
+                "id": _url(),
+                "type": _const("JsonSchema"),
+                "digestMultibase": _string(),
+            }
         ),
     }
     return subject, local, {}
