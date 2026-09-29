@@ -99,6 +99,7 @@ from vcqi.domain.uncertainty import (
     rectangular,
 )
 from vcqi.vc.checks import credential_types, issuer_id
+from vcqi.vc.datamodel import DATA_MODEL_URLS
 from vcqi.vc.resolver import DID_KEY_PREFIX, did_key_document
 from vcqi.vc.verify import verify_credential
 from vcqi.web.content import content_payload
@@ -535,8 +536,15 @@ def _graph() -> dict[str, Any]:
 def get_world() -> dict[str, Any]:
     """Return everything the interface needs to render the demonstration.
 
+    ``credentialTypes`` lists the types that have a published data model, in chain
+    order, each with the model's own title and its address. Chapter 3 labels its type
+    picker from the title, so the button and the schema under it cannot disagree about
+    what the type is called, and fetches the model from the address like any other
+    document.
+
     Returns:
-        The trust graph, the credential index, the registries and the failure cases.
+        The trust graph, the credential index, the credential types, the registries and
+        the failure cases.
     """
     current = world()
     credentials = []
@@ -556,6 +564,10 @@ def get_world() -> dict[str, Any]:
     return {
         "graph": _graph(),
         "credentials": credentials,
+        "credentialTypes": [
+            {"type": type_name, "title": current.data_models[url]["title"], "schema": url}
+            for type_name, url in DATA_MODEL_URLS.items()
+        ],
         "cmcEntries": [entry.to_json() for entry in CMC_ENTRIES],
         "accreditations": [scope.to_json() for scope in ACCREDITATION_SCOPES],
         "tamperCases": [case.to_json() for case in TAMPER_CASES],

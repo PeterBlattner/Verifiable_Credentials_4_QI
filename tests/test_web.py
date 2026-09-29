@@ -59,9 +59,10 @@ def test_every_node_has_a_position_in_the_diagram(client: TestClient) -> None:
 def test_every_credential_has_a_label_in_the_interface(client: TestClient) -> None:
     """A credential missing from CREDENTIAL_LABELS is unreachable in chapters 3 and 4.
 
-    Both the chip picker and the document selector are built from that object's keys, so
-    a credential absent from it verifies perfectly well over the API and simply cannot
-    be chosen. Nothing raised, nothing logged: it is just not there.
+    Both chapter 3's document chips -- grouped under their types, but drawn from that
+    object's keys -- and chapter 4's document selector are built from it, so a credential
+    absent from it verifies perfectly well over the API and simply cannot be chosen.
+    Nothing raised, nothing logged: it is just not there.
     """
     source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
     block = re.search(r"const CREDENTIAL_LABELS = \{(.*?)^\};", source, re.DOTALL | re.MULTILINE)
@@ -77,8 +78,8 @@ def test_every_credential_has_a_label_in_the_interface(client: TestClient) -> No
 def test_every_credential_has_a_note_under_the_picker() -> None:
     """A chip with no note would show the previous document's explanation.
 
-    Chapter 3's picker draws a chip per ``CREDENTIAL_LABELS`` key and ``chapterIssuing``
-    keeps a note per key beside it. The two are written out separately -- they have to
+    Chapter 3 draws a document chip per ``CREDENTIAL_LABELS`` key, under the type it
+    belongs to, and ``chapterIssuing`` keeps a note per key beside it. The two are written out separately -- they have to
     be, since content keys must be literal strings -- so nothing but this stops one
     growing an entry the other does not have. The failure is quiet: the box simply keeps
     whatever it was showing before, which reads as an answer rather than as a gap.
@@ -99,6 +100,30 @@ def test_every_credential_has_a_note_under_the_picker() -> None:
 
     assert not labelled - noted, f"no note under the picker for: {sorted(labelled - noted)}"
     assert not noted - labelled, f"a note for a document with no chip: {sorted(noted - labelled)}"
+
+
+def test_every_credential_type_offered_has_a_data_model(client: TestClient) -> None:
+    """Chapter 3's type chips come from the credentials, their labels from the models.
+
+    The chapter groups documents by the ``type`` the world index reports, and looks each
+    type up in ``credentialTypes`` for its label and the address of its data model. A
+    type the index reports and the list does not know would still get a chip -- labelled
+    with its bare type name, over a box saying no data model is published. So the two
+    are compared here, and every address is fetched the way the chapter fetches it.
+    """
+    data = client.get("/api/world").json()
+    offered = {
+        item["type"] for item in data["credentials"] if not item["name"].startswith("status-")
+    }
+    listed = {entry["type"]: entry for entry in data["credentialTypes"]}
+    assert offered == set(listed)
+    for entry in data["credentialTypes"]:
+        response = client.get("/api/document", params={"url": entry["schema"]})
+        assert response.status_code == 200, entry["schema"]
+        body = response.json()
+        assert body["kind"] == "data-model"
+        assert body["document"]["$id"] == entry["schema"]
+        assert entry["title"] and body["document"]["title"] == entry["title"]
 
 
 def test_the_one_string_panel_finds_both_registers(client: TestClient) -> None:

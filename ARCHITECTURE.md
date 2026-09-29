@@ -294,7 +294,7 @@ that would fail a digest check. Results computed with the software are data; the
 restricts distributing the software.
 
 **One difference is real and worth recording.** Four budget lines across the world as it
-then stood -- 59 documents, where the build now dumps 78 -- moved by one unit in the last
+then stood -- 59 documents, where the build now dumps 86 -- moved by one unit in the last
 place when the engine changed, which also moved the three digests and six signatures that
 cover them. UncLib computes a budget
 contribution by inverting the dependency matrix, so its rounding depends on the whole
@@ -538,7 +538,7 @@ Four kinds, three reasons:
   accreditation half has already been collected: the scopes are published as signed
   credentials and travel, without this list changing at all. What *sign the KCDB* is worth
   on the harmonisation ladder is now the remainder, and chapter 12 prices it at one of the
-  thirty-two documents.
+  thirty-five documents.
 
 Everything else -- credentials, schemas, uncertainty data -- either carries its own
 signature or is covered by a `digestMultibase` inside one, so a copy from any source is
@@ -724,12 +724,56 @@ arrive, because `conformance` is a required boolean, `conformityTopic` is requir
 sustainability-only, and `Metric` and `Measure` are closed to extension so uncertainty has
 nowhere to go.
 
+### A data model is not a permission
+
+Every credential of the eight types names its data model in `credentialSchema`: a JSON
+Schema per type, written in `vc/datamodel.py`, published at
+`https://vcqi.example/schemas/<type>.json`, and referenced with `type: "JsonSchema"` as
+the VC JSON Schema specification profiles it. Chapter 3 shows the model of whichever type
+is picked; chapter 4 checks it as `shape.data-model`.
+
+The project already had schemas, and these are a different thing. The `outputValidation`
+schema a recognition names says what a recognised issuer **may** issue — this measurand,
+this range — and is written by whoever grants the recognition. A data model says what a
+document of the type **is**, the same for every issuer. So they are kept apart everywhere:
+`World.schemas` and `World.data_models`, store kinds `schema` and `data-model`, two steps
+in the pipeline. A certificate can pass one and fail the other.
+
+Four decisions shape them.
+
+- **Self-contained.** The reference carries a digest — `digestSRI`, which the profile
+  names, and `digestMultibase`, which every other pinned reference here uses — over the
+  JCS canonical form. A digest covers one document, and a `$ref` to another address would
+  leave whatever it points at unpinned. So the envelope and the shared parts sit in each
+  model's own `$defs`, generated from one builder each, and `validator_for` gives
+  `jsonschema` an empty registry, so that a reference outside the document is an error
+  rather than a request.
+- **Open.** No `additionalProperties: false`, which the profile advises against because
+  credentials are meant to be extended. The completeness the box in chapter 3 needs is a
+  test instead: `tests/test_datamodel.py` walks every credential in the world and fails on
+  any member its model does not declare.
+- **Pinned by type.** The credential chooses its own `credentialSchema`, so the verifier
+  does not take the choice on trust: `DATA_MODEL_URLS` says which model belongs to which
+  type, and a credential naming another fails. Without that an issuer could cite a
+  schema that admits anything and pass.
+- **Nested under `shape`.** It is the same question asked properly, and the rule that new
+  checks nest rather than lengthen the top level is a test
+  (`test_the_top_level_pipeline_is_still_eleven_steps`). Unlike a generic shape failure
+  it does not stop the pipeline.
+
+The cost is that every credential's signed bytes changed when this landed, and that the
+verifier now fetches one more document per credential it checks — which is why the
+figures quoted for the conformity certificate moved from 32 documents on 7 hosts to 35 on
+8. The eighth host is `vcqi.example`, which no organisation in this world runs: the model
+belongs to whoever owns the vocabulary, as the context does.
+
 
 ## What the pipeline checks, and why each step exists
 
 | Step | Exists because |
 | --- | --- |
 | `shape` | a document that is not a credential should fail as that, not as a bad signature |
+| `shape.data-model` | a credential should have the shape its type declares, checked against the model published for that type and pinned by the digest the credential recorded |
 | `proof` | signature, *and* that the key's controller is the issuer, *and* that the controller authorised that key for assertions |
 | `validity` | evaluated against the moment of verification, not of issue |
 | `status` | a signature says what was true at issue; only the status list says what is true now |
@@ -969,6 +1013,12 @@ between them, and that is a governance problem rather than a technical one.
   the term definitions are decorative and any outside tool that expands the document
   fails on it. This is the one step of the UNTP Playground's seven that nothing here can
   make answerable, and closing it means hosting a context document for real.
+- **A data model anyone else can fetch.** The models at `https://vcqi.example/schemas/`
+  resolve inside this world and nowhere outside it, like the context above. A verifier
+  elsewhere that honours `credentialSchema` will find nothing at the address; the digest
+  in the reference still lets it check a copy handed to it, and `GET /api/document` serves
+  one. Hosting them for real is the same step as hosting the context, and would make a
+  signed `JsonSchemaCredential` worth considering in place of a bare schema.
 - **Uncertainty propagation beyond scalar arithmetic.** `domain/linprop.py`, which is
   what a deployed copy computes with, covers real scalars and the four operations
   because that is all any model here uses. DistProp, MCProp, complex quantities, arrays

@@ -514,6 +514,8 @@ pre.code, .json {
 
 .json { max-height: min(460px, 55vh); overflow-y: auto; }
 .json--tall { max-height: min(720px, 70vh); }
+/* A data model in chapter 3: a glance at the shape, not a document to read end to end. */
+.json--compact { max-height: min(340px, 45vh); }
 
 .tok-key { color: var(--accent); }
 .tok-str { color: var(--pass); }

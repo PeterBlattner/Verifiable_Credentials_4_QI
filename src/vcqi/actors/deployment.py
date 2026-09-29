@@ -60,7 +60,9 @@ __all__ = [
 #: are the whole of what an issuer must keep online. The whois presentation is in the
 #: list because recognition discovery falls back to it when a credential carries no
 #: pointer of its own; everything per-certificate is not, because it reaches the verifier
-#: in the holder's hands.
+#: in the holder's hands. The data model of each credential type is not here either: it
+#: says nothing about any issuer, and it is published on the vocabulary's own origin,
+#: where no organisation in this world runs anything.
 ONLINE_KINDS: frozenset[str] = frozenset(
     {"did-document", "status-list", "registry-entry", "schema", "presentation"}
 )

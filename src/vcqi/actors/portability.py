@@ -13,8 +13,8 @@ metrology has the oldest instance of the idea in existence: a calibration certif
 already travels with the instrument. The paper in the box is a portable credential.
 
 So the interesting question is not whether the model works. It is **where it stops**, and
-that is measurable rather than arguable. Verifying one certificate of conformity reads 31
-distinct documents from 7 hosts. This module sorts every one of them into four classes
+that is measurable rather than arguable. Verifying one certificate of conformity reads 35
+distinct documents from 8 hosts. This module sorts every one of them into four classes
 and then proves the sort by running the verification twice -- once with nothing supplied,
 once with everything supplied that is allowed to travel -- and comparing what the resolver
 actually had to fetch.
@@ -120,14 +120,19 @@ PORTABILITY_CLASSES: tuple[PortabilityClass, ...] = (
     PortabilityClass(
         key="travels",
         label="It travels with the holder",
-        kinds=("credential", "schema", "uncertainty-data", "query-answer"),
+        kinds=("credential", "schema", "data-model", "uncertainty-data", "query-answer"),
         travels=True,
         why=(
             "Either signed in its own right, or covered by a digestMultibase inside "
             "something that is. A copy is checkable whatever hand it arrived in, so "
             "where it came from stops mattering -- which is the whole portable-credential "
             "argument, and the reason a calibration certificate has always been able to "
-            "travel in the box with the instrument.\n\nThe answer from a scope endpoint "
+            "travel in the box with the instrument.\n\nThe data model a credential "
+            "names is in this class for the same reason: the credential records its "
+            "digest, so a stapled copy is as good as the published one, and a model "
+            "loosened at its address fails the check rather than being applied. It is "
+            "published by whoever owns the vocabulary, not by any issuer here.\n\n"
+            "The answer from a scope endpoint "
             "is in this class, and it is the one document here that had to be designed "
             "into it. An endpoint makes verification a conversation, and a conversation "
             "is the thing this model exists to avoid. What puts the answer back in the "
