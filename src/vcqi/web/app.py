@@ -670,7 +670,8 @@ def get_export(
     ``.example`` domain that resolves nowhere. ``portable`` is the same claims signed
     with the same key under the ``did:key`` that key stands for, which is the form whose
     signature a stranger can actually check. ``untp`` is the projection into UN/CEFACT's
-    Digital Conformity Credential, signed the same way.
+    Digital Conformity Credential, signed the same way, and the only one of the three the
+    UNTP Playground accepts: it refuses every type that is not UNTP's at upload.
 
     Served as an attachment rather than assembled in the browser because the policy this
     application sends reaches ``default-src 'none'``, and a ``blob:`` URL would need a

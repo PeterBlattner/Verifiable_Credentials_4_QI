@@ -679,8 +679,9 @@ available.
 `verify.py` was written beside `dataintegrity.py`, so a misreading of the W3C
 specification shared by both would pass unnoticed in both. The only cure is an outside
 verifier, and UN/CEFACT publishes one: the UNTP Playground, which takes a credential file
-and runs seven steps over it — proof type, VCDM version, VCDM schema, cryptographic
-verification, UNTP schema, JSON-LD expansion, and a conditional extension schema.
+of one of UNTP's own types and runs seven steps over it — proof type, VCDM version, VCDM
+schema, cryptographic verification, UNTP schema, JSON-LD expansion, and a conditional
+extension schema.
 
 Two things stood in the way, and `vc/portable.py` fixes one of them. Every organisation
 here is a `did:web` under a reserved `.example` domain, so the blocking cryptographic step
@@ -696,9 +697,21 @@ portable forms pass `proof` and fail `recognition`. That is exactly why the orga
 here use `did:web` in the first place, and the export is not allowed to pretend otherwise.
 
 The second obstacle is not fixed. `https://vcqi.example/contexts/v1` is fictional, and the
-JSON-LD expansion step dereferences it, so that step fails for every form. This is the
-same gap recorded above under *`ecdsa-jcs-2019`, not `ecdsa-rdfc-2019`*; closing it needs
-a genuinely hosted context document, which would tie issuance to a deployed instance.
+JSON-LD expansion step dereferences it, so that step fails for every form that carries it
+— the native and portable ones. The UNTP projection is written against published contexts
+only and does not depend on it. This is the same gap recorded above under
+*`ecdsa-jcs-2019`, not `ecdsa-rdfc-2019`*; closing it needs a genuinely hosted context
+document, which would tie issuance to a deployed instance.
+
+A third obstacle came from the other side, after the export was built. Since release 0.4.0
+of 21 September 2026 the Playground compares `type` on upload with UNTP's five credential
+types and refuses anything else before a single step runs, with *unsupported credential
+type* (`src/app/page.tsx` in `uncefact/tests-untp`). Of the forms exported here, only
+`untp` reaches it, and only for the two certificates that have one; the native and
+portable forms of everything, the recognitions included, are refused unread. The portable
+form is not wasted by that, since it still answers the signature question for any outside
+verifier that takes an arbitrary W3C credential. It is the Playground that stopped being
+one.
 
 ### The UNTP projection is a probe, not a conformance target
 
@@ -1011,8 +1024,9 @@ between them, and that is a governance problem rather than a technical one.
   verifier can check the signature without resolving anything.
 - **A resolvable JSON-LD context.** `https://vcqi.example/contexts/v1` is fictional, so
   the term definitions are decorative and any outside tool that expands the document
-  fails on it. This is the one step of the UNTP Playground's seven that nothing here can
-  make answerable, and closing it means hosting a context document for real.
+  fails on it. Closing it means hosting a context document for real. The UNTP Playground
+  no longer reaches that step for these credentials: it refuses every type that is not
+  UNTP's at upload, and the UNTP projection it does accept uses published contexts only.
 - **A data model anyone else can fetch.** The models at `https://vcqi.example/schemas/`
   resolve inside this world and nowhere outside it, like the context above. A verifier
   elsewhere that honours `credentialSchema` will find nothing at the address; the digest
