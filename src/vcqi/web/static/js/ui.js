@@ -153,15 +153,22 @@ export function jsonView(value, onFollow, options) {
  * omitted when it does not, which is also what happens under the jsdom harness.
  */
 export function takeaway(name, forms, document_) {
-  const links = forms.map((form) =>
-    el('a', {
+  // A form with a subject exports one entity of a recognition; the file name carries the
+  // DID's last segment, as the server's does, so several anchors do not overwrite each
+  // other in the reader's downloads.
+  const links = forms.map((form) => {
+    const subject = form.subject ? `&subject=${encodeURIComponent(form.subject)}` : '';
+    const suffix = form.subject
+      ? `-${form.subject.split(':').pop().replace(/[^A-Za-z0-9._-]+/g, '-')}`
+      : '';
+    return el('a', {
       class: 'takeaway__link',
-      href: `/api/export/${encodeURIComponent(name)}?form=${form.key}`,
-      download: `${name}-${form.key}.json`,
+      href: `/api/export/${encodeURIComponent(name)}?form=${form.key}${subject}`,
+      download: `${name}-${form.key}${suffix}.json`,
       title: form.hint,
       text: form.label,
-    })
-  );
+    });
+  });
   if (document_ && navigator.clipboard) {
     const button = el('button', {
       class: 'takeaway__link',

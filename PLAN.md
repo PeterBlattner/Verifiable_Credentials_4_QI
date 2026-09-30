@@ -4560,7 +4560,7 @@ Taken with Peter:
 - [x] 9. Tests: `test_untp.py` rewritten, `test_domain.py`, `test_web.py`
 - [x] 10. Docs: ARCHITECTURE.md, THIRD_PARTY_NOTICES.md, README.md
 - [x] 11. Verification: suite, `--dump` identical, deliberate break, harnesses
-- [ ] 12. Peter re-runs both `untp` exports through the Playground; table below
+- [x] 12. Peter re-runs both `untp` exports through the Playground; table below
 
 ## Progress log
 
@@ -4598,20 +4598,48 @@ Taken with Peter:
     Against the baseline, issuing is identical, exchange differs by the one added
     sentence, and harmonisation differs from the probe panel to the
     `uncertainty-transport` item, with no `.content-missing`.
+- 2026-09-30: item 12, the calibration. Peter ran the 0.7.0 `untp` export of
+  METAS-2026-0417 through the Playground 0.4.2; the report is
+  `temp/untp-test-report-metas-calibration-untp-(1).json`, and the file uploaded is
+  identical to what `GET /api/export/metas-calibration?form=untp` serves. The prediction
+  held step for step.
+  - **Step 6 passes.** It was the 0.6.0 failure, and it is the first time a JSON-LD
+    processor that is not ours has expanded one of these documents. It agrees with
+    `vc/jsonld_terms.py`.
+  - **Step 5 reports exactly the three recorded blocking findings, and nothing else.**
+    The Playground's tips are not followed, because each would break the rule: an integer
+    `statusListIndex` would break the W3C Recommendation, and a `referenceScheme` or a
+    metric `id` would be an identifier invented for the CIPM MRA or the measurand.
+  - The schema was fetched from `untp.unece.org`, whose copy differs from the vendored
+    one, taken at tag `v0.7.0`, only in two `example` strings, which validation ignores.
+    The errors agree because the constraints do.
+  - **Step 4 is unchanged:** `NotFoundError`, no suite for `ecdsa-jcs-2019`. The only
+    open question left from the run is whether to offer a second export in a format that
+    verifier accepts - its own sample is an enveloped JWT signed with EdDSA - and that is
+    a decision of its own, not part of this change set.
+- 2026-09-30: item 12, the certificate of conformity. Peter ran the 0.7.0 `untp` export
+  of CPC-2026-0055 through the same Playground, and this prediction held too: steps 1-3
+  pass, step 4 is the same `NotFoundError`, step 6 passes, and step 5 reports exactly the
+  four recorded blocking findings - the status index, `referenceScheme`,
+  `assessedPerformance`, and the criterion's `id` - which are the four members the
+  offline check reports for this certificate. The uploaded file was not kept, so it was
+  compared by result rather than byte for byte. Both certificates now pass the JSON-LD
+  step, and every schema error either of them raises is a finding the projection records
+  and can explain. The change set is complete.
 
 ## The Playground run on 0.7.0
 
-To be filled in from an actual run.
+Run on 2026-09-30 against Playground 0.4.2, UNTP 0.7.0.
 
 | Step | metas-calibration | cab-conformity |
 |---|---|---|
-| 1. Proof Type Detection | | |
-| 2. VCDM Version Detection | | |
-| 3. VCDM Schema Validation | | |
-| 4. Credential Verification | | |
-| 5. UNTP Schema Validation | | |
-| 6. JSON-LD Expansion and Context Validation | | |
-| 7. Extension Schema Validation | | |
+| 1. Proof Type Detection | pass, embedded | pass, embedded |
+| 2. VCDM Version Detection | pass, v2 | pass, v2 |
+| 3. VCDM Schema Validation | pass | pass |
+| 4. Credential Verification | fail: `NotFoundError`, no suite for `ecdsa-jcs-2019` | same |
+| 5. UNTP Schema Validation | fail: `statusListIndex` not an integer; `referenceScheme` and the metric's `id` required | fail: `statusListIndex` not an integer; `referenceScheme`, `assessedPerformance` and the criterion's `id` required |
+| 6. JSON-LD Expansion and Context Validation | pass | pass |
+| 7. Extension Schema Validation | not run | not run |
 
 Expected going in: 1-3 pass; 4 unchanged, `NotFoundError`, since nothing about the
 signature changed; 5 reports exactly the blocking findings - three for the calibration
@@ -4624,3 +4652,193 @@ signature changed; 5 reports exactly the blocking findings - three for the calib
 
 Branch `feature/untp-0-7-0` from `develop`, into `develop`. The change set 24 baseline is
 its own `docs(plan)` commit.
+
+# Change set 29 - the signatures checked against the W3C's own test vector
+
+## Context
+
+Change set 28 left one question open: nothing outside this repository had checked a
+signature made here, because the UNTP Playground's verifier has no suite for
+`ecdsa-jcs-2019`. The proposal was a second export, an enveloped JWT signed like the
+Playground's own sample. Reading the verifier's source (VCkit on the Veramo fork
+`gs-gs/veramo`, branch `vc-v2`) showed that would not work either:
+
+- **Embedded proofs.** The Data Integrity path is configured with one suite,
+  `JsonWebSignature2020` (VCkit's `packages/cli/default/default.yml`). That suite came
+  from a Community Group and never became a Recommendation; none of the W3C
+  Recommendation cryptosuites is loaded.
+- **Enveloped JWTs.** The VC-JOSE-COSE path finds the key by `kid` and accepts it only if
+  its type is exactly `JsonWebKey` with a `publicKeyJwk` (`findMatchingVerificationMethod`
+  in `packages/utils/src/jwk-did-utils.ts`). VCkit's own `did:key` resolver labels every
+  P-256 and Ed25519 key `JsonWebKey2020`, so a `did:key` issuer is refused before the
+  signature is read. The Playground's sample passes because its `did:web` document lists
+  the same key a second time as `JsonWebKey`. The algorithm is not the constraint:
+  verification is `jose.compactVerify`, which takes ES256 as readily as EdDSA.
+
+So a checkable export would need a publicly resolvable `did:web`, which here means DID
+documents served from the Render deployment for the sake of one tool.
+
+## Decisions
+
+Taken with Peter: W3C compatibility is the primary goal; UNTP is a secondary check and is
+itself moving towards W3C. So no JWT export for the Playground's sake. The independent
+check comes from the W3C: VC Data Integrity ECDSA Cryptosuites v1.0 (Recommendation,
+15 May 2025), Appendix A.5, publishes `ecdsa-jcs-2019` with P-256 as a test vector, and
+the files are in `w3c/vc-di-ecdsa/TestVectors`. A VC-JOSE-COSE export stays possible as a
+W3C feature in its own right, not as a route into the Playground.
+
+## Checklist
+
+- [x] 1. Vendor the vector unchanged into `tests/vectors/w3c-vc-di-ecdsa/`, pinned to a
+      commit
+- [x] 2. `tests/test_w3c_vectors.py`: every intermediate, the signature byte for byte,
+      verification, the issuer binding, tampering
+- [x] 3. Prose: the `deterministic` block in `04-issuing.md`; ARCHITECTURE.md's
+      Playground and determinism sections; THIRD_PARTY_NOTICES.md; README.md
+- [x] 4. Verification
+
+## Progress log
+
+- 2026-09-30: plan approved. Branch `feature/w3c-ecdsa-jcs-vectors` from `develop`.
+- 2026-09-30: done.
+  - Vendored from `w3c/vc-di-ecdsa` at `59df72ca8cdb`: the key pair, the unsigned
+    credential and the nine files of `ecdsa-jcs-2019-p256/`. The P-256 JCS files last
+    changed in `fb46a0690d0c` (2025-01-02). They carry no trailing newlines, and the
+    tests read them as published, stripping nothing.
+  - **The demonstrator reproduces the vector byte for byte.** The secret key (multicodec
+    `0x8626`) derives the published public key. The canonical document, the document
+    hash, the canonical proof configuration, its hash and the combined hash all equal
+    the files, and the RFC 6979 signature equals `sigHex` and `proofValue`, so the whole
+    signed credential equals `signedJCSECDSAP256.json`. `verify_proof` accepts the
+    W3C's credential, with the key handed over and with the key the resolver derives from
+    the `did:key` alone.
+  - One finding. `check_proof` refuses the W3C's credential, correctly: the vector's
+    issuer is an `https` URL and its key a `did:key` nobody bound to it, and this verifier
+    requires the key's controller to be the issuer, checked before the signature. The
+    test pins that the refusal is for that reason and no other.
+  - Deliberate break: one word changed in `canonDocJCSECDSAP256.txt` failed exactly
+    `test_every_intermediate_value_is_the_published_one[canonical_document-…]`. Restored.
+  - Full suite: 796 pass, 46 skipped (785 before, and 11 new). No UI control changed, so
+    the harnesses are unaffected.
+
+## Git
+
+Branch `feature/w3c-ecdsa-jcs-vectors` from `develop`, into `develop`.
+
+# Change set 30 - the recognitions in UNTP: a Digital Identity Anchor probe
+
+## Context
+
+A review point: the updates on the UNTP Playground discussed only the Digital Conformity
+Credential and never the Digital Identity Anchor (DIA), which the Playground also
+validates. It was not already solved. `vc/untp.py` projected only the two certificates;
+the five recognitions, the W3C Recognized Entities layer this project is founded on, had
+no UNTP form, and chapter 3 told the reader none of their files got into the Playground.
+
+The DIA is UNTP's counterpart of a recognition: a registrar attests that a DID belongs to
+an entity in its register, with a list of scopes. UNTP 0.7.0 requires one
+`RegisteredIdentity` per anchor, with `registeredName`, `registeredId`,
+`registeredDate`, `idScheme` and a `registerType` from `product`, `facility`,
+`business`, `trademark`, `land` and `accreditation`.
+
+## Decisions
+
+Taken with Peter:
+- a DIA probe, run the way the DCC probe is;
+- where no register type fits - the CIPM MRA - it is left out and recorded.
+
+## Checklist
+
+- [x] 1. Vendor the DIA 0.7.0 schema, pinned by content hash
+- [x] 2. `vc/untp.py`: `project_recognition`, one anchor per entity; the schema chosen by
+      type
+- [x] 3. `interop.py` and `app.py`: probed pairs, `subject` on the export
+- [x] 4. Front end: one anchor link per entity in chapter 3, four entries in the probe,
+      and the harmonisation floor
+- [x] 5. Prose: chapter 3's notes, chapter 11's probe text
+- [x] 6. Tests, docs
+- [x] 7. Peter runs both anchors through the Playground; table below
+
+## Progress log
+
+- 2026-09-30: plan approved. Branch `feature/untp-dia-probe` from `develop`.
+- 2026-09-30: items 1-6.
+  - The UNTP specification repository timed out, so the DIA schema was taken from the
+    Playground's bundle in `uncefact/tests-untp`. Its content hash, `0f125c2e…6eea`,
+    equals the one the Playground's manifest records for tag `v0.7.0`.
+  - One anchor per recognised entity:
+    - the entity's DID, `legalName`, and `sameAs[0]` as `publicInformation`;
+    - the issuer as registrar;
+    - the capability references as `registrationScope`;
+    - the recognition itself as `idScheme` (judgement);
+    - `registerType: accreditation` only when every capability is an accreditation
+      scope (judgement), otherwise left out and recorded.
+
+    `registeredId` and `registeredDate` are required and stated nowhere. The recognised
+    actions, the `outputValidation` schemas and digests, each action's validity, the
+    scope digests and the entity's website are recorded as dropped. The anchor's `id` is
+    the recognition's with the entity's DID as fragment.
+  - Blocking findings:
+    - METAS in the BIPM recognition: 4 - the status index (conflict), `registeredId`,
+      `registeredDate`, `registerType`;
+    - the CAB in the SAS recognition: 3, as a dry run predicted before any code was
+      written.
+
+    Every recognised entity of every recognition projects with its schema errors equal
+    to its blocking findings, and every term expands.
+  - `no identifier names two things` now compares names only. In an anchor, the BIPM is
+    both the issuer (`CredentialIssuer`) and the registrar (`Party`): one party in two
+    roles, rightly under one identifier.
+  - Chapter 3 offers "As a UNTP identity anchor: <entity>" for each entity of the two
+    probed recognitions, with the entity in the query and the file name.
+    `takeaway.untp-anchors` is new; `takeaway.no-untp` names all four documents.
+- 2026-09-30: verification.
+  - Full suite: 804 pass, 46 skipped (796 before).
+  - `--dump`: byte-identical, 86 documents.
+  - Deliberate break: a plausible `registeredId` on METAS's anchor fails the member
+    match.
+  - Against a server of the branch on port 8011: `ui-clicks.mjs` has every control
+    responding, with harmonisation at its new floor of 6. `chapter-snapshot.mjs`, run
+    twice, is identical, with no `.content-missing`. Chapter 3 opens on the BIPM
+    recognition with an anchor link for METAS and one for PTB.
+  - Both anchor exports are in `temp/` for the Playground run.
+- 2026-09-30: item 7, the Playground run.
+  - Peter ran both anchors through the Playground 0.4.2; the reports are
+    `temp/untp-test-report-*-recognition-untp-*.json`. Both files are identical to what
+    `GET /api/export/{name}?form=untp&subject=…` serves.
+  - The Playground detected `DigitalIdentityAnchor` 0.7.0 and validated against
+    `https://untp.unece.org/artefacts/schema/v0.7.0/dia/DigitalIdentityAnchor.json`.
+  - The prediction held step for step. Step 5 reports exactly the blocking findings, the
+    same members the offline check reports: four for METAS, three for the CAB. Step 6
+    passes for both, so the anchors expand for the Playground's own JSON-LD processor as
+    they do for `vc/jsonld_terms.py`.
+  - Step 4 is the same `NotFoundError` as for every signature made here (change set 29).
+  - The change set is complete. All four probed documents have now been through the
+    Playground, and every schema error any of them raises is a finding the projection
+    records and can explain.
+
+## The Playground run of the anchors
+
+Run on 2026-09-30 against Playground 0.4.2, UNTP 0.7.0.
+
+| Step | METAS (bipm-recognition) | CAB (sas-recognition) |
+|---|---|---|
+| 1. Proof Type Detection | pass, embedded | pass, embedded |
+| 2. VCDM Version Detection | pass, v2 | pass, v2 |
+| 3. VCDM Schema Validation | pass | pass |
+| 4. Credential Verification | fail: `NotFoundError`, no suite for `ecdsa-jcs-2019` | same |
+| 5. UNTP Schema Validation | fail: `statusListIndex` not an integer; `registeredId`, `registeredDate` and `registerType` required | fail: `statusListIndex` not an integer; `registeredId` and `registeredDate` required |
+| 6. JSON-LD Expansion and Context Validation | pass | pass |
+| 7. Extension Schema Validation | not run | not run |
+
+Expected going in:
+- 1–3 pass;
+- 4 `NotFoundError`, as for every signature made here;
+- 5 exactly the blocking findings: METAS the status index, `registeredId`,
+  `registeredDate` and `registerType`; the CAB the first three;
+- 6 passes;
+- 7 does not run.
+
+## Git
+
+Branch `feature/untp-dia-probe` from `develop`, into `develop`.

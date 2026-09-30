@@ -597,6 +597,38 @@ def test_the_failure_chapter_counts_its_own_cases() -> None:
     )
 
 
+def test_the_readme_counts_the_same_cases() -> None:
+    """The README states the count twice and lists the cases by group.
+
+    The lede above was checked and the README was not, so for a while the README said 23
+    while there were 24. Both places it gives the number, and the grouped table, are
+    compared with the cases themselves, group by group.
+    """
+    readme = (pathlib.Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    stated = [int(number) for number in re.findall(r"(\d+) failure cases", readme)]
+    assert stated, "the README no longer states how many failure cases there are"
+    assert set(stated) == {len(TAMPER_CASES)}, (
+        f"the README says {stated}, there are {len(TAMPER_CASES)}"
+    )
+
+    # Only the failure-cases section: other tables in the README use the same row shape.
+    # The table's group labels are the reader's words for the groups in tamper.py.
+    section = re.search(r"^## The \d+ failure cases\n(.*?)(?=^## )", readme, re.M | re.S)
+    assert section, "could not find the failure-cases section of the README"
+    groups = {"forgery": "forgery", "standing": "standing", "metrology": "metrological"}
+    listed: dict[str, int] = {}
+    rows = re.findall(r"^\| \*\*(\w+)\*\* \| ([^|]+) \|", section.group(1), re.M)
+    for label, cases in rows:
+        named = [case for case in cases.split(",") if case.strip()]
+        listed[groups[label.lower()]] = len(named)
+    actual: dict[str, int] = {}
+    for case in TAMPER_CASES:
+        actual[case.group] = actual.get(case.group, 0) + 1
+    assert listed == actual, f"the README's table lists {listed}, tamper.py has {actual}"
+
+
 @pytest.mark.parametrize("key", ["the-world", "lede"])
 def test_the_graph_chapter_counts_its_own_organisations(
     client: TestClient, key: str
@@ -688,8 +720,28 @@ def test_every_export_form_downloads_as_a_file(client: TestClient) -> None:
 
 def test_an_export_of_something_unprojectable_is_refused(client: TestClient) -> None:
     """Rather than served as a credential with the wrong shape inside it."""
-    assert client.get("/api/export/bipm-recognition?form=untp").status_code == 400
-    assert client.get("/api/export/bipm-recognition?form=native").status_code == 200
+    assert client.get("/api/export/scope-SCS-0123?form=untp").status_code == 400
+    assert client.get("/api/export/scope-SCS-0123?form=native").status_code == 200
+
+
+def test_a_recognition_exports_one_anchor_file_per_entity(client: TestClient) -> None:
+    """The entity goes in the query and in the file name, so three anchors of one
+    recognition do not overwrite each other in the reader's downloads. Without one, the
+    request is refused rather than answered with a guess at which entity was meant."""
+    response = client.get(
+        "/api/export/sas-recognition?form=untp&subject=did:web:cab.example"
+    )
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="sas-recognition-untp-cab.example.json"'
+    )
+    assert "DigitalIdentityAnchor" in response.json()["type"]
+
+    missing = client.get("/api/export/sas-recognition?form=untp")
+    assert missing.status_code == 400
+    assert "did:web:cab.example" in missing.json()["detail"]
+    unknown = client.get("/api/export/sas-recognition?form=untp&subject=did:web:bipm.example")
+    assert unknown.status_code == 400
 
 
 def test_the_untp_panel_cannot_take_its_chapter_down() -> None:

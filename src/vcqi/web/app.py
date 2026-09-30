@@ -19,6 +19,7 @@ import copy
 import json
 import hashlib
 import os
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -662,6 +663,9 @@ def get_credential(name: str) -> dict[str, Any]:
 def get_export(
     name: str,
     form: str = Query("native", description="One of native, portable, untp"),
+    subject: str | None = Query(
+        None, description="For the untp form of a recognition, the entity to anchor"
+    ),
 ) -> Any:
     """Return one credential as a file, for handing to somebody else's verifier.
 
@@ -670,8 +674,10 @@ def get_export(
     ``.example`` domain that resolves nowhere. ``portable`` is the same claims signed
     with the same key under the ``did:key`` that key stands for, which is the form whose
     signature a stranger can actually check. ``untp`` is the projection into UN/CEFACT's
-    Digital Conformity Credential, signed the same way, and the only one of the three the
-    UNTP Playground accepts: it refuses every type that is not UNTP's at upload.
+    vocabulary, signed the same way, and the only one of the three the UNTP Playground
+    accepts: it refuses every type that is not UNTP's at upload. A certificate becomes a
+    Digital Conformity Credential; a recognition becomes a Digital Identity Anchor for
+    the one entity ``subject`` names.
 
     Served as an attachment rather than assembled in the browser because the policy this
     application sends reaches ``default-src 'none'``, and a ``blob:`` URL would need a
@@ -680,13 +686,14 @@ def get_export(
     Args:
         name: Short name of the credential.
         form: Which form to export.
+        subject: The DID of the recognised entity, for a recognition's ``untp`` form.
 
     Returns:
-        The document, with a filename.
+        The document, with a filename that names the entity when there is one.
 
     Raises:
-        HTTPException: If the credential or the form is unknown, or the credential has
-            no UNTP projection.
+        HTTPException: If the credential or the form is unknown, the credential has no
+            UNTP projection, or a recognition's entity is missing or unknown.
     """
     if form not in FORMS:
         raise HTTPException(status_code=400, detail=f"unknown form {form}")
@@ -694,12 +701,19 @@ def get_export(
     if name not in current.credentials:
         raise HTTPException(status_code=404, detail=f"no credential {name}")
     try:
-        document = export_document(current, name, form)
+        document = export_document(current, name, form, subject=subject)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+    # The DID's last segment, kept to characters a filename and a header both accept, so
+    # the three anchors of one recognition do not overwrite each other in Downloads.
+    suffix = ""
+    if subject and form == "untp":
+        suffix = "-" + re.sub(r"[^A-Za-z0-9._-]+", "-", subject.rsplit(":", 1)[-1])
     return JSONResponse(
         document,
-        headers={"content-disposition": f'attachment; filename="{name}-{form}.json"'},
+        headers={
+            "content-disposition": f'attachment; filename="{name}-{form}{suffix}.json"'
+        },
     )
 
 

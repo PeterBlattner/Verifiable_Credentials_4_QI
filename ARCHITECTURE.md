@@ -46,8 +46,11 @@ identical signature. This is what lets the demonstration be diffed: any change i
 
 It exists because `cryptography` exposes no deterministic mode. Verification is still
 delegated to `cryptography`, so the implementation is cross-checked against an
-independent one on every signature, and against the published RFC 6979 vectors in
-`tests/test_ecdsa_p256.py`.
+independent one on every signature, against the published RFC 6979 vectors in
+`tests/test_ecdsa_p256.py`, and, end to end, against the W3C's own `ecdsa-jcs-2019` test
+vector in `tests/test_w3c_vectors.py`, whose signature it reproduces exactly. The
+Recommendation says signatures SHOULD be deterministic, which is what makes that exact
+comparison possible.
 
 **It is not constant-time.** That is acceptable only because every key in this project
 is derived from a published seed and protects nothing. It must never be used with a real
@@ -716,12 +719,35 @@ one.
 
 When the `untp` form was finally run, on 29 September 2026 against UNTP 0.6.0, the
 Playground confirmed the schema step error for error and answered nothing else. Its
-verifier -- Veramo over `@digitalcredentials/jsonld-signatures` -- matches a proof to a
-loaded suite before checking anything, has none for `ecdsa-jcs-2019`, and so never reached
-the signature. **Nothing outside this repository has yet checked a signature made here.**
-The Playground's own sample credential is an enveloped JWT signed with EdDSA. Its JSON-LD
-step failed too, on UNTP 0.6.0 itself, whose schema fills in type names its own context
-never defines. Change sets 24 and 28 of PLAN.md have the run and what followed from it.
+verifier -- VCkit, on a fork of Veramo -- matches a proof to a loaded suite before
+checking anything, and has none for `ecdsa-jcs-2019`, so it never reached the signature.
+Its JSON-LD step failed too, on UNTP 0.6.0 itself, whose schema fills in type names its
+own context never defines. The 0.7.0 projections of both certificates, run on
+30 September, passed that step and reported at the schema step exactly the findings the
+projection records, and nothing else. Change sets 24 and 28 of PLAN.md have both runs and
+what followed from them.
+
+The Playground will not check a signature made here in any form this project should
+adopt, and the reason is in VCkit rather than here. Its Data Integrity path is configured
+with one suite, `JsonWebSignature2020`, which came from a Community Group and never
+became a Recommendation; none of the W3C Recommendation cryptosuites is loaded. Its
+VC-JOSE-COSE path accepts a key only if the issuer's DID document lists it with the type
+`JsonWebKey` exactly, and VCkit's own `did:key` resolver labels every key
+`JsonWebKey2020`, so a `did:key` issuer is refused before its signature is read. Only a
+publicly resolvable `did:web` passes, which here would mean serving DID documents from the
+deployment for the sake of one tool. The project answers to W3C first, so neither route
+is taken (change set 29).
+
+**The independent check comes from the W3C instead.** VC Data Integrity ECDSA
+Cryptosuites v1.0, a Recommendation, publishes the whole computation for `ecdsa-jcs-2019`
+with P-256 as a test vector: key pair, credential, proof configuration, both canonical
+forms, both hashes, signature and signed credential. `tests/test_w3c_vectors.py` checks
+every one of them against the vendored files, and because both sides sign
+deterministically, signing the W3C's credential with the W3C's key reproduces the W3C's
+signed credential byte for byte. That rules out, for the cryptosuite, the misreading
+shared by signer and verifier that the outside check was wanted for. What it does not
+provide is an outside verifier looking at one of this demonstration's own credentials;
+nothing has done that yet.
 
 ### The UNTP projection is a probe, not a conformance target
 
@@ -773,6 +799,29 @@ The projection keeps the source credential's `id`, although it makes different c
 under a different issuer identifier. That is the trade the portable copy already makes,
 and it is recorded here rather than solved: minting a new identifier would be a statement
 about a document nobody published.
+
+The recognitions are probed too, one layer up (change set 30). Their UNTP counterpart is
+the Digital Identity Anchor, in which a registrar attests that a DID belongs to an entity
+in its register, and `project_recognition` expresses each entity a recognition lists as
+an anchor of its own, validated against the vendored DIA schema. An anchor names one
+entity where a recognition lists several, so the anchor's `id` is the recognition's with
+the entity's DID as fragment -- a derived identifier, recorded as a limitation like the
+one above. The probe runs over the BIPM's recognition of METAS and the Swiss
+Accreditation Service's recognition of the certification body, the same pairing of the
+case UNTP was not built for with the case it was.
+
+What arrives is the entity, its registrar, its entry on the registrar's site, and the
+capabilities it is recognised for, as a list of addresses. What does not is everything
+a verifier acts on: what the entity is recognised to do, the `outputValidation` schemas
+pinned by digest that chapter 4 checks a certificate against, and each action's own
+validity. So the W3C recognition keeps the part that makes it machine-checkable, and the
+UNTP anchor is a directory entry. UNTP also requires a registration number and a
+first-registration date that no recognition states. Its register types stop at
+`accreditation`, which fits the SAS's recognition and is recorded as a judgement there;
+for the CIPM MRA and the Global ACI MRA, which are peer recognition, it is left out and
+recorded. Both probed anchors went through the Playground on 30 September: they passed
+its JSON-LD step, and its schema step reported exactly the findings the projection
+records, and nothing else.
 
 ### A data model is not a permission
 
