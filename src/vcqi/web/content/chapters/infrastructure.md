@@ -1,6 +1,6 @@
-<!-- 11-infrastructure.md -- chapter 10 in the rail; the NN- prefix is the position in
-     the CHAPTERS array, which counts the cautions. Rendered by chapterInfrastructure()
-     in ../../static/js/chapters.js.
+<!-- infrastructure.md -- rendered by chapterInfrastructure() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite
@@ -33,7 +33,7 @@ The hosting requirement, computed rather than asserted, and why it is so unevenl
 
 Two properties of the design settle most of this question, and neither of them is about capacity. One of the two has an exception, and the exception turns out to be worth more than the rule.
 
-**Verification is a computation, not a conversation.** A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier’s behalf, and nothing here grows with the number of people who check. That is a claim about *checking* a credential, and it is true because a credential here travels as a signed file. Chapter 12 measures how far that goes, what a verifier still cannot be handed second-hand, and what it costs to *ask* for a document instead of being given one.
+**Verification is a computation, not a conversation.** A recipient needs no account with the issuer, no registration, and no channel back to it. So an issuer operates no service on a verifier’s behalf, and nothing here grows with the number of people who check. That is a claim about *checking* a credential, and it is true because a credential here travels as a signed file. [Chapter](#exchange) measures how far that goes, what a verifier still cannot be handed second-hand, and what it costs to *ask* for a document instead of being given one.
 
 **A credential travels with whoever holds it.** The certificate arrives from the customer, not from the laboratory that wrote it. What an issuer must keep online is therefore only what describes the issuer itself — its key, and which of its credentials it has since withdrawn. The certificates need not be hosted at all.
 

@@ -49,7 +49,7 @@ about accreditation, conformity assessment or metrological traceability.
 **No permanence.** These pages may change or disappear without notice.
 
 The same statement is the first chapter of the demonstration itself, in
-[`00-cautions.md`](src/vcqi/web/content/chapters/00-cautions.md). Correct one and correct
+[`cautions.md`](src/vcqi/web/content/chapters/cautions.md). Correct one and correct
 the other. The hope is simply that this sparks curiosity — and, ideally, correction. If you find an error, an incorrect assumption, or something that does not
 reflect how QI works in practice, I would be very interested to hear about it.
 Please open a GitHub issue or contact me at **vc4qi@bluewin.ch**.
@@ -143,13 +143,13 @@ because the demonstration keeps that distinction rather than treating the two as
 interchangeable. A verifier follows identifiers upward and never needs to know which
 organisation occupies a position.
 
-Chapter 1 answers the question the rest of the demonstration assumes: what a public and
-a private key actually are. It derives a keypair in front of you, computes the public key
-from the private one as `Q = d·G` on the P-256 curve, peels the four encodings between
-that point and the `publicKeyMultibase` in a DID document, and then lets you sign a real
-calibration certificate with your own key. All three ways of trying that fail, for three
-different reasons — including one that **passes** the recognition check while failing the
-proof, which is why the pipeline runs both.
+The keys chapter answers the question the rest of the demonstration assumes: what a
+public and a private key actually are. It derives a keypair in front of you, computes
+the public key from the private one as `Q = d·G` on the P-256 curve, peels the four
+encodings between that point and the `publicKeyMultibase` in a DID document, and then
+lets you sign a real calibration certificate with your own key. All three ways of trying
+that fail, for three different reasons — including one that **passes** the recognition
+check while failing the proof, which is why the pipeline runs both.
 
 Two things go beyond the specification, because metrology needs them:
 
@@ -211,15 +211,15 @@ duplicated, so nothing can disagree — and the verifier can no longer check the
 uncertainty floor, the budget or the traceability chain, and reports each of those as a
 warning or a skip rather than passing them. It still comes out **verified**, which is the
 most useful thing the comparison shows: a verdict means what the checks behind it were
-able to reach. Chapter 6 lays both out side by side.
+able to reach. The traceability chapter lays both out side by side.
 
-Chapter 6 makes the difference concrete. Two check standards, both calibrated against the
-same national standard, are correlated at r = 0.69. A customer forming their difference
-gets `U = 0.00086 Ω` from the dependency representations and `U = 0.0016 Ω` from the
-printed numbers alone — **1.8× too large**, and the customer did nothing wrong. For a
-*mean* the same omission runs the other way and produces an answer that is too
-optimistic, so discarding correlation is not the conservative choice it is often taken
-for.
+The traceability chapter makes the difference concrete. Two check standards, both
+calibrated against the same national standard, are correlated at r = 0.69. A customer
+forming their difference gets `U = 0.00086 Ω` from the dependency representations and
+`U = 0.0016 Ω` from the printed numbers alone — **1.8× too large**, and the customer
+did nothing wrong. For a *mean* the same omission runs the other way and produces an
+answer that is too optimistic, so discarding correlation is not the conservative choice
+it is often taken for.
 
 ## The scenario
 
@@ -260,22 +260,22 @@ multimeter whose accredited calibration is traceable to a national standard. So 
 one certificate walks upward to OIML through recognition and downward to the BIPM through
 evidence, and the two paths have nothing in common except the laboratory in the middle.
 
-That laboratory, Helvetia Testing, is recognised twice for different things: accredited by
-SAS under ISO/IEC 17025, and recognised by OIML to perform type evaluation. One
+That laboratory, Helvetia Testing, is recognised twice for different things: accredited
+by SAS under ISO/IEC 17025, and recognised by OIML to perform type evaluation. One
 organisation, one identifier, two arrangements above it, neither aware the other exists.
-Chapter 11 has called composing arrangements "the entire reason for doing any of this"
-since it was written; this is the first document in the demonstration that actually does
-it, and chapter 2's filter is there to make the join visible.
+The harmonisation chapter has called composing arrangements "the entire reason for doing
+any of this" since it was written; this is the first document in the demonstration that
+actually does it, and the graph chapter's filter is there to make the join visible.
 
 Two things the OIML-CS branch adds that the other pillars did not need:
 
 - **The Recommendation is the scope.** A CMC and an accreditation scope are declarations
-  an organisation writes about itself, so this project had to invent a machine-checkable
-  form for them. An OIML Recommendation is a numbered, edition-controlled document
-  published by somebody else, which is a much stronger thing for a recognition to point
-  at. What is still invented is the schema: R 46 is not machine-readable, so the schema
-  here is this project's reading of it. The OIML has a sub-group working towards
-  machine-readable Recommendations, and that gap is an item in chapter 11.
+an organisation writes about itself, so this project had to invent a machine-checkable
+form for them. An OIML Recommendation is a numbered, edition-controlled document
+published by somebody else, which is a much stronger thing for a recognition to point
+at. What is still invented is the schema: R 46 is not machine-readable, so the schema
+here is this project's reading of it. The OIML has a sub-group working towards
+machine-readable Recommendations, and that gap is an item in the harmonisation chapter.
 - **A certificate that attests without authorising.** An OIML certificate is evidence, not
   permission — a Recommendation is not law. It carries `legalEffect: "none"` and a sentence
   saying so, and the schema makes that a validation requirement, so a certificate that
@@ -298,7 +298,7 @@ them: what distinguishes OIML-CS Scheme A from Scheme B, and what SMART stands f
 8. **Break it yourself** — pick one of five documents, change a field, decide whether the issuer signs it again, and find out which check notices
 9. **What this would mean in practice** — the argument, and the open questions
 10. **What it would take to run** — the hosting burden computed per role, from the trust anchor down to a fifteen-person laboratory, and what a verifier actually fetches
-11. **What would have to be agreed** — global harmonisation in three tiers, what cannot be decided later, and a ladder of next steps ordered by who is able to act
+11. **What would have to be agreed** — global harmonisation in three tiers, browsable by topic and by what already exists, what cannot be decided later, and a ladder of next steps ordered by who is able to act
 12. **How a credential moves** — three architectures that disagree about almost everything. UN/CEFACT's portable model, where the signed document travels and no protocol is needed; the one in between, where the document still travels and the issuer publishes a list of what it has since taken back; and VCALM's exchange, where the parties talk. The measurement is the point: of the 35 documents one verification reads, 20 can arrive with the holder — three of them accreditation scopes, three the data models the credentials name, and one an answer from a register that publishes no document at all, both of which travel only because somebody signed them — and what cannot be handed over second-hand is each organisation's key, its revocation list, and the one register still published unsigned. The nine status lists that make the middle model work reserve 1,179,648 positions between them, cover every credential in the world, and weigh less than one calibration certificate
 
 ## The 25 failure cases
@@ -331,11 +331,15 @@ src/vcqi/
   vendor/    untp/  w3c/  the pinned UNTP 0.7.0 schemas and contexts, so the checks run
              with no network
   web/       app.py  static/
+  config.py  xmlsafe.py  the settings, and the one way XML is parsed: any DTD refused
 tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_w3c_vectors.py
-             test_xmlc14n.py  test_xmldsig.py  test_keys.py  test_domain.py  test_dcc.py
+             test_xmlc14n.py  test_xmldsig.py  test_xmlsafe.py  test_keys.py  test_domain.py
+             test_dcc.py  test_external_dcc.py
              test_pipeline.py  test_portability.py  test_untp.py  test_harmonisation.py
-             test_exchange.py  test_web.py  test_linprop_equivalence.py
+             test_exchange.py  test_web.py  test_linprop_equivalence.py  test_readme.py
   vectors/   the W3C's ecdsa-jcs-2019 test vector, unchanged
+docs/history/  PLAN-2026.md, the change sets that built this, and firstPrompt.md, the
+               question it started from. PLAN.md holds only the change set under way.
 ```
 
 `CONTENT.md` says where the words are and how to change them without touching code. The

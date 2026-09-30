@@ -1,6 +1,6 @@
-<!-- 01-orientation.md -- chapter 0 in the rail; the NN- prefix is the position in the
-     CHAPTERS array, which counts the cautions. Rendered by chapterOrientation() in
-     ../../static/js/chapters.js.
+<!-- orientation.md -- rendered by chapterOrientation() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite
@@ -100,11 +100,11 @@ Alex has finished a bachelor's degree, and the university issues it as a credent
 
 There are two ways. An **embedded** proof, the W3C Data Integrity family, adds a `proof` member to the document and leaves everything else as readable JSON, which is what the example shows. An **enveloping** proof wraps the whole document instead, as the payload of a JSON Web Signature or a COSE message, or as an SD-JWT, which also lets the holder disclose some claims and withhold the rest. Both are W3C Recommendations, as Verifiable Credential Data Integrity and as VC-JOSE-COSE, and they protect the same claims in different packaging.
 
-A signature is made over bytes, and one JSON document can be written as many different sequences of bytes. So before signing, the document is put into one agreed form, and `cryptosuite` names which. `ecdsa-rdfc-2019`, the one in the example, first expands the JSON-LD into the statements it stands for and puts those into a canonical order. The signature then survives any rewriting that leaves the statements unchanged, but the verifier has to fetch, or already hold, every context the document names. `ecdsa-jcs-2019` puts the JSON text itself into canonical form, following RFC 8785, and needs no JSON-LD processing at all. Chapter 3 walks through that step byte by byte.
+A signature is made over bytes, and one JSON document can be written as many different sequences of bytes. So before signing, the document is put into one agreed form, and `cryptosuite` names which. `ecdsa-rdfc-2019`, the one in the example, first expands the JSON-LD into the statements it stands for and puts those into a canonical order. The signature then survives any rewriting that leaves the statements unchanged, but the verifier has to fetch, or already hold, every context the document names. `ecdsa-jcs-2019` puts the JSON text itself into canonical form, following RFC 8785, and needs no JSON-LD processing at all. [Chapter](#issuing) walks through that step byte by byte.
 
 <!-- block: json-ld-here -->
 
-**What this demonstration does differently.** Every credential here is signed with `ecdsa-jcs-2019`, so that chapter 3 can show exactly which bytes are hashed; canonicalising the statements is correct, and impossible to display in a way that teaches anything.
+**What this demonstration does differently.** Every credential here is signed with `ecdsa-jcs-2019`, so that [chapter](#issuing) can show exactly which bytes are hashed; canonicalising the statements is correct, and impossible to display in a way that teaches anything.
 
 The price is that the second context each credential names, `https://vcqi.example/contexts/v1`, is fictional and never fetched. Its metrology terms are labels, not definitions. A deployment would publish that context at a stable address, and would most likely sign with `ecdsa-rdfc-2019`.
 
@@ -216,7 +216,7 @@ The employer's software checks the degree's signature as it would any other, and
 
 That establishes that the university is on the list. It does not by itself say what for. The list does say, in `recognizedTo`: the action, and the schema a degree must satisfy. A bachelor's degree signed by the community college has a sound signature, and the college is on the list, but the degree fails the associate-degree schema its recognition names. The specification defines those members and leaves checking them to the verifier. This demonstration checks them, because in the quality infrastructure that is where the CMC and the accreditation scope go.
 
-The quality infrastructure already works exactly this way. It just does it on paper, and the checking is done by people. Chapter 4 runs the same walk from a calibration certificate up to the BIPM.
+The quality infrastructure already works exactly this way. It just does it on paper, and the checking is done by people. [Chapter](#verification) runs the same walk from a calibration certificate up to the BIPM.
 
 <!-- block: mapping.title -->
 

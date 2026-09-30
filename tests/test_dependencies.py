@@ -1,9 +1,9 @@
 """Tests for transmitting the dependency on input quantities to a customer.
 
-The claim these make good is the one chapter 6 rests on: a certificate that carries its
-dependency structure lets a recipient combine it correctly with another, and a
-certificate that carries only a value and an Expanded Uncertainty does not, however
-careful the recipient is.
+The claim these make good is the one the traceability chapter rests on: a certificate
+that carries its dependency structure lets a recipient combine it correctly with
+another, and a certificate that carries only a value and an Expanded Uncertainty does
+not, however careful the recipient is.
 """
 
 from __future__ import annotations

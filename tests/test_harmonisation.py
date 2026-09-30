@@ -12,6 +12,9 @@ The second is the chapter's central claim, and it is the reason this file exists
 
 from __future__ import annotations
 
+import dataclasses
+import re
+
 from starlette.testclient import TestClient
 
 from vcqi.actors.harmonisation import (
@@ -19,6 +22,7 @@ from vcqi.actors.harmonisation import (
     NEXT_STEPS,
     STATUSES,
     TIERS,
+    TOPICS,
     items_in_tier,
 )
 from vcqi.domain.accreditation import scope_by_id
@@ -106,6 +110,28 @@ class TestTheLadderAndTheItemsAgree:
         open_items = [item for item in HARMONISATION_ITEMS if item.status == "open"]
         assert len(open_items) * 2 < len(HARMONISATION_ITEMS)
 
+    def test_no_item_points_at_another_by_position(self) -> None:
+        """An item names the item it means, because its neighbours are not fixed.
+
+        The page groups items by tier, not in the order they are written here, so "the
+        item below" in the source was already a different item on the page: the
+        timestamps item pointed at the event-log item that way and reached the one
+        about which copy governs. A filter would move them again.
+        """
+        positional = re.compile(
+            r"\b(?:item|items|panel|identifiers)\s+(?:above|below)\b"
+            r"|\babove this (?:one|list)\b|\bthe next item\b|\bthe previous item\b",
+            re.IGNORECASE,
+        )
+        found = [
+            f"{item.key}.{field.name}: {match.group(0)!r}"
+            for item in HARMONISATION_ITEMS
+            for field in dataclasses.fields(item)
+            if isinstance(getattr(item, field.name), str)
+            for match in positional.finditer(getattr(item, field.name))
+        ]
+        assert found == []
+
     def test_the_two_gaps_the_review_named_are_on_the_page(self) -> None:
         """Cryptographic event logs and long-term retrieval, both in the second tier.
 
@@ -121,11 +147,11 @@ class TestTheLadderAndTheItemsAgree:
     def test_the_retrieval_item_quotes_what_was_actually_measured(self) -> None:
         """It rests on a real count, and the count is produced by another chapter.
 
-        Chapter 10 verifies the conformity certificate for real and reports how many
-        distinct documents across how many hosts that took. This item writes those two
-        numbers into a sentence, and a sentence is not recomputed when the world grows.
-        Comparing against the live figures is the difference between a measurement and
-        a number that was true once.
+        The infrastructure chapter verifies the conformity certificate for real and
+        reports how many distinct documents across how many hosts that took. This item
+        writes those two numbers into a sentence, and a sentence is not recomputed when
+        the world grows. Comparing against the live figures is the difference between a
+        measurement and a number that was true once.
 
         The remaining count -- everything except the credential the holder presents --
         is checked too, because it is the whole point of the item: the credential is
@@ -141,12 +167,39 @@ class TestTheLadderAndTheItemsAgree:
         assert f"other {trace['distinct'] - 1}" in retrieval.demonstrated
 
 
-class TestTheMeasurandCoincidence:
-    """The claim chapter 11 is built on, kept honest by a test.
+class TestTopics:
+    """The topics the chapter filters by, which cut across the tiers without reordering."""
 
-    Chapter 5 decides whether a calibration may carry the CIPM MRA logo by comparing the
-    measurand on the certificate with the measurand on the published capability, and
-    ``domain/scope.py`` makes that comparison with ``==`` on a free string.
+    def test_every_item_has_one_or_two_known_topics(self) -> None:
+        """An item with no topic would vanish under every filter but "All topics"."""
+        keys = {topic.key for topic in TOPICS}
+        for item in HARMONISATION_ITEMS:
+            assert 1 <= len(item.topics) <= 2, item.key
+            assert set(item.topics) <= keys, item.key
+
+    def test_every_topic_is_used_and_named_once(self) -> None:
+        """A topic with no items would offer the reader an empty page."""
+        keys = [topic.key for topic in TOPICS]
+        assert len(keys) == len(set(keys))
+        used = {key for item in HARMONISATION_ITEMS for key in item.topics}
+        assert used == set(keys)
+
+    def test_the_chapter_is_served_its_topics(self) -> None:
+        """The page builds its filter from these, so they have to arrive."""
+        with TestClient(app) as client:
+            body = client.get("/api/harmonisation").json()
+        assert [topic["key"] for topic in body["topics"]] == [topic.key for topic in TOPICS]
+        served = {item["key"]: item["topics"] for tier in body["tiers"] for item in tier["items"]}
+        assert served == {item.key: list(item.topics) for item in HARMONISATION_ITEMS}
+
+
+class TestTheMeasurandCoincidence:
+    """The claim the harmonisation chapter is built on, kept honest by a test.
+
+    The scope chapter decides whether a calibration may carry the CIPM MRA logo by
+    comparing the measurand on the certificate with the measurand on the published
+    capability, and ``domain/scope.py`` makes that comparison with ``==`` on a free
+    string.
 
     It passes here because the CMC and the accreditation scope were written by one author
     in one afternoon. In a real deployment the CMC comes from the BIPM's KCDB and the
@@ -168,9 +221,9 @@ class TestTheMeasurandCoincidence:
         # Different organisations publish these two documents.
         assert cmc.institute != scope.body
 
-        # And yet the strings match exactly, which is what chapter 5 depends on. The
-        # scope says it a row at a time now, which changes nothing about the coincidence:
-        # there are simply more free strings that have to agree by luck.
+        # And yet the strings match exactly, which is what the scope chapter depends on.
+        # The scope says it a row at a time now, which changes nothing about the
+        # coincidence: there are simply more free strings that have to agree by luck.
         row = next(row for row in scope.as_rows() if row.measurand == "dc.resistance")
         assert cmc.measurand == row.measurand == "dc.resistance"
         assert cmc.unit == row.unit == "ohm"

@@ -255,7 +255,8 @@ class TestScope:
         """Three registers, three carriage patterns, and this is the third.
 
         Kept as an assertion because the contrast is the demonstration: if every scope
-        ended up answered by an endpoint, chapter 5 would have nothing to compare.
+        ended up answered by an endpoint, the scope chapter would have nothing to
+        compare.
         """
         accreditation = scope_by_id("SCESp 0789")
         assert accreditation is not None

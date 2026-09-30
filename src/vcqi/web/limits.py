@@ -8,13 +8,14 @@ It is **not** a secrecy problem. Every key in the demonstration derives from a s
 published in `config.py`, and `/api/keys/sign` signs caller-supplied bytes with a
 caller-supplied key, so it is an oracle for nothing the caller did not already have.
 
-It **is** a compute problem. `crypto/ecdsa_p256.py` is a deliberately readable
-implementation: `_scalar_multiply` is naive double-and-add and every point operation
-takes a modular inverse, so a scalar multiplication costs a few hundred `pow(x, -1, p)`
-calls. That is milliseconds for a person and a denial of service for a loop. The same
-goes for `/api/keys/derive` with `random: true`, which generates a fresh P-256 key per
-request, and for `/api/verify`, which runs the whole pipeline over a credential the
-caller wrote.
+It **is** a compute problem. `public_point` in `crypto/ecdsa_p256.py` is deliberately
+readable: `_scalar_multiply` is naive double-and-add and every point operation takes a
+modular inverse, so the scalar multiplication behind `/api/keys/derive` costs a few
+hundred `pow(x, -1, p)` calls, milliseconds for a person and a denial of service for a
+loop. Signing used to be the same arithmetic and has been the library's since issue
+#70, at about a hundredth of the cost, but it is charged on the same grounds: the key
+and the message are the caller's. `/api/verify` runs the whole pipeline over a
+credential the caller wrote.
 
 So: cap the body, and charge for the expensive routes. Both are plain ASGI middleware
 rather than more of `app.py`, which is long enough, and neither adds a dependency.

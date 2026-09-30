@@ -25,13 +25,20 @@ import pytest
 
 from vcqi.web.app import STATIC_ROOT
 from vcqi.web.content import (
+    CHAPTER_ORDER,
     CHAPTERS_ROOT,
     CONTENT_ROOT,
     MISSING_PREFIX,
+    UNKNOWN_CHAPTER,
+    UNNUMBERED,
     _BLOCK,
+    _CHAPTER_REFERENCE,
     blocks_for,
     chapter_ids,
+    chapter_number,
     content_payload,
+    number_chapter_references,
+    with_chapter_numbers,
 )
 from vcqi.web.markdown import render, render_inline, to_text
 
@@ -192,25 +199,24 @@ class TestKeysAndBlocksAgree:
 class TestChapterFiles:
     """The files, their names, and their relation to the interface."""
 
-    def test_each_file_matches_a_chapter_the_interface_declares(self) -> None:
-        """A content file for a chapter that does not exist would never be read."""
-        declared = set(re.findall(r"^    id: '([a-z-]+)',$", CHAPTERS_JS, re.MULTILINE))
-        assert declared, "could not find the chapter ids in chapters.js"
-        unknown = set(chapter_ids()) - declared
-        assert not unknown, f"content files for chapters that do not exist: {sorted(unknown)}"
+    def test_each_file_is_a_chapter_and_each_chapter_has_a_file(self) -> None:
+        """Files are named by id, so a file outside the order would never be read."""
+        files = {path.stem for path in CHAPTERS_ROOT.glob("*.md")}
+        assert files == set(CHAPTER_ORDER)
+        assert chapter_ids() == list(CHAPTER_ORDER)
 
-    def test_the_numeric_prefixes_follow_the_interface_order(self) -> None:
-        """The prefix exists so a directory listing reads in chapter order.
+    def test_the_interface_declares_the_same_chapters_in_the_same_order(self) -> None:
+        """CHAPTER_ORDER numbers the chapters, and CHAPTERS renders them.
 
-        The authoritative order is the CHAPTERS array, so if the two disagree the
-        listing is lying to whoever is looking for a chapter to edit.
+        The two lists are the price of the order living in Python, where the server
+        needs it to write a number into a reference, while the render functions live
+        in JavaScript. This is what keeps them one list in effect.
         """
-        declared = re.findall(r"^    id: '([a-z-]+)',$", CHAPTERS_JS, re.MULTILINE)
-        position = {chapter_id: index for index, chapter_id in enumerate(declared)}
-        ordered = [position[chapter_id] for chapter_id in chapter_ids()]
-        assert ordered == sorted(ordered), (
-            "the NN- prefixes are not in the same order as the CHAPTERS array"
+        declared = re.findall(
+            r"^    id: '([a-z-]+)',\n(    unnumbered: true,\n)?", CHAPTERS_JS, re.MULTILINE
         )
+        assert [chapter_id for chapter_id, _ in declared] == list(CHAPTER_ORDER)
+        assert {chapter_id for chapter_id, flag in declared if flag} == UNNUMBERED
 
     def test_a_migrated_chapter_defines_its_own_heading(self) -> None:
         """title, eyebrow and lede move together with the rest of a chapter.
@@ -254,6 +260,129 @@ class TestChapterFiles:
         )
 
 
+ROOT = Path(__file__).resolve().parent.parent
+
+#: Everything that would go wrong if a chapter moved: the package, the tests, the tools
+#: and the documents a first-time reader opens. The history in docs/history/ and the
+#: working plan record what was true when they were written, so they are left alone.
+SCANNED = (
+    [ROOT / name for name in ("README.md", "ARCHITECTURE.md", "CONTENT.md", "DEPLOYMENT.md")]
+    + sorted((ROOT / "src" / "vcqi").rglob("*.py"))
+    + sorted((ROOT / "src" / "vcqi").rglob("*.md"))
+    + sorted((ROOT / "src" / "vcqi" / "web" / "static" / "js").glob("*.js"))
+    + sorted((ROOT / "tests").glob("*.py"))
+    + sorted((ROOT / "tools").glob("*.mjs"))
+)
+
+#: These two show the rendered form, "chapter 5", as the example of what a reference
+#: becomes, so they are the only places a number is written on purpose.
+SHOWS_THE_RENDERED_FORM = {"content.py", "test_content.py"}
+
+#: "chapter 5", "Chapters 4", or the same split across a line break inside a comment.
+BY_NUMBER = re.compile(r"\b[Cc]hapters?[ \t]*(?:\n[ \t]*(?://|#:?|\*)?[ \t]*)?\d+\b")
+
+
+def _scanned() -> list[tuple[Path, str]]:
+    """Return every scanned file that may not write a chapter's number by hand.
+
+    Returns:
+        Each path with its text.
+    """
+    return [
+        (path, path.read_text(encoding="utf-8"))
+        for path in SCANNED
+        if path.name not in SHOWS_THE_RENDERED_FORM
+    ]
+
+
+class TestChapterReferences:
+    """A chapter is referred to by id, and the number is written in when it is served."""
+
+    def test_no_chapter_is_referred_to_by_a_number_written_by_hand(self) -> None:
+        """The drift #73 found: numbers written in some sixty places, some already wrong.
+
+        Prose and the editorial fields write ``[chapter](#scope)``; code and documents
+        name the chapter ("the scope chapter"). Either way nothing has to change when a
+        chapter moves.
+        """
+        found = [
+            f"{path.relative_to(ROOT)}:{text.count(chr(10), 0, match.start()) + 1}"
+            for path, text in _scanned()
+            for match in BY_NUMBER.finditer(text)
+        ]
+        assert found == [], f"chapters referred to by number: {found}"
+
+    def test_every_reference_names_a_chapter_that_has_a_number(self) -> None:
+        """An id that is not a chapter would show the unknown-chapter marker."""
+        references = [
+            (path.relative_to(ROOT), match.group(2))
+            for path, text in _scanned()
+            for match in _CHAPTER_REFERENCE.finditer(text)
+        ]
+        assert len(references) > 40, "the references by id have gone missing"
+        numbered = set(CHAPTER_ORDER) - UNNUMBERED
+        wrong = [
+            f"{path}: #{chapter_id}"
+            for path, chapter_id in references
+            if chapter_id not in numbered
+        ]
+        assert wrong == []
+
+    def test_a_reference_becomes_a_link_carrying_the_number(self) -> None:
+        """What the reader sees, with the number the rail shows."""
+        number = chapter_number("scope")
+        assert number_chapter_references("see [chapter](#scope).") == (
+            f"see [chapter {number}](#scope)."
+        )
+        assert number_chapter_references("[Chapter](#scope) says") == (
+            f"[Chapter {number}](#scope) says"
+        )
+        html = render(number_chapter_references("see [chapter](#scope)."))
+        assert f'<a href="#scope" rel="noopener">chapter {number}</a>' in html
+
+    def test_the_served_prose_carries_numbers_and_no_raw_references(self) -> None:
+        """Every block, as /api/content serves it."""
+        served = json.dumps(content_payload())
+        assert "[chapter](#" not in served and "[Chapter](#" not in served
+        assert UNKNOWN_CHAPTER not in served
+        assert f">chapter {chapter_number('break')}</a>" in served
+
+    def test_an_editorial_field_gets_the_number_as_plain_text(self) -> None:
+        """Fields the page sets as text cannot carry a link, so they get the number."""
+        number = chapter_number("exchange")
+        payload = {"items": [{"why": "[Chapter](#exchange) builds it."}], "count": 3}
+        assert with_chapter_numbers(payload) == {
+            "items": [{"why": f"Chapter {number} builds it."}],
+            "count": 3,
+        }
+
+    def test_an_id_that_is_not_a_chapter_is_visible_rather_than_silent(self) -> None:
+        """A typo costs one phrase, and shows as a marker the way a missing block does."""
+        rendered = number_chapter_references("see [chapter](#scopes).")
+        assert UNKNOWN_CHAPTER + "scopes]" in rendered
+        with pytest.raises(ValueError):
+            chapter_number("cautions")
+
+    def test_the_content_index_lists_the_chapters_in_order(self) -> None:
+        """CONTENT.md's table: number, title and file, for whoever is looking to edit."""
+        rows = re.findall(
+            r"^\| (—|\d+) \| (.+?) \| \[`([a-z-]+)\.md`\]"
+            r"\(src/vcqi/web/content/chapters/([a-z-]+)\.md\) \|$",
+            (ROOT / "CONTENT.md").read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        expected = [
+            (
+                "—" if chapter_id in UNNUMBERED else str(chapter_number(chapter_id)),
+                blocks_for(chapter_id)["title"]["text"],
+                chapter_id,
+                chapter_id,
+            )
+            for chapter_id in CHAPTER_ORDER
+        ]
+        assert rows == expected
+
+
 class TestBlocksSuitTheSlotsTheyFill:
     """A block used as a heading is not the same as a block used as prose."""
 
@@ -263,11 +392,15 @@ class TestBlocksSuitTheSlotsTheyFill:
         This is the check that catches an editor bolding a word in a panel title, which
         would otherwise appear to a reader as asterisks.
         """
+        # A reference to another chapter is the one link allowed: its text form is
+        # "Chapter 10", which is what a title shows, with no link.
+        reference = re.compile(r'<a href="#[a-z-]+" rel="noopener">([Cc]hapter \d+)</a>')
         offenders = []
         for chapter_id, blocks in content_payload()["chapters"].items():
             for key, block in blocks.items():
                 if key in PLAIN_TEXT_KEYS or key.endswith(PLAIN_TEXT_SUFFIXES):
-                    if block["html"] != f"<p>{block['text']}</p>":
+                    html = reference.sub(r"\1", block["html"])
+                    if html != f"<p>{block['text']}</p>":
                         offenders.append(f"{chapter_id}/{key}")
         assert not offenders, (
             "these are shown as plain text, so markdown in them would appear literally: "

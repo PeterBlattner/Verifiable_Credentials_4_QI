@@ -1435,7 +1435,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cryptography", specifier = ">=42.0" },
+    { name = "cryptography", specifier = ">=43.0" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "gtc", marker = "extra == 'gtc'", specifier = ">=1.5" },
     { name = "jsonschema", specifier = ">=4.21" },

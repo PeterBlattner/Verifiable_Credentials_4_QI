@@ -16,15 +16,33 @@ key discovery                the key itself, inline, in ``ds:KeyValue``
 ===========================  ===================================================
 
 **The key is inline on purpose, and it is the interesting part.** A real DCC would carry
-an X.509 certificate here and a verifier would walk a chain to a certification authority.
-This demonstration has no such authority, so putting a self-signed certificate in that
-slot would suggest a chain that does not exist. A bare key says what is true: the
-signature verifies arithmetically and tells you nothing whatever about who made it. That
-is chapter 2's lesson arriving in XML, and it is the honest reason the credential around
-the document is what carries the identity.
+an X.509 certificate here and a verifier would walk a chain to a certification
+authority. This demonstration has no such authority, so putting a self-signed
+certificate in that slot would suggest a chain that does not exist. A bare key says what
+is true: the signature verifies arithmetically and tells you nothing whatever about who
+made it. That is the keys chapter's lesson arriving in XML, and it is the honest reason
+the credential around the document is what carries the identity.
 
-The second reason is duller and also decisive: certificate signing in ``cryptography`` is
-randomised, and this world has to build byte-for-byte identically on every run.
+A second reason used to be given here: certificate signing in ``cryptography`` was
+randomised, and this world has to build byte-for-byte identically on every run. That
+stopped being true in 45.0, whose ``CertificateBuilder.sign`` takes
+``ecdsa_deterministic``, so the choice rests on the first reason, which is enough.
+
+**This is an XMLDSig-shaped subset, not a verifier for signed DCCs in the wild.** It
+implements the one profile in the table above and nothing else. A DCC signed by other
+tooling will usually differ: exclusive canonicalization, RSA, another digest, a
+reference to an ID, a key in an X.509 certificate. :func:`verify_enveloped` reads what a
+signature declares, and when that is outside the profile it reports the signature as
+*unsupported* and checks nothing. Reporting a digest mismatch instead would read as
+tampering, and it would be a statement about this module rather than the document.
+
+Unsupported is not a loophole. Anyone able to alter the document can equally delete the
+signature, which is reported as absent. And a credential that points at the document
+carries its own digest of the bytes, which is where tampering is caught.
+
+The profile is also why signature wrapping does not apply. The one reference is to the
+whole document, ``URI=""``, so nothing is selected by an identifier an attacker could
+move.
 """
 
 from __future__ import annotations
@@ -87,6 +105,9 @@ class SignatureReport:
             carries.
         key_discovery: How the key was found, as something a report can print.
         detail: One sentence describing the outcome.
+        supported: Whether the signature declares the profile this module implements.
+            When it does not, nothing was checked, and both matches are False because
+            nothing was compared, not because anything failed to match.
     """
 
     present: bool
@@ -94,6 +115,7 @@ class SignatureReport:
     signature_matches: bool
     key_discovery: str
     detail: str
+    supported: bool = True
 
     @property
     def verified(self) -> bool:
@@ -177,6 +199,117 @@ def _child(parent: Element, local_name: str) -> Element | None:
             and child.localName == local_name
         ):
             return child
+    return None
+
+
+def _children(parent: Element | None, local_name: str) -> list[Element]:
+    """Return every ds child with a given local name.
+
+    Args:
+        parent: The element to search, or None.
+        local_name: The local name to look for.
+
+    Returns:
+        The elements in document order, empty when there is no parent.
+    """
+    if parent is None:
+        return []
+    return [
+        child
+        for child in parent.childNodes
+        if child.nodeType == child.ELEMENT_NODE
+        and child.namespaceURI == DS_NAMESPACE
+        and child.localName == local_name
+    ]
+
+
+def _algorithm(element: Element | None) -> str:
+    """Return the Algorithm an element declares.
+
+    Args:
+        element: The element, or None.
+
+    Returns:
+        The attribute's value, empty when there is no element or no attribute.
+    """
+    return element.getAttribute("Algorithm") if element is not None else ""
+
+
+def _unsupported(signature: Element, signed_info: Element) -> str | None:
+    """Say what a signature declares that this module does not implement.
+
+    Checked in the order a verifier would process them, so the first difference named is
+    the one that would have stopped it. The transform list has to match exactly:
+    ``enveloped-signature`` alone would leave the default canonicalization, which is
+    Canonical XML 1.0 rather than 1.1.
+
+    Args:
+        signature: The ``ds:Signature`` element.
+        signed_info: Its ``ds:SignedInfo``.
+
+    Returns:
+        A phrase naming the first unsupported choice, to follow "the ds:Signature uses",
+        or None when the signature declares exactly the profile implemented here.
+    """
+    canonicalization = _algorithm(_child(signed_info, "CanonicalizationMethod"))
+    if canonicalization != C14N_ALGORITHM:
+        return f"the canonicalization {canonicalization or '(none declared)'}"
+
+    method = _algorithm(_child(signed_info, "SignatureMethod"))
+    if method != SIGNATURE_ALGORITHM:
+        return f"the signature method {method or '(none declared)'}"
+
+    references = _children(signed_info, "Reference")
+    if len(references) != 1:
+        return f"{len(references)} references, where one is implemented"
+    reference = references[0]
+    uri = reference.getAttribute("URI") if reference.hasAttribute("URI") else None
+    if uri != "":
+        where = "no URI" if uri is None else f"the URI {uri!r}"
+        return (
+            f"a reference with {where}, where only the whole document, "
+            'URI="", is implemented'
+        )
+
+    transforms = [
+        _algorithm(transform)
+        for transform in _children(_child(reference, "Transforms"), "Transform")
+    ]
+    if transforms != [ENVELOPED_TRANSFORM, C14N_ALGORITHM]:
+        return f"the transforms {', '.join(transforms) or '(none declared)'}"
+
+    digest = _algorithm(_child(reference, "DigestMethod"))
+    if digest != DIGEST_ALGORITHM:
+        return f"the digest {digest or '(none declared)'}"
+
+    key_info = _child(signature, "KeyInfo")
+    if key_info is None:
+        return "no ds:KeyInfo, where only an inline dsig11:ECKeyValue is implemented"
+    ec_key_value = _descendant(key_info, DS11_NAMESPACE, "ECKeyValue")
+    if ec_key_value is None:
+        # Named by what is inside a ds:KeyValue, since "KeyValue" alone would not say
+        # whether it is RSA or DSA.
+        given: list[str] = []
+        for child in key_info.childNodes:
+            if child.nodeType != child.ELEMENT_NODE:
+                continue
+            inner = [
+                node.localName
+                for node in child.childNodes
+                if node.nodeType == node.ELEMENT_NODE
+            ]
+            if child.localName == "KeyValue" and inner:
+                given.extend(inner)
+            else:
+                given.append(child.localName)
+        return (
+            f"a key given as {', '.join(given) or 'nothing'}, where only an inline "
+            "dsig11:ECKeyValue is implemented"
+        )
+    curve = _descendant(ec_key_value, DS11_NAMESPACE, "NamedCurve")
+    named = curve.getAttribute("URI") if curve is not None else ""
+    if named != NAMED_CURVE:
+        return f"the curve {named or '(none named)'}"
     return None
 
 
@@ -333,6 +466,23 @@ def verify_enveloped(xml: str) -> SignatureReport:
         )
 
     signed_info = _child(signature, "SignedInfo")
+    # Before anything is hashed: a signature made to another profile would otherwise be
+    # reported as a mismatch, which reads as tampering and is not.
+    unsupported = None if signed_info is None else _unsupported(signature, signed_info)
+    if unsupported is not None:
+        return SignatureReport(
+            present=True,
+            digest_matches=False,
+            signature_matches=False,
+            key_discovery="not attempted",
+            detail=(
+                f"the ds:Signature uses {unsupported}, which this demonstration "
+                "does not implement, so it was not checked, and that says nothing "
+                "either way about the document"
+            ),
+            supported=False,
+        )
+
     reference = _child(signed_info, "Reference") if signed_info is not None else None
     recorded = _content(_child(reference, "DigestValue")) if reference is not None else ""
     if signed_info is None or not recorded:

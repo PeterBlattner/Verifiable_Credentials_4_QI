@@ -44,6 +44,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from vcqi import xmlsafe
+
 __all__ = [
     "UncNumber",
     "ufloat",
@@ -606,7 +608,7 @@ class _Storage:
             ValueError: If the document is not an uncertain number.
         """
         try:
-            root = ElementTree.fromstring(text)
+            root = xmlsafe.fromstring(text)
         except ElementTree.ParseError as error:
             raise ValueError(f"could not parse the uncertain number: {error}") from error
         if root.tag != "UncNumber":

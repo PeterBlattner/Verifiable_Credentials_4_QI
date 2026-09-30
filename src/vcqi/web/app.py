@@ -46,7 +46,7 @@ from vcqi.actors.edit import (
     fields_for,
     read_path,
 )
-from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS
+from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS, TOPICS
 from vcqi.actors.interop import FORMS, export_document, untp_audit
 from vcqi.actors.exchange import (
     EXCHANGE_TTL_SECONDS,
@@ -104,7 +104,7 @@ from vcqi.vc.checks import credential_types, issuer_id
 from vcqi.vc.datamodel import DATA_MODEL_URLS
 from vcqi.vc.resolver import DID_KEY_PREFIX, did_key_document
 from vcqi.vc.verify import verify_credential
-from vcqi.web.content import content_payload
+from vcqi.web.content import content_payload, with_chapter_numbers
 from vcqi.web.limits import (
     BodySizeLimitMiddleware,
     RateLimitMiddleware,
@@ -551,10 +551,10 @@ def get_world() -> dict[str, Any]:
     """Return everything the interface needs to render the demonstration.
 
     ``credentialTypes`` lists the types that have a published data model, in chain
-    order, each with the model's own title and its address. Chapter 3 labels its type
-    picker from the title, so the button and the schema under it cannot disagree about
-    what the type is called, and fetches the model from the address like any other
-    document.
+    order, each with the model's own title and its address. The issuing chapter labels
+    its type picker from the title, so the button and the schema under it cannot
+    disagree about what the type is called, and fetches the model from the address like
+    any other document.
 
     Returns:
         The trust graph, the credential index, the credential types, the registries and
@@ -742,9 +742,10 @@ def get_untp() -> dict[str, Any]:
     Returns:
         The UNTP version probed, one entry per credential with its findings, schema
         errors and unexpanded terms, whether every schema error is a finding the
-        projection recorded at that member, and whether every term expands.
+        projection recorded at that member, and whether every term expands. A
+        finding that refers to another chapter carries its number, as plain text.
     """
-    return untp_audit(world())
+    return with_chapter_numbers(untp_audit(world()))
 
 
 @app.get("/api/document")
@@ -1311,9 +1312,10 @@ class CombineRequest(BaseModel):
 def post_combine(request: CombineRequest) -> dict[str, Any]:
     """Combine two certified results, with and without their shared influences.
 
-    This is the demonstration chapter 6 is built around. Both certificates come from the
-    same laboratory and rest on the same transfer standard, so part of their uncertainty
-    is common to both. Whether a customer can take advantage of that depends entirely on
+    This is the demonstration the traceability chapter is built around. Both
+    certificates come from the same laboratory and rest on the same transfer standard,
+    so part of their uncertainty is common to both. Whether a customer can take
+    advantage of that depends entirely on
     what was transmitted:
 
     * given the dependency representations, the shared influence is recognised by its
@@ -1475,10 +1477,14 @@ def get_gtc_status() -> dict[str, Any]:
 # the custody problem concrete in a way that any amount of prose does not.
 #
 # It is also, obviously, the last thing a real system would do. Nothing here protects
-# anything: the demonstration keys come from a seed published in the repository, the
-# server binds to localhost, and /api/keys/sign will sign whatever bytes it is handed
-# with whatever key it is handed. That is safe only because the key is always the
-# caller's own.
+# anything: the demonstration keys come from a seed published in the repository, and
+# /api/keys/sign will sign whatever bytes it is handed with whatever key it is handed.
+# That is safe only because the key is always the caller's own, so the route is an
+# oracle for nothing the caller did not bring.
+#
+# This used to add that the server binds to localhost. The demonstration is public now,
+# so that clause is gone, and what is left to guard is compute rather than secrecy:
+# web/limits.py charges these routes, and ARCHITECTURE.md gives the argument in full.
 
 
 class DeriveKeyRequest(BaseModel):
@@ -1654,6 +1660,14 @@ def post_sign(request: SignRequest) -> dict[str, Any]:
     scalar = _scalar_of(request.private_scalar_hex)
     payload = request.message.encode("utf-8")
     signature = sign_deterministic(scalar, payload)
+    # From the library rather than _key_material, which also computes the point in plain
+    # integers for the keys chapter to show. Nothing here shows it, and that
+    # multiplication is the one expensive step left on this route.
+    compressed = (
+        ec.derive_private_key(scalar, ec.SECP256R1())
+        .public_key()
+        .public_bytes(Encoding.X962, PublicFormat.CompressedPoint)
+    )
 
     return {
         "message": request.message,
@@ -1665,7 +1679,7 @@ def post_sign(request: SignRequest) -> dict[str, Any]:
             "bytes": len(signature),
             "multibase": multibase_encode_base58btc(signature),
         },
-        "publicKeyMultibase": _key_material(scalar)["publicKeyMultibase"],
+        "publicKeyMultibase": encode_p256_multikey(compressed),
         "note": (
             "The signature is 64 bytes whatever the message length, because what gets "
             "signed is the 32-byte digest rather than the message. That is also why the "
@@ -1841,7 +1855,9 @@ def get_infrastructure() -> dict[str, Any]:
     surface a recipient depends on.
 
     Returns:
-        The profiled roles with their computed burden, and the verifier trace.
+        The profiled roles with their computed burden, and the verifier trace. The
+        profiles' editorial fields refer to other chapters by id, and carry the
+        numbers here, as plain text.
     """
     current = world()
     kinds = {url: current.store.kind_of(url) for url in current.store.contents()}
@@ -1878,7 +1894,7 @@ def get_infrastructure() -> dict[str, Any]:
     hosts = sorted({host_of(fetch["url"]) for fetch in report.fetches} - {""})
     distinct = {fetch["url"] for fetch in report.fetches}
 
-    return {
+    return with_chapter_numbers({
         "roles": roles,
         "verifierTrace": {
             "title": "Certificate of conformity CPC-2026-0055",
@@ -1888,7 +1904,7 @@ def get_infrastructure() -> dict[str, Any]:
             "hostCount": len(hosts),
             "outcome": report.outcome,
         },
-    }
+    })
 
 
 @app.get("/api/harmonisation")
@@ -1900,9 +1916,11 @@ def get_harmonisation() -> dict[str, Any]:
     same way it renders everything else.
 
     Returns:
-        The tiers in reading order, the items grouped under them, and the step ladder.
+        The tiers in reading order, the items grouped under them, the step ladder,
+        and the topics the items can be filtered by, with every reference to another
+        chapter carrying its number as plain text.
     """
-    return {
+    return with_chapter_numbers({
         "tiers": [
             {
                 **tier.to_json(),
@@ -1913,7 +1931,8 @@ def get_harmonisation() -> dict[str, Any]:
             for tier in TIERS
         ],
         "nextSteps": [step.to_json() for step in NEXT_STEPS],
-    }
+        "topics": [topic.to_json() for topic in TOPICS],
+    })
 
 
 

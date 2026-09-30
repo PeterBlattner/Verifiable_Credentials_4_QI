@@ -1,4 +1,4 @@
-<!-- 00-cautions.md -- first in the rail and deliberately carrying no chapter number.
+<!-- cautions.md -- first in the rail and deliberately carrying no chapter number.
      Rendered by chapterCautions() in ../../static/js/chapters.js.
 
      Each "block:" comment line below starts one block that the page asks for by

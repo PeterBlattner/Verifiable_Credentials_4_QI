@@ -58,12 +58,12 @@ def test_every_node_has_a_position_in_the_diagram(client: TestClient) -> None:
 
 
 def test_every_credential_has_a_label_in_the_interface(client: TestClient) -> None:
-    """A credential missing from CREDENTIAL_LABELS is unreachable in chapters 3 and 4.
+    """A credential missing from CREDENTIAL_LABELS cannot be reached from the page.
 
-    Both chapter 3's document chips -- grouped under their types, but drawn from that
-    object's keys -- and chapter 4's document selector are built from it, so a credential
-    absent from it verifies perfectly well over the API and simply cannot be chosen.
-    Nothing raised, nothing logged: it is just not there.
+    Both the issuing chapter's document chips -- grouped under their types, but drawn
+    from that object's keys -- and the verification chapter's document selector are
+    built from it, so a credential absent from it verifies perfectly well over the API
+    and simply cannot be chosen. Nothing raised, nothing logged: it is just not there.
     """
     source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
     block = re.search(r"const CREDENTIAL_LABELS = \{(.*?)^\};", source, re.DOTALL | re.MULTILINE)
@@ -79,14 +79,15 @@ def test_every_credential_has_a_label_in_the_interface(client: TestClient) -> No
 def test_every_credential_has_a_note_under_the_picker() -> None:
     """A chip with no note would show the previous document's explanation.
 
-    Chapter 3 draws a document chip per ``CREDENTIAL_LABELS`` key, under the type it
-    belongs to, and ``chapterIssuing`` keeps a note per key beside it. The two are written out separately -- they have to
-    be, since content keys must be literal strings -- so nothing but this stops one
-    growing an entry the other does not have. The failure is quiet: the box simply keeps
-    whatever it was showing before, which reads as an answer rather than as a gap.
+    The issuing chapter draws a document chip per ``CREDENTIAL_LABELS`` key, under the
+    type it belongs to, and ``chapterIssuing`` keeps a note per key beside it. The two
+    are written out separately -- they have to be, since content keys must be literal
+    strings -- so nothing but this stops one growing an entry the other does not have.
+    The failure is quiet: the box simply keeps whatever it was showing before, which
+    reads as an answer rather than as a gap.
 
     ``tests/test_content.py`` covers the other half, that every ``doc.*`` key here has a
-    block in ``04-issuing.md`` and that no block goes unrendered.
+    block in ``issuing.md`` and that no block goes unrendered.
     """
     source = (STATIC_ROOT / "js" / "chapters.js").read_text(encoding="utf-8")
     labels = re.search(r"const CREDENTIAL_LABELS = \{(.*?)^\};", source, re.DOTALL | re.MULTILINE)
@@ -104,7 +105,7 @@ def test_every_credential_has_a_note_under_the_picker() -> None:
 
 
 def test_every_credential_type_offered_has_a_data_model(client: TestClient) -> None:
-    """Chapter 3's type chips come from the credentials, their labels from the models.
+    """The issuing chapter's type chips: from the credentials, labelled from the models.
 
     The chapter groups documents by the ``type`` the world index reports, and looks each
     type up in ``credentialTypes`` for its label and the address of its data model. A
@@ -128,7 +129,7 @@ def test_every_credential_type_offered_has_a_data_model(client: TestClient) -> N
 
 
 def test_the_one_string_panel_finds_both_registers(client: TestClient) -> None:
-    """Chapter 11's clearest example is a pair, and half of it vanished silently.
+    """The harmonisation chapter's clearest example is a pair, and half of it vanished.
 
     The panel offers a chip per register so a reader can fetch both documents and see the
     same free string in each. It selects them out of ``/api/world`` by looking for the
@@ -322,9 +323,9 @@ def test_certificates_carry_a_classical_statement_and_dependencies(client: TestC
 def test_infrastructure_separates_hosting_from_issuance(client: TestClient) -> None:
     """What an issuer hosts is small, and does not grow with what it issues.
 
-    This is the claim chapter 10 rests on, so it is measured rather than trusted: an
-    institute that issued several certificates keeps fewer documents online than it
-    issued, because a credential reaches a verifier in its holder's hands.
+    This is the claim the infrastructure chapter rests on, so it is measured rather than
+    trusted: an institute that issued several certificates keeps fewer documents online
+    than it issued, because a credential reaches a verifier in its holder's hands.
     """
     data = client.get("/api/infrastructure").json()
     roles = {role["actor"]["id"]: role for role in data["roles"]}
@@ -394,11 +395,11 @@ def _text_only_slots():
 def test_no_text_only_slot_carries_an_html_entity() -> None:
     """A text-only slot shows an entity to the reader spelled out.
 
-    Written after exactly that happened: a panel headed ``Chapter 10&rsquo;s claim``
-    rendered the ampersand, the r, the s and so on. Nothing failed, no console error, and
-    the page simply looked like a mistake -- which is the failure mode this file exists
-    for. Prose and callouts reach `innerHTML` and may use entities freely; titles, hints
-    and ledes may not.
+    Written after exactly that happened: a panel title with its apostrophe written
+    ``&rsquo;`` rendered the ampersand, the r, the s and so on. Nothing failed, no
+    console error, and the page simply looked like a mistake -- which is the failure
+    mode this file exists for. Prose and callouts reach `innerHTML` and may use entities
+    freely; titles, hints and ledes may not.
 
     These slots used to be string literals in chapters.js and this read them from there.
     They are content blocks now, so it reads them from what the server serves -- and the

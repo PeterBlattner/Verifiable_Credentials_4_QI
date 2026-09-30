@@ -97,7 +97,7 @@ function exportForms(name, credential) {
 // everything else works is a caution that fails when it is most needed. The banner in
 // index.html covers the case where not even this has loaded.
 async function chapterCautions(context) {
-  // Prose: web/content/chapters/00-cautions.md
+  // Prose: web/content/chapters/cautions.md
   const t = context.text('cautions');
   const fragment = document.createDocumentFragment();
 
@@ -118,7 +118,7 @@ async function chapterCautions(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 0
+// ---------------------------------------------------------------- orientation
 
 function triangle() {
   const ns = 'http://www.w3.org/2000/svg';
@@ -169,7 +169,7 @@ function colourJsonExamples(node) {
 }
 
 async function chapterOrientation(context) {
-  // Prose: web/content/chapters/01-orientation.md
+  // Prose: web/content/chapters/orientation.md
   const t = context.text('orientation');
   const fragment = document.createDocumentFragment();
 
@@ -213,7 +213,7 @@ async function chapterOrientation(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 1
+// ---------------------------------------------------------------- keys
 
 const ISSUE_MODES = [
   { key: 'honest', label: 'Sign as yourself' },
@@ -222,7 +222,7 @@ const ISSUE_MODES = [
 ];
 
 async function chapterKeys(context) {
-  // Prose: web/content/chapters/02-keys.md
+  // Prose: web/content/chapters/keys.md
   const t = context.text('keys');
   const fragment = document.createDocumentFragment();
   const state = { key: null };
@@ -484,10 +484,10 @@ function flipLast(value) {
   return value.slice(0, -1) + (last === '1' ? '2' : '1');
 }
 
-// ---------------------------------------------------------------- chapter 2
+// ---------------------------------------------------------------- graph
 
 async function chapterGraph(context) {
-  // Prose: web/content/chapters/03-graph.md
+  // Prose: web/content/chapters/graph.md
   const t = context.text('graph');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('the-world'));
@@ -619,10 +619,10 @@ async function chapterGraph(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 3
+// ---------------------------------------------------------------- issuing
 
 async function chapterIssuing(context) {
-  // Prose: web/content/chapters/04-issuing.md
+  // Prose: web/content/chapters/issuing.md
   const t = context.text('issuing');
   const fragment = document.createDocumentFragment();
 
@@ -816,10 +816,10 @@ function wrap(text, width) {
   return lines.join('\n');
 }
 
-// ---------------------------------------------------------------- chapter 4
+// ---------------------------------------------------------------- verification
 
 async function chapterVerification(context) {
-  // Prose: web/content/chapters/05-verification.md
+  // Prose: web/content/chapters/verification.md
   const t = context.text('verification');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('the-scenario'));
@@ -922,7 +922,7 @@ async function chapterVerification(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 5
+// ---------------------------------------------------------------- scope
 
 /**
  * Describe the levels a scope row covers, in whichever grammar the register used.
@@ -971,7 +971,7 @@ function scopeRowTable(scope) {
 }
 
 async function chapterScope(context) {
-  // Prose: web/content/chapters/06-scope.md
+  // Prose: web/content/chapters/scope.md
   const t = context.text('scope');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('the-floor'));
@@ -1093,7 +1093,7 @@ async function chapterScope(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 6
+// ---------------------------------------------------------------- traceability
 
 /**
  * Render the PTB/DKD DCC tab: the document, and what it does that the others do not.
@@ -1105,7 +1105,7 @@ async function chapterScope(context) {
  * looking at duplicates most of itself.
  */
 function dccTab(body, representations, context, duplication, carriage) {
-  // Prose: web/content/chapters/07-traceability.md, which is the only chapter that
+  // Prose: web/content/chapters/traceability.md, which is the only chapter that
   // reaches this helper.
   const t = context.text('traceability');
   const dcc = representations.find((item) => item.format === 'PTB-DKD-DCC-XML');
@@ -1179,7 +1179,7 @@ function findStep(report, id) {
  * @returns {Promise<Element>} the panel
  */
 async function carriagePanel(context) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const report = await api.verify({ name: 'metas-external-dcc' });
 
@@ -1216,7 +1216,7 @@ async function carriagePanel(context) {
 
 /** Show every fact the credential and the PTB/DKD DCC both state, and whether they agree. */
 async function duplicationPanel(context, certificateName) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const report = await api.verify({ name: certificateName });
 
@@ -1271,7 +1271,7 @@ async function duplicationPanel(context, certificateName) {
  * one measurement, and only the last two let the recipient do anything further with it.
  */
 async function representationPanel(context, certificateName) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const data = await api.credential(certificateName);
   const result = data.credential.credentialSubject.calibration.results[0];
@@ -1419,7 +1419,7 @@ const OPERATIONS = [
  * from the dependency representations and once from the printed numbers alone.
  */
 async function combiningPanel(context) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const fragment = document.createDocumentFragment();
 
@@ -1513,7 +1513,7 @@ async function combiningPanel(context) {
 }
 
 async function chapterTraceability(context) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('the-chain'));
@@ -1656,10 +1656,10 @@ async function chapterTraceability(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 7
+// ---------------------------------------------------------------- break
 
 async function chapterBreakIt(context) {
-  // Prose: web/content/chapters/08-break.md
+  // Prose: web/content/chapters/break.md
   const t = context.text('break');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('why-break-it'));
@@ -1725,7 +1725,7 @@ async function chapterBreakIt(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 8
+// ---------------------------------------------------------------- tamper
 
 /**
  * Draw one editable field as whatever control its kind calls for.
@@ -1831,7 +1831,7 @@ function perturb(field, pristine) {
 }
 
 async function chapterTamper(context) {
-  // Prose: web/content/chapters/09-tamper.md
+  // Prose: web/content/chapters/tamper.md
   const t = context.text('tamper');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('by-hand'));
@@ -2005,10 +2005,10 @@ async function chapterTamper(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 9
+// ---------------------------------------------------------------- implications
 
 async function chapterImplications(context) {
-  // Prose: web/content/chapters/10-implications.md
+  // Prose: web/content/chapters/implications.md
   const t = context.text('implications');
   const fragment = document.createDocumentFragment();
 
@@ -2019,7 +2019,7 @@ async function chapterImplications(context) {
 
   return fragment;
 }
-// ---------------------------------------------------------------- chapter 10
+// ---------------------------------------------------------------- infrastructure
 
 // Blue for the anchor, amber for a key an organisation has to hold itself, green for
 // not holding one. The ordering is the argument: the further down the chain, the less
@@ -2039,7 +2039,7 @@ const ONLINE_KIND_LABELS = {
 };
 
 async function chapterInfrastructure(context) {
-  // Prose: web/content/chapters/11-infrastructure.md
+  // Prose: web/content/chapters/infrastructure.md
   const t = context.text('infrastructure');
   const fragment = document.createDocumentFragment();
   const data = await api.infrastructure();
@@ -2201,7 +2201,7 @@ async function chapterInfrastructure(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 11
+// ---------------------------------------------------------------- harmonisation
 
 // Render a blank-line-separated editorial field as paragraphs, without opening it to
 // markup. `keyValues` sets textContent, which is deliberate -- tests/test_deployment.py
@@ -2229,14 +2229,37 @@ const HARMONISATION_STATUS = {
   open: ['anchor', 'Nothing exists yet'],
 };
 
+// The tier an item sits in, as the map's column names it. Labels, so they stay here.
+const TIER_SHORT = {
+  floor: 'The minimum',
+  irreversible: 'Decide now',
+  optional: 'Worth having',
+};
+
+// The status filter: which items to show, and how the note under the map names them.
+const STATUS_FILTER_NAMES = {
+  available: 'already exist',
+  partial: 'answered in part',
+  emerging: 'being built',
+  open: 'genuinely open',
+};
+
 async function chapterHarmonisation(context) {
-  // Prose: web/content/chapters/12-harmonisation.md
+  // Prose: web/content/chapters/harmonisation.md
   const t = context.text('harmonisation');
   const fragment = document.createDocumentFragment();
   const data = await api.harmonisation();
   const titleOf = {};
   for (const tier of data.tiers) {
     for (const item of tier.items) titleOf[item.key] = item.title;
+  }
+  const topics = data.topics || [];
+  const topicLabel = Object.fromEntries(topics.map((topic) => [topic.key, topic.label]));
+  // Which rungs of the ladder advance each item, so an item can say so without the
+  // reader scrolling to the ladder and back.
+  const rungsOf = {};
+  for (const step of data.nextSteps) {
+    for (const key of step.unblocks) (rungsOf[key] = rungsOf[key] || []).push(step.order);
   }
 
   fragment.append(t.prose('the-harder-question'));
@@ -2284,53 +2307,166 @@ async function chapterHarmonisation(context) {
   const openCount = count('open');
   const share = Math.round((openCount / items.length) * 100);
 
+  // What the reader has narrowed the list to, and which items they have opened. A filter
+  // only hides: the tiers keep their order and every item stays in its own tier, because
+  // the order is the chapter's argument (actors/harmonisation.py says so at the top).
+  const state = { topic: null, status: null, expanded: new Set() };
+  const matches = (item) =>
+    (!state.topic || (item.topics || []).includes(state.topic)) &&
+    (!state.status || item.status === state.status);
+
+  const statusChips = el('div', { class: 'chips' });
+  const topicChips = el('div', { class: 'chips' });
+  const note = el('p', { class: 'muted' });
+  const mapHolder = el('div', { class: 'map-wrap' });
+  const listHolder = el('div', {});
+
+  const chip = (label, pressed, onclick) =>
+    el('button', { class: 'chip', text: label, 'aria-pressed': String(pressed), onclick });
+
+  // Filters change what is listed, and so what the page says. A filter that only toggled
+  // visibility would change no text, and tools/ui-clicks.mjs -- rightly -- cannot tell
+  // that from a control that does nothing. The note says what was selected.
+  function describe(shown) {
+    const parts = [];
+    if (state.status) parts.push(STATUS_FILTER_NAMES[state.status]);
+    if (state.topic) parts.push(topicLabel[state.topic]);
+    return parts.length
+      ? `Showing ${shown} of ${items.length}: ${parts.join(', in ')}.`
+      : `Showing all ${items.length}, tier by tier.`;
+  }
+
+  function details(item) {
+    return [
+      ['What would have to be agreed', textParagraphs(item.requirement)],
+      ['This demonstration', textParagraphs(item.demonstrated)],
+      item.exists ? ['What already exists', textParagraphs(item.exists)] : null,
+      // A bare URL in a field of its own, linked here rather than written into the
+      // prose: every other field reaches textContent, so an anchor tag in one of them
+      // would show the reader its angle brackets.
+      item.source ? ['Where to read it', el('a', { href: item.source, text: item.source })] : null,
+      ['If two parties answer differently', textParagraphs(item.consequence)],
+      ['Who would have to agree it', item.forum],
+    ].filter(Boolean);
+  }
+
+  // Collapsed, an item is its title, what it is, and what goes wrong without it. The
+  // fields are inserted when it is opened rather than hidden until then, for the same
+  // reason the filters re-render: showing them has to change what the page says.
+  function itemPanel(item) {
+    const [tone, statusLabel] = HARMONISATION_STATUS[item.status];
+    const opened = state.expanded.has(item.key);
+    const rungs = rungsOf[item.key] || [];
+    const node = panel(item.title, null, [
+      el('div', { class: 'item-meta' }, [
+        badge(tone, statusLabel),
+        ...(item.topics || []).map((key) => badge('neutral', topicLabel[key] || key)),
+        rungs.length
+          ? el('span', { class: 'muted', text: `Advanced by rung ${rungs.join(', ')}` })
+          : null,
+      ]),
+      opened
+        ? keyValues(details(item))
+        : keyValues([
+            ['If two parties answer differently', String(item.consequence).split('\n\n')[0]],
+          ]),
+      el('button', {
+        class: 'chip',
+        text: opened ? 'Hide the details' : 'Show the details',
+        'aria-expanded': String(opened),
+        onclick: () => {
+          if (opened) state.expanded.delete(item.key);
+          else state.expanded.add(item.key);
+          render();
+        },
+      }),
+    ]);
+    node.id = `item-${item.key}`;
+    return node;
+  }
+
+  function render() {
+    clear(statusChips).append(
+      chip(`All ${items.length}`, state.status === null, () => {
+        state.status = null;
+        render();
+      }),
+      ...Object.keys(STATUS_FILTER_NAMES).map((status) =>
+        chip(`${count(status)} ${STATUS_FILTER_NAMES[status]}`, state.status === status, () => {
+          state.status = status;
+          render();
+        })
+      )
+    );
+    clear(topicChips).append(
+      chip('All topics', state.topic === null, () => {
+        state.topic = null;
+        render();
+      }),
+      ...topics.map((topic) =>
+        chip(topic.label, state.topic === topic.key, () => {
+          state.topic = topic.key;
+          render();
+        })
+      )
+    );
+
+    const shown = items.filter(matches);
+    clear(note).append(document.createTextNode(describe(shown.length)));
+    clear(mapHolder).append(
+      shown.length
+        ? table(
+            ['Item', 'Tier', 'Status', 'Topic', 'Rung'],
+            shown.map((item) => [
+              el('button', {
+                class: 'item-link',
+                text: item.title,
+                onclick: () => {
+                  state.expanded.add(item.key);
+                  render();
+                  const target = document.getElementById(`item-${item.key}`);
+                  if (target) target.scrollIntoView({ block: 'start' });
+                },
+              }),
+              TIER_SHORT[item.tier] || item.tier,
+              badge(...HARMONISATION_STATUS[item.status]),
+              (item.topics || []).map((key) => topicLabel[key] || key).join(', '),
+              (rungsOf[item.key] || []).join(', ') || '—',
+            ])
+          )
+        : el('p', { class: 'muted', text: t.text('filter.none') })
+    );
+
+    clear(listHolder);
+    for (const tier of data.tiers) {
+      const inTier = tier.items.filter(matches);
+      listHolder.append(
+        el('h3', { text: tier.label }),
+        el('p', { class: 'muted', style: 'max-width:70ch;margin-top:-6px', text: tier.test })
+      );
+      if (!inTier.length) {
+        listHolder.append(el('p', { class: 'muted', text: t.text('filter.empty-tier') }));
+      }
+      for (const item of inTier) listHolder.append(itemPanel(item));
+    }
+  }
+
   fragment.append(
     panel(t.text('open.title'), t.text('open.hint'), [
-      el('div', { class: 'chips' }, [
-        badge('pass', `${count('available')} already exist`),
-        badge('warn', `${count('partial')} answered in part`),
-        badge('skip', `${count('emerging')} being built`),
-        badge('anchor', `${openCount} genuinely open`),
-      ]),
+      statusChips,
       el('div', {
         class: 'callout',
         html: t.fill('open.body', { total: items.length, open: openCount, share }),
       }),
-    ])
+    ]),
+    panel(t.text('map.title'), t.text('map.hint'), [topicChips, note, mapHolder]),
+    listHolder
   );
+  render();
 
+  // After the list rather than before it: the probe is one item worked through at
+  // length, and ahead of the list it kept every other item a long scroll away.
   fragment.append(await untpProbe(context, t));
-
-  for (const tier of data.tiers) {
-    fragment.append(
-      el('h3', { text: tier.label }),
-      el('p', { class: 'muted', style: 'max-width:70ch;margin-top:-6px', text: tier.test })
-    );
-
-    for (const item of tier.items) {
-      const [tone, statusLabel] = HARMONISATION_STATUS[item.status];
-      const pairs = [
-        ['What would have to be agreed', textParagraphs(item.requirement)],
-        ['This demonstration', textParagraphs(item.demonstrated)],
-        item.exists ? ['What already exists', textParagraphs(item.exists)] : null,
-        // A bare URL in a field of its own, linked here rather than written into the
-        // prose: every other field reaches textContent, so an anchor tag in one of them
-        // would show the reader its angle brackets.
-        item.source
-          ? ['Where to read it', el('a', { href: item.source, text: item.source })]
-          : null,
-        ['If two parties answer differently', item.consequence],
-        ['Who would have to agree it', item.forum],
-      ].filter(Boolean);
-
-      fragment.append(
-        panel(item.title, null, [
-          el('div', { style: 'margin-bottom:12px' }, [badge(tone, statusLabel)]),
-          keyValues(pairs),
-        ])
-      );
-    }
-  }
 
   fragment.append(t.prose('the-ladder'));
 
@@ -2480,7 +2616,11 @@ async function untpProbe(context, t) {
   );
 
   show(data.credentials[0]);
-  return panel(t.text('probe.title'), `${t.text('probe.hint')} ${data.version}`, [
+
+  // Collapsed to its summary until asked for. The findings are one item worked through
+  // in detail, and a reader browsing the list should not have to scroll past them. They
+  // are inserted when opened rather than hidden, so opening them changes the page.
+  const body = [
     t.callout('probe.body'),
     picker,
     holder,
@@ -2488,10 +2628,28 @@ async function untpProbe(context, t) {
       ? el('p', { class: 'muted', text: t.text('probe.accounted') })
       : el('div', { class: 'callout', text: t.text('probe.unaccounted') }),
     data.expands ? el('p', { class: 'muted', text: t.text('probe.expands') }) : null,
+  ].filter(Boolean);
+  const findings = el('div', {});
+  const toggle = el('button', {
+    class: 'chip',
+    text: 'Show the probe',
+    'aria-expanded': 'false',
+    onclick: () => {
+      const opening = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', String(opening));
+      toggle.textContent = opening ? 'Hide the probe' : 'Show the probe';
+      clear(findings);
+      if (opening) findings.append(...body);
+    },
+  });
+  return panel(t.text('probe.title'), `${t.text('probe.hint')} ${data.version}`, [
+    t.callout('probe.summary'),
+    toggle,
+    findings,
   ]);
 }
 
-// ---------------------------------------------------------------- chapter 12
+// ---------------------------------------------------------------- exchange
 
 // What the coordinator is doing in a given exchange, which is a property of the exchange
 // and not of the organisation. Verifica is an issuer here and a verifier in the same
@@ -2517,7 +2675,7 @@ function exchangeMessage(number, direction, title, hint, body, context) {
 }
 
 async function chapterMoving(context) {
-  // Prose: web/content/chapters/13-exchange.md
+  // Prose: web/content/chapters/exchange.md
   const t = context.text('exchange');
   const fragment = document.createDocumentFragment();
   const data = await api.workflows();
@@ -2853,88 +3011,84 @@ async function chapterMoving(context) {
 
 // ----------------------------------------------------------------
 
+// The same ids in the same order as CHAPTER_ORDER in web/content.py, which is where a
+// chapter's number comes from, and a test holds the two together. The prose refers to a
+// chapter by id, [chapter](#scope), and the server writes the number in, so moving a
+// chapter is moving its entry here and its line there (issue #73).
 export const CHAPTERS = [
   {
     // First deliberately: app.js falls back to CHAPTERS[0] for an empty or unknown
     // hash, so this is also the landing page. Heading text comes from
-    // web/content/chapters/00-cautions.md
+    // web/content/chapters/cautions.md
     //
-    // `unnumbered` keeps it out of the chapter numbering rather than taking 0 from
-    // orientation. ARCHITECTURE.md fixes the numbers because the prose says "chapter 5"
-    // and "the next chapter" in twenty-odd places, several of them in editorial fields
-    // served to the reader from actors/harmonisation.py; shifting them all to seat this
-    // page at 0 would break every one of those silently.
+    // `unnumbered` keeps it out of the numbering, so orientation is numbered 0. Nothing
+    // refers a reader to the cautions, and they are read before anything else.
     id: 'cautions',
     unnumbered: true,
     render: chapterCautions,
   },
   {
-    // Heading text comes from web/content/chapters/01-orientation.md
+    // Heading text comes from web/content/chapters/orientation.md
     id: 'orientation',
     render: chapterOrientation,
   },
   {
-    // Heading text comes from web/content/chapters/02-keys.md
+    // Heading text comes from web/content/chapters/keys.md
     id: 'keys',
     render: chapterKeys,
   },
   {
-    // Heading text comes from web/content/chapters/03-graph.md
+    // Heading text comes from web/content/chapters/graph.md
     id: 'graph',
     render: chapterGraph,
   },
   {
-    // Heading text comes from web/content/chapters/04-issuing.md
+    // Heading text comes from web/content/chapters/issuing.md
     id: 'issuing',
     render: chapterIssuing,
   },
   {
-    // Heading text comes from web/content/chapters/05-verification.md
+    // Heading text comes from web/content/chapters/verification.md
     id: 'verification',
     render: chapterVerification,
   },
   {
-    // Heading text comes from web/content/chapters/06-scope.md
+    // Heading text comes from web/content/chapters/scope.md
     id: 'scope',
     render: chapterScope,
   },
   {
-    // Heading text comes from web/content/chapters/07-traceability.md
+    // Heading text comes from web/content/chapters/traceability.md
     id: 'traceability',
     render: chapterTraceability,
   },
   {
-    // Heading text comes from web/content/chapters/08-break.md
+    // Heading text comes from web/content/chapters/break.md
     id: 'break',
     render: chapterBreakIt,
   },
   {
-    // Heading text comes from web/content/chapters/09-tamper.md
+    // Heading text comes from web/content/chapters/tamper.md
     id: 'tamper',
     render: chapterTamper,
   },
   {
-    // Heading text comes from web/content/chapters/10-implications.md
+    // Heading text comes from web/content/chapters/implications.md
     id: 'implications',
     render: chapterImplications,
   },
   {
-    // Heading text comes from web/content/chapters/11-infrastructure.md
+    // Heading text comes from web/content/chapters/infrastructure.md
     id: 'infrastructure',
     render: chapterInfrastructure,
   },
   {
-    // Heading text comes from web/content/chapters/12-harmonisation.md
+    // Heading text comes from web/content/chapters/harmonisation.md
     id: 'harmonisation',
     render: chapterHarmonisation,
   },
   {
-    // Last, and after harmonisation on purpose. Seating it earlier would renumber
-    // every chapter from 9 upward, and two dozen references to a chapter by number --
-    // several of them editorial fields in actors/harmonisation.py served to the reader
-    // -- would quietly become wrong. ARCHITECTURE.md records the rule.
-    //
-    // Heading text comes from web/content/chapters/13-exchange.md
+    // Heading text comes from web/content/chapters/exchange.md
     id: 'exchange',
     render: chapterMoving,
   },

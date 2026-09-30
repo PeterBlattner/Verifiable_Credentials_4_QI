@@ -1,12 +1,12 @@
 """Tests for the document a reader breaks by hand.
 
-Chapter 8 offers a catalogue of fields and, under each one, a sentence saying which check
-is supposed to notice when it moves. That sentence is a claim about the pipeline, and a
-claim in prose beside a pipeline that changes is the thing this repository keeps writing
-tests against. So the substantial test here is parametrised over the whole catalogue: it
-runs every field through a real verification and asserts that the check named is among the
-ones that actually failed -- and, for the three fields that are on offer precisely because
-nothing catches them, that nothing does.
+The tamper chapter offers a catalogue of fields and, under each one, a sentence saying
+which check is supposed to notice when it moves. That sentence is a claim about the
+pipeline, and a claim in prose beside a pipeline that changes is the thing this
+repository keeps writing tests against. So the substantial test here is parametrised
+over the whole catalogue: it runs every field through a real verification and asserts
+that the check named is among the ones that actually failed -- and, for the three fields
+that are on offer precisely because nothing catches them, that nothing does.
 
 The shape is taken from ``tests/test_pipeline.py``, which does the same for the tamper
 cases. The difference is that a tamper case builds its own world and this does not: the

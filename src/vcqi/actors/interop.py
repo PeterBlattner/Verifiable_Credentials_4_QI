@@ -36,7 +36,7 @@ Two of the Playground's steps can be answered here, offline, for the projection:
 the schema step says, against the vendored UNTP schema, and whether every term expands,
 against the vendored contexts -- a stand-in for the JSON-LD step, written by the same hand
 (see :mod:`vcqi.vc.jsonld_terms`). What the other steps say has to come from the
-Playground itself, and is recorded in PLAN.md when somebody runs it.
+Playground itself, and is recorded in the working plan, PLAN.md, when somebody runs it.
 """
 
 from __future__ import annotations

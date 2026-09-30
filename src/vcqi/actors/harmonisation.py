@@ -1,9 +1,9 @@
 """What would have to be agreed between organisations, and by whom.
 
-Chapter 10 asks what one organisation would have to run. This asks the harder question:
-what would they all have to agree with each other, for a certificate written in one
-country to mean the same thing in another. The two are different problems, and the second
-is the one the quality infrastructure exists to solve.
+The infrastructure chapter asks what one organisation would have to run. This asks the
+harder question: what would they all have to agree with each other, for a certificate
+written in one country to mean the same thing in another. The two are different
+problems, and the second is the one the quality infrastructure exists to solve.
 
 There are three arrangements in this demonstration now, not two, and the third made the
 list longer in a way worth naming: the OIML-CS raised two questions neither of the others
@@ -14,14 +14,16 @@ getting either wrong is not a missing feature but a wrong answer.
 Every item here passes one test, and items that fail it were left out: **two conforming
 implementations that differ here cannot interoperate.** That test is what separates a
 harmonisation need from a deployment gap. Deployment gaps — key custody, long-term
-validation, selective disclosure, the signed KCDB — are named in chapter 9 already, with a
-direction for each. Repeating them here would be padding. What is not written down
-anywhere else is who would have to agree each item, in which forum, and what happens when
-two bodies answer differently.
+validation, selective disclosure, the signed KCDB — are named in the implications
+chapter already, with a direction for each. Repeating them here would be padding. What
+is not written down anywhere else is who would have to agree each item, in which forum,
+and what happens when two bodies answer differently.
 
-The tiers are read in order rather than filtered. The ordering is itself the argument: the
-first tier is what makes the system work at all, the second is what cannot be decided later
-however much anyone would prefer to, and the third is what a deployment can do without.
+The tiers stay in order. The ordering is itself the argument: the first tier is what makes
+the system work at all, the second is what cannot be decided later however much anyone
+would prefer to, and the third is what a deployment can do without. A reader can narrow the
+list by topic or by status, and a filter only hides items: it never reorders them or moves
+one out of its tier.
 
 One thing this module gets wrong less than an earlier draft did. It is tempting to assume
 the metrology vocabularies are missing and must be invented. They are not. The BIPM
@@ -37,8 +39,9 @@ exists yet*. Five of them were answered, or half answered, in specifications tha
 published while this was being written: did:webvh for rotation and withdrawal, Bitstring
 Status List for what a status value means, ETSI trusted lists for distributing anchors, and
 did:webvh again for what becomes of an identifier when an organisation moves. The reviewer's
-own estimate was that only about a fifth of the list needed a long argument. Recounting from
-the items themselves puts it near a quarter, and the chapter now counts rather than asserts.
+own estimate was that only about a fifth of the list needed a long argument. The chapter
+now counts the open items from these records instead of stating a share, because the share
+moves every time an item is added.
 
 So the ``exists`` field on those items opens by saying what the first draft got wrong. That
 is deliberate and it should stay: a page about what nobody has agreed yet is exactly the
@@ -66,6 +69,8 @@ __all__ = [
     "NEXT_STEPS",
     "STATUSES",
     "TIERS",
+    "TOPICS",
+    "Topic",
     "items_in_tier",
 ]
 
@@ -133,6 +138,42 @@ TIERS: tuple[Tier, ...] = (
 
 
 @dataclass(frozen=True)
+class Topic:
+    """A subject the items can be browsed by, across the tiers.
+
+    Topics exist for finding an item, not for ranking one: the tier says how much an item
+    matters, and the topic says what it is about. An item may have two.
+
+    Attributes:
+        key: Short identifier, used by the items.
+        label: The name the chapter's filter shows.
+    """
+
+    key: str
+    label: str
+
+    def to_json(self) -> dict[str, Any]:
+        """Return the topic as the interface displays it.
+
+        Returns:
+            A JSON-compatible dictionary.
+        """
+        return {"key": self.key, "label": self.label}
+
+
+#: The topics, in the order the chapter offers them.
+TOPICS: tuple[Topic, ...] = (
+    Topic(key="signing", label="Signing and identifiers"),
+    Topic(key="status", label="Status and history"),
+    Topic(key="scope", label="Scope and capability"),
+    Topic(key="measurement", label="Measurement data"),
+    Topic(key="documents", label="Documents and exchange"),
+    Topic(key="legal", label="Legal metrology"),
+    Topic(key="arrangements", label="Arrangements and policy"),
+)
+
+
+@dataclass(frozen=True)
 class HarmonisationItem:
     """One thing that would have to be agreed across organisations.
 
@@ -150,6 +191,7 @@ class HarmonisationItem:
             reaches ``textContent`` and markup in one shows as angle brackets.
         consequence: What happens when two parties answer differently.
         forum: Who would have to agree it, and whether such a body exists.
+        topics: The keys of the :data:`TOPICS` it is about, one or two.
     """
 
     key: str
@@ -162,6 +204,7 @@ class HarmonisationItem:
     source: str
     consequence: str
     forum: str
+    topics: tuple[str, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         """Return the item as the interface displays it.
@@ -180,6 +223,7 @@ class HarmonisationItem:
             "source": self.source,
             "consequence": self.consequence,
             "forum": self.forum,
+            "topics": list(self.topics),
         }
 
 
@@ -190,6 +234,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="One cryptosuite, and one canonical form",
         status="available",
+        topics=("signing",),
         requirement=(
             "Every issuer signs, and every verifier checks, the same way. A verifier "
             "cannot be expected to implement each institute's preference, and a "
@@ -201,7 +246,9 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "the exact bytes being hashed, and that a production system should "
             "canonicalize the RDF graph instead. The demonstration is proposing "
             "something it does not itself recommend, which is worth knowing before "
-            "anyone treats it as a template."
+            "anyone treats it as a template. What it does, it does as specified: signing "
+            "the W3C's own example with the W3C's key reproduces the published signature "
+            "byte for byte."
         ),
         exists=(
             "W3C Data Integrity, with a registry of cryptosuites. The standard exists; "
@@ -222,8 +269,9 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="One protocol for asking, not just one format for answering",
         status="partial",
+        topics=("documents",),
         requirement=(
-            "Every item above this one is about what a certificate says. This is about "
+            "Nearly every other item is about what a certificate says. This one is about "
             "how anybody comes to be holding it. Two organisations have to agree how a "
             "presentation is requested, what a request may ask for, how the answer is "
             "bound to the request so it cannot be replayed, and what a refusal looks "
@@ -231,16 +279,16 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "able to read each other's certificates and unable to obtain one."
         ),
         demonstrated=(
-            "Chapter 12 now shows both answers. It implements VCALM's exchange for "
-            "three cases, including the one the quality infrastructure is actually made "
-            "of: a party that verifies what was presented and issues in the same round "
-            "trip. What it does not implement is authorization, which is the half a real "
-            "deployment argues about - anyone may open an exchange here and the "
-            "fictional holders will present for them.\n\n"
-            "Beside it the chapter measures the other answer, which is to need no "
-            "protocol at all. Every credential here already verifies from a file, and "
-            "the audit reports exactly how much of a verification can arrive that way "
-            "and what is left over."
+            "[Chapter](#exchange) now shows both answers. It implements VCALM's "
+            "exchange for three cases, including the one the quality infrastructure is "
+            "actually made of: a party that verifies what was presented and issues in "
+            "the same round trip. What it does not implement is authorization, which "
+            "is the half a real deployment argues about - anyone may open an exchange "
+            "here and the fictional holders will present for them.\n\nBeside it the "
+            "chapter measures the other answer, which is to need no protocol at all. "
+            "Every credential here already verifies from a file, and the audit reports "
+            "exactly how much of a verification can arrive that way and what is left "
+            "over."
         ),
         exists=(
             "More than one answer, which is the difficulty rather than the absence. "
@@ -280,6 +328,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="One identifier method, and an agreed meaning for resolving it",
         status="partial",
+        topics=("signing",),
         requirement=(
             "What remains is the choice, and the trust placed in the very first fetch. "
             "Which method the arrangements adopt is unsettled, and whatever a verifier "
@@ -320,6 +369,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="How a chain crosses from one arrangement into the other",
         status="open",
+        topics=("arrangements",),
         requirement=(
             "A certificate of conformity can rest on an accreditation under the Global "
             "ACI arrangement and on a calibration traceable under the CIPM MRA. An OIML "
@@ -353,6 +403,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="What a status value means, not how it is encoded",
         status="partial",
+        topics=("status",),
         requirement=(
             "What is left is the institutional answer itself, not a way to write it "
             "down: who may set a suspension, when it takes effect, whether it reaches "
@@ -393,6 +444,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="What a verdict means, and who it is good enough for",
         status="open",
+        topics=("arrangements",),
         requirement=(
             "A relying party has to be able to say what it requires, separately from the "
             "verifier that checks it. Two things have to be agreed for that: a common "
@@ -437,6 +489,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="What the anchors' identifiers are, and how a verifier learns them",
         status="partial",
+        topics=("signing", "arrangements"),
         requirement=(
             "The mechanism is not the hard part and this item used to imply it was. What "
             "is left is who operates the list for the quality infrastructure, what it "
@@ -465,9 +518,10 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "being an arrangement."
         ),
         forum=(
-            "The arrangements. Chapter 9 calls the custody of these keys a governance "
-            "problem in a technical costume; the harmonisation question is the narrower "
-            "one of who publishes the list and how it is fetched."
+            "The arrangements. [Chapter](#implications) calls the custody of these "
+            "keys a governance problem in a technical costume; the harmonisation "
+            "question is the narrower one of who publishes the list and how it is "
+            "fetched."
         ),
     ),
     HarmonisationItem(
@@ -475,6 +529,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="What a document authorises, as distinct from what it attests",
         status="open",
+        topics=("legal",),
         requirement=(
             "A verifier has to be able to tell evidence from permission. An OIML "
             "certificate says a type was evaluated against a Recommendation and met it. "
@@ -518,6 +573,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="What identifies a type, rather than an instrument",
         status="open",
+        topics=("legal",),
         requirement=(
             "Everything else in this demonstration is about one physical object with a "
             "serial number. A type certificate covers a design, and the OIML-CS extends "
@@ -550,6 +606,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="Unit identifiers, which already exist",
         status="available",
+        topics=("measurement",),
         requirement=(
             "A unit has to mean the same thing to the issuer and to the verifier. That "
             "means a resolvable identifier, not a symbol in a free text field."
@@ -590,6 +647,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="Whose timestamps everybody accepts",
         status="partial",
+        topics=("signing",),
         requirement=(
             "Long-term validation needs a timestamp from an authority the eventual "
             "verifier trusts — possibly thirty years later, and probably in a different "
@@ -598,14 +656,15 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "to be built."
         ),
         demonstrated=(
-            "Nothing here is timestamped. Chapter 10 says why that has a deadline; this "
-            "is the half of it that needs agreeing between organisations rather than "
-            "building inside one."
+            "Nothing here is timestamped. [Chapter](#infrastructure) says why that has "
+            "a deadline; this is the half of it that needs agreeing between "
+            "organisations rather than building inside one."
         ),
         exists=(
             "RFC 3161 and the ETSI archival profiles define the mechanism thoroughly. "
             "Neither says whose timestamps a national metrology institute should accept "
-            "— and the item below changes how much of this a timestamp has to carry, "
+            "— and the item on event logs changes how much of this a timestamp has to "
+            "carry, "
             "because an issuer keeping a witnessed log of its own key history answers "
             "was this key valid then without any third party being asked."
         ),
@@ -625,6 +684,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="Which copy governs",
         status="open",
+        topics=("documents",),
         requirement=(
             "When a calibration exists as both a standardised document and a credential, "
             "one of them has to be the one that counts. Not stating which is a decision "
@@ -639,11 +699,13 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "than about how to write it down."
         ),
         demonstrated=(
-            f"Every calibration certificate here carries a PTB/DKD DCC "
+            f"Every calibration certificate here but one carries a PTB/DKD DCC "
             f"{DCC_SCHEMA_VERSION}, with quantities in D-SI {SI_VERSION}, alongside a "
-            "readable credential subject, and the pipeline checks the two agree. "
-            "ARCHITECTURE.md sets out the three available answers and favours making the "
-            "document the subject."
+            "readable credential subject, and the pipeline checks the two agree. The "
+            "exception, METAS-2026-0420, points at its document instead of carrying it, "
+            "so its measurement exists in one copy only, and the four facts of index the "
+            "credential restates are never compared with it. ARCHITECTURE.md sets out "
+            "the three available answers and favours making the document the subject."
         ),
         exists="",
         source="",
@@ -662,6 +724,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="How long an identifier goes on meaning what it means",
         status="partial",
+        topics=("signing",),
         requirement=(
             "Somebody has to commit that an identifier still means the same organisation "
             "in 2050, and say what becomes of it when a body is renamed, merged or "
@@ -699,6 +762,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="A log of what was true, not a document saying what is true",
         status="partial",
+        topics=("status",),
         requirement=(
             "A verifier meeting a certificate in 2050 has to establish what was true in "
             "2026: which key the issuer held, whether the accreditation behind it was "
@@ -742,6 +806,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="Who still serves the documents a verification reads",
         status="partial",
+        topics=("documents",),
         requirement=(
             "Verifying a credential is not reading one file. Somebody has to undertake "
             "that the supporting documents are still retrievable decades later, and "
@@ -749,14 +814,14 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "answer."
         ),
         demonstrated=(
-            "Chapter 10 measures this without naming it. Verifying one certificate of "
-            "conformity reads 35 distinct documents from 8 hosts. The credential itself "
-            "travels with its holder and is safe. The other 34 - DID documents, "
-            "accreditation scopes, KCDB entries, validation schemas, the data model of "
-            "each credential type, status lists, the "
-            "uncertainty representations published by reference rather than inline, and "
-            "now an answer from a register that publishes no document at all - are "
-            "fetched from wherever they live, and every one of them is a way for a "
+            "[Chapter](#infrastructure) measures this without naming it. Verifying one "
+            "certificate of conformity reads 35 distinct documents from 8 hosts. The "
+            "credential itself travels with its holder and is safe. The other 34 - DID "
+            "documents, accreditation scopes, KCDB entries, validation schemas, the "
+            "data model of each credential type, status lists, the uncertainty "
+            "representations published by reference rather than inline, and now an "
+            "answer from a register that publishes no document at all - are fetched "
+            "from wherever they live, and every one of them is a way for a "
             "verification to stop working without anything having been tampered with. "
             "The last of those is the sharpest case on this page: a document can be "
             "archived by anyone who has a copy, and an endpoint cannot be archived at "
@@ -792,6 +857,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="Whether a recognition can be asked about in the past",
         status="open",
+        topics=("status",),
         requirement=(
             "A way to establish that an accreditation body was recognised, and for the "
             "right main scope, on the date a calibration was performed — not on the date "
@@ -832,6 +898,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="What the unit of suspension is",
         status="open",
+        topics=("status",),
         requirement=(
             "An agreement that a recognition can be withdrawn from one organisation "
             "without being withdrawn from the others recorded beside it — either one "
@@ -870,6 +937,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="One digital representation of the SI",
         status="emerging",
+        topics=("measurement",),
         requirement=(
             "Quantities have to travel in a form both ends parse identically, including "
             "the awkward parts: prefixes, powers, and units that are ratios."
@@ -900,6 +968,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="Machine-actionable requirements, in the Recommendation itself",
         status="emerging",
+        topics=("legal",),
         requirement=(
             "A recognition bounds what an entity may issue by pointing at a schema. For "
             "an accreditation scope this project had to invent the schema, because the "
@@ -932,8 +1001,8 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "verifier comparing their certificates would have no way to notice."
         ),
         forum=(
-            "The OIML, in a sub-group that already exists. Like the unit identifiers "
-            "above, this is closer to adoption than to agreement — which is why it sits "
+            "The OIML, in a sub-group that already exists. Like the unit identifiers, "
+            "this is closer to adoption than to agreement — which is why it sits "
             "in this tier rather than the first: the certificate works today with an "
             "invented schema, it just cannot be checked against the real requirement."
         ),
@@ -943,21 +1012,31 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="A certificate format with international standing",
         status="emerging",
+        topics=("documents",),
         requirement=(
             "One machine-readable calibration certificate that a body in another region "
             "will accept without a bilateral arrangement behind it."
         ),
         demonstrated=(
-            f"The PTB/DKD DCC {DCC_SCHEMA_VERSION} is carried by every calibration "
-            "certificate here, as a subset rather than a conformant document, and with "
-            "its signature slot unused.\n\n"
+            f"Every calibration certificate here but one carries the PTB/DKD DCC "
+            f"{DCC_SCHEMA_VERSION} inside it, as a subset rather than a conformant "
+            "document, with its signature slot unused. The exception, METAS-2026-0420, "
+            "points at the DKD's own published example at 3.4.0-rc.2 instead, and that "
+            "document fills the slot: a ds:Signature that proves the bytes and names "
+            "nobody, shown passing beside the credential's proof in "
+            "[chapter](#traceability).\n\n"
             "The other candidate was tried rather than described. A calibration "
             "certificate and a certificate of conformity are both really projected into "
-            "UN/CEFACT's Digital Conformity Credential, UNTP 0.7.0, really validated "
-            "against the published schema and expanded against the published contexts, "
-            "both vendored here so the answer cannot change without a visible diff. The "
-            "panel above this list reports what the mapping could not carry, what it "
-            "supplied by judgement, and what the validator says about the result."
+            "UN/CEFACT's Digital Conformity Credential, UNTP 0.7.0, and the two "
+            "recognitions behind them into its Digital Identity Anchor. All four are "
+            "validated against the published schemas and expanded against the published "
+            "contexts, both vendored here so the answer cannot change without a visible "
+            "diff, and all four have been through the UNTP Playground: every term "
+            "expanded, and the schema errors were exactly the findings the projection "
+            "records. The Playground could check none of the signatures, because it has "
+            "no suite for ecdsa-jcs-2019. The UNTP probe panel on this page reports what "
+            "the mapping could not carry, what it supplied by judgement, and what the "
+            "validator says about the result."
         ),
         exists=(
             "The PTB/DKD DCC is much the most mature candidate for a calibration "
@@ -1005,6 +1084,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="Measurand and quantity identifiers",
         status="emerging",
+        topics=("scope", "measurement"),
         requirement=(
             "A resolvable identifier for the measured quantity, so that a CMC and an "
             "accreditation scope can be compared by a machine rather than by a person "
@@ -1012,10 +1092,10 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
         demonstrated=(
             "This demonstration invents dc.resistance and compares it with string "
-            "equality. The CMC and the accreditation scope agree only because one author "
-            "wrote both files. Chapter 5 decides whether a calibration may carry the "
-            "CIPM MRA logo on exactly that comparison, and it would not survive contact "
-            "with two organisations that had never spoken."
+            "equality. The CMC and the accreditation scope agree only because one "
+            "author wrote both files. [Chapter](#scope) decides whether a calibration "
+            "may carry the CIPM MRA logo on exactly that comparison, and it would not "
+            "survive contact with two organisations that had never spoken."
         ),
         exists=(
             "Work is under way at ISO and IEC. The correct move is to wait and adopt, "
@@ -1033,23 +1113,26 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="How a scope says what it covers",
         status="open",
+        topics=("scope",),
         requirement=(
             "A grammar for the coverage column of an accreditation scope. Not a "
-            "vocabulary for the quantities -- that is the item above -- but a way to "
+            "vocabulary for the quantities -- that is the item on measurand identifiers "
+            "-- but a way to "
             "write down the shapes a scope actually uses, so that two implementations "
             "reading the same published table select the same row."
         ),
         demonstrated=(
             "SCS 0123 publishes four rows, and they use three different coverage "
             "grammars between them: a list of fixed values, an interval with a strict "
-            "upper bound, and a nominal with a tolerance. Two of the rows are identical "
-            "except for the frequency band they were demonstrated over, and they carry "
-            "different capabilities. Chapter 5 shows the verifier choosing among them, "
-            "and chapter 7 has the certificate that is refused because no row covers "
-            "the frequency it was measured at.\n\nThe shapes are taken from a published "
-            "calibration scope; the numbers are invented. So is the tolerance that "
-            "decides whether a reading of 19,2003 ohm is the 19,2 ohm fixed value -- no "
-            "register states one, and something has to."
+            "upper bound, and a nominal with a tolerance. Two of the rows are "
+            "identical except for the frequency band they were demonstrated over, and "
+            "they carry different capabilities. [Chapter](#scope) shows the verifier "
+            "choosing among them, and [chapter](#break) has the certificate that is "
+            "refused because no row covers the frequency it was measured at.\n\nThe "
+            "shapes are taken from a published calibration scope; the numbers are "
+            "invented. So is the tolerance that decides whether a reading of 19,2003 "
+            "ohm is the 19,2 ohm fixed value -- no register states one, and something "
+            "has to."
         ),
         exists=(
             "Nothing that reaches the coverage column. Accreditation bodies publish "
@@ -1078,6 +1161,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="How to ask a register what a scope covers",
         status="open",
+        topics=("scope",),
         requirement=(
             "A protocol for asking a register whether a scope covered a given standard "
             "on a given date, and for what the reply has to be. Three things have to be "
@@ -1130,6 +1214,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="How uncertainty travels, dependencies included",
         status="open",
+        topics=("measurement",),
         requirement=(
             "A registered identifier for each uncertainty representation, and at least "
             "one representation that carries dependency structure rather than a single "
@@ -1157,8 +1242,8 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         source="",
         consequence=(
             "Recipients fall back to the classical statement and the correlation "
-            "information is lost. Chapter 6 measures what that costs, and the answer is "
-            "not small."
+            "information is lost. [Chapter](#traceability) measures what that costs, "
+            "and the answer is not small."
         ),
         forum="The JCGM would be the natural home, alongside the GUM itself.",
     ),
@@ -1208,11 +1293,11 @@ NEXT_STEPS: tuple[NextStep, ...] = (
         title="Use the identifiers that already exist",
         detail=(
             "Replace the free-text measurands and units with SI Digital Framework "
-            "identifiers, and point the CMC entries at resolvable KCDB CMC identifiers. "
-            "It is a small change, it removes the manufactured agreement that chapter 5 "
-            "quietly depends on, and it is the smallest honest proof of this entire "
-            "argument. Anything that cannot manage this step should be treated with "
-            "suspicion when it proposes the later ones."
+            "identifiers, and point the CMC entries at resolvable KCDB CMC "
+            "identifiers. It is a small change, it removes the manufactured agreement "
+            "that [chapter](#scope) quietly depends on, and it is the smallest honest "
+            "proof of this entire argument. Anything that cannot manage this step "
+            "should be treated with suspicion when it proposes the later ones."
         ),
         unblocks=("units", "measurands"),
     ),
@@ -1285,15 +1370,16 @@ NEXT_STEPS: tuple[NextStep, ...] = (
         title="Sign the KCDB",
         detail=(
             "The CMC data already exists, is already peer reviewed, and now resolves. "
-            "What is missing is a signature and a stable content digest over each entry. "
-            "This is the highest-value single item on the list, because every scope check "
-            "downstream of it is currently trusting a fetch.\n\nThe accreditation half "
-            "of this rung has been taken in the demonstration, which makes it the one "
-            "step here with a worked example rather than an argument: the accreditation "
-            "body signs each scope, the credentials citing one pin it by digest, and the "
-            "scopes moved out of chapter 12's unportable class without the portability "
-            "rule being touched. Nothing about the CMC is harder. It is a different "
-            "organisation, which is the whole difficulty."
+            "What is missing is a signature and a stable content digest over each "
+            "entry. This is the highest-value single item on the list, because every "
+            "scope check downstream of it is currently trusting a fetch.\n\nThe "
+            "accreditation half of this rung has been taken in the demonstration, "
+            "which makes it the one step here with a worked example rather than an "
+            "argument: the accreditation body signs each scope, the credentials citing "
+            "one pin it by digest, and the scopes moved out of [chapter](#exchange)'s "
+            "unportable class without the portability rule being touched. Nothing "
+            "about the CMC is harder. It is a different organisation, which is the "
+            "whole difficulty."
         ),
         unblocks=("anchors", "measurands"),
     ),

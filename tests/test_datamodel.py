@@ -6,7 +6,7 @@ The first is that the data models describe what this world actually issues. Ever
 credential validates against its type's model, and -- the part a plain validation cannot
 say, because the models are deliberately open -- carries no member the model leaves out.
 Without the second half, a member added to a builder in ``vc/model.py`` would appear on
-every certificate and in no box in chapter 3, and nothing would notice.
+every certificate and in no box in the issuing chapter, and nothing would notice.
 
 The second is that the models are what the credentials say they are: self-contained, so
 that the digest in ``credentialSchema`` covers everything a validator will read, and
@@ -41,7 +41,8 @@ from vcqi.vc.datamodel import (
 )
 from vcqi.vc.verify import verify_credential
 
-#: The documents chapter 3 offers, which are every credential except the status lists.
+#: The documents the issuing chapter offers, which are every credential except the
+#: status lists.
 EXAMPLES = (
     "bipm-recognition",
     "global-aci-recognition",
@@ -185,14 +186,14 @@ class TestTheModelsDescribeWhatIsIssued:
         assert served == set(DATA_MODEL_URLS)
 
     def test_the_examples_are_every_credential_but_the_status_lists(self, world) -> None:
-        """The list above is the one chapter 3 offers, kept honest against the world."""
+        """The list above is the one the issuing chapter offers, held to the world."""
         assert set(EXAMPLES) == {
             name for name in world.credentials if not name.startswith("status-")
         }
 
     @pytest.mark.parametrize("name", EXAMPLES)
     def test_the_credential_validates_signed_and_unsigned(self, world, name) -> None:
-        """With its proof, as verified; without it, as chapter 3's first panel shows it."""
+        """Signed, as verified; unsigned, as the issuing chapter first shows it."""
         credential = world.credential(name)
         schema = data_model(_type_of(credential))
         unsigned = {key: value for key, value in credential.items() if key != "proof"}

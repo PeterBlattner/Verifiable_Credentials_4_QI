@@ -1,6 +1,6 @@
-<!-- 02-keys.md -- chapter 1 in the rail; the NN- prefix is the position in the
-     CHAPTERS array, which counts the cautions. Rendered by chapterKeys() in
-     ../../static/js/chapters.js.
+<!-- keys.md -- rendered by chapterKeys() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite
