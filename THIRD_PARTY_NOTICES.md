@@ -62,3 +62,29 @@ Copyright / attribution:
 
 Copyright © World Wide Web Consortium. No endorsement by the W3C of this project is
 implied.
+
+## W3C VC Data Integrity ECDSA Cryptosuites — ecdsa-jcs-2019 test vectors
+
+Files:
+
+`tests/vectors/w3c-vc-di-ecdsa/p256KeyPair.json`  
+`tests/vectors/w3c-vc-di-ecdsa/unsigned.json`  
+`tests/vectors/w3c-vc-di-ecdsa/ecdsa-jcs-2019-p256/` (nine files)
+
+Source:
+
+The test vectors of the W3C Recommendation *Verifiable Credential Data Integrity ECDSA
+Cryptosuites v1.0* (15 May 2025), Appendix A.5, "Representation: ecdsa-jcs-2019 with
+curve P-256", taken unchanged from the specification repository
+`https://github.com/w3c/vc-di-ecdsa`, directory `TestVectors/`, at commit
+`59df72ca8cdb275d97eb496086fea6fac4fa7f0f`. Used only by `tests/test_w3c_vectors.py`.
+
+Licence:
+
+W3C Software and Document License,
+`https://www.w3.org/Consortium/Legal/2015/copyright-software-and-document`
+
+Copyright / attribution:
+
+Copyright © World Wide Web Consortium and the contributors to the specification. No
+endorsement by the W3C of this project is implied.

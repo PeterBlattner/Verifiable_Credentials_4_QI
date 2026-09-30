@@ -4652,3 +4652,75 @@ signature changed; 5 reports exactly the blocking findings - three for the calib
 
 Branch `feature/untp-0-7-0` from `develop`, into `develop`. The change set 24 baseline is
 its own `docs(plan)` commit.
+
+# Change set 29 - the signatures checked against the W3C's own test vector
+
+## Context
+
+Change set 28 left one question open: nothing outside this repository had checked a
+signature made here, because the UNTP Playground's verifier has no suite for
+`ecdsa-jcs-2019`. The proposal was a second export, an enveloped JWT signed like the
+Playground's own sample. Reading the verifier's source (VCkit on the Veramo fork
+`gs-gs/veramo`, branch `vc-v2`) showed that would not work either:
+
+- **Embedded proofs.** The Data Integrity path is configured with one suite,
+  `JsonWebSignature2020` (VCkit's `packages/cli/default/default.yml`). That suite came
+  from a Community Group and never became a Recommendation; none of the W3C
+  Recommendation cryptosuites is loaded.
+- **Enveloped JWTs.** The VC-JOSE-COSE path finds the key by `kid` and accepts it only if
+  its type is exactly `JsonWebKey` with a `publicKeyJwk` (`findMatchingVerificationMethod`
+  in `packages/utils/src/jwk-did-utils.ts`). VCkit's own `did:key` resolver labels every
+  P-256 and Ed25519 key `JsonWebKey2020`, so a `did:key` issuer is refused before the
+  signature is read. The Playground's sample passes because its `did:web` document lists
+  the same key a second time as `JsonWebKey`. The algorithm is not the constraint:
+  verification is `jose.compactVerify`, which takes ES256 as readily as EdDSA.
+
+So a checkable export would need a publicly resolvable `did:web`, which here means DID
+documents served from the Render deployment for the sake of one tool.
+
+## Decisions
+
+Taken with Peter: W3C compatibility is the primary goal; UNTP is a secondary check and is
+itself moving towards W3C. So no JWT export for the Playground's sake. The independent
+check comes from the W3C: VC Data Integrity ECDSA Cryptosuites v1.0 (Recommendation,
+15 May 2025), Appendix A.5, publishes `ecdsa-jcs-2019` with P-256 as a test vector, and
+the files are in `w3c/vc-di-ecdsa/TestVectors`. A VC-JOSE-COSE export stays possible as a
+W3C feature in its own right, not as a route into the Playground.
+
+## Checklist
+
+- [x] 1. Vendor the vector unchanged into `tests/vectors/w3c-vc-di-ecdsa/`, pinned to a
+      commit
+- [x] 2. `tests/test_w3c_vectors.py`: every intermediate, the signature byte for byte,
+      verification, the issuer binding, tampering
+- [x] 3. Prose: the `deterministic` block in `04-issuing.md`; ARCHITECTURE.md's
+      Playground and determinism sections; THIRD_PARTY_NOTICES.md; README.md
+- [x] 4. Verification
+
+## Progress log
+
+- 2026-09-30: plan approved. Branch `feature/w3c-ecdsa-jcs-vectors` from `develop`.
+- 2026-09-30: done.
+  - Vendored from `w3c/vc-di-ecdsa` at `59df72ca8cdb`: the key pair, the unsigned
+    credential and the nine files of `ecdsa-jcs-2019-p256/`. The P-256 JCS files last
+    changed in `fb46a0690d0c` (2025-01-02). They carry no trailing newlines, and the
+    tests read them as published, stripping nothing.
+  - **The demonstrator reproduces the vector byte for byte.** The secret key (multicodec
+    `0x8626`) derives the published public key. The canonical document, the document
+    hash, the canonical proof configuration, its hash and the combined hash all equal
+    the files, and the RFC 6979 signature equals `sigHex` and `proofValue`, so the whole
+    signed credential equals `signedJCSECDSAP256.json`. `verify_proof` accepts the
+    W3C's credential, with the key handed over and with the key the resolver derives from
+    the `did:key` alone.
+  - One finding. `check_proof` refuses the W3C's credential, correctly: the vector's
+    issuer is an `https` URL and its key a `did:key` nobody bound to it, and this verifier
+    requires the key's controller to be the issuer, checked before the signature. The
+    test pins that the refusal is for that reason and no other.
+  - Deliberate break: one word changed in `canonDocJCSECDSAP256.txt` failed exactly
+    `test_every_intermediate_value_is_the_published_one[canonical_document-…]`. Restored.
+  - Full suite: 796 pass, 46 skipped (785 before, and 11 new). No UI control changed, so
+    the harnesses are unaffected.
+
+## Git
+
+Branch `feature/w3c-ecdsa-jcs-vectors` from `develop`, into `develop`.
