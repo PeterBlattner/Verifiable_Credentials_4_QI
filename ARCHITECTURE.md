@@ -39,22 +39,25 @@ an equivalent, or the JSON-LD layer is providing no semantics at all.
 
 ### Deterministic signatures (RFC 6979)
 
-`crypto/ecdsa_p256.py` implements ECDSA signing with a nonce derived from the key and
-the message rather than from a random source, so identical input always produces an
-identical signature. This is what lets the demonstration be diffed: any change in a
-`proofValue` was caused by a change in the document.
+ECDSA signing here derives its nonce from the key and the message rather than from a
+random source, so identical input always produces an identical signature. This is what
+lets the demonstration be diffed: any change in a `proofValue` was caused by a change in
+the document.
 
-It exists because `cryptography` exposes no deterministic mode. Verification is still
-delegated to `cryptography`, so the implementation is cross-checked against an
-independent one on every signature, against the published RFC 6979 vectors in
-`tests/test_ecdsa_p256.py`, and, end to end, against the W3C's own `ecdsa-jcs-2019` test
-vector in `tests/test_w3c_vectors.py`, whose signature it reproduces exactly. The
-Recommendation says signatures SHOULD be deterministic, which is what makes that exact
-comparison possible.
+`crypto/ecdsa_p256.py` signs through `cryptography`, whose ECDSA has taken
+`deterministic_signing=True` since 43.0. Until issue #70 it signed with its own RFC 6979
+implementation, written when the library had no such mode. The two gave byte-identical
+signatures (212 cases, and every document in `--dump`), and the library's is
+constant-time and about a hundred times faster. The published RFC 6979 vectors in
+`tests/test_ecdsa_p256.py` stay, as a check that the library's mode is the one relied on.
+End to end, the W3C's own `ecdsa-jcs-2019` test vector in `tests/test_w3c_vectors.py`
+is reproduced exactly. The Recommendation says signatures SHOULD be deterministic, which
+is what makes that exact comparison possible.
 
-**It is not constant-time.** That is acceptable only because every key in this project
-is derived from a published seed and protects nothing. It must never be used with a real
-key.
+**`public_point` is not constant-time.** It stays in plain integers because the keys
+chapter shows that a public key is d × G, and that is best read as arithmetic. Every key
+it meets is derived from a published seed or supplied by the caller, so a timing side
+channel reveals nothing. It must never be used with a real key.
 
 ### JCS and multibase implemented in-repo
 
@@ -1158,11 +1161,12 @@ caller's own key. There is no secret here to leak, and nothing an attacker learn
 they did not bring with them.
 
 What does not survive is the assumption that nobody would call these routes in a loop.
-`crypto/ecdsa_p256.py` is written to be read: `_scalar_multiply` is naive double-and-add
-and every point operation takes a modular inverse, so one signature costs a few hundred
-`pow(x, -1, p)` calls — milliseconds for a person, a denial of service for a script. The
-same goes for `/api/keys/derive` with `random: true`, and for `/api/verify`, which walks
-a credential the caller wrote.
+`public_point` in `crypto/ecdsa_p256.py` is written to be read: `_scalar_multiply` is
+naive double-and-add and every point operation takes a modular inverse, so the key that
+`/api/keys/derive` shows costs a few hundred `pow(x, -1, p)` calls — milliseconds for a
+person, a denial of service for a script. Signing was the same arithmetic until issue
+#70 and is now the library's, at about a hundredth of the cost. `/api/verify` walks a
+credential the caller wrote.
 
 So the replacement argument is a compute one, and `web/limits.py` is where it lives: a
 body-size cap, and a token bucket charging only the routes whose cost a caller can

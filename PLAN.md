@@ -4931,3 +4931,84 @@ need Render's and Cloudflare's address ranges, which are theirs to change.
 ## Git
 
 Branch `fix/rate-limit-client-address` from `develop`, into `develop`.
+
+# Change set 32 - signing by the library's deterministic mode (#70)
+
+## Context
+
+Issue #70. `crypto/ecdsa_p256.py` signs with its own RFC 6979 implementation "because
+the library does not expose a deterministic mode". That stopped being true in
+`cryptography` 43.0.0, which added `ec.ECDSA(hashes.SHA256(), deterministic_signing=True)`
+(the issue says 44; the changelog says 43). The lockfile resolves 50.0.1.
+
+Checked before any change:
+- The library's signatures are byte-identical to the hand-rolled signer's: 212 cases,
+  including the RFC 6979 key, scalars 1, 2 and n - 1, 50 random keys, and messages from
+  empty to 1000 random bytes.
+- The library takes about 0.075 ms per signature, and the hand-rolled signer about
+  7.8 ms.
+
+Why it matters:
+- the pure-Python arithmetic is what `web/limits.py` charges for;
+- the hand-rolled signer is not constant-time, and `/api/keys/sign` takes any key from
+  anyone;
+- its r = 0 / s = 0 retry restarted nonce derivation where RFC 6979 §3.2 continues the
+  HMAC_DRBG loop. The branch is unreachable, but it was the one place the module claimed
+  RFC compliance and diverged from it.
+
+## Decisions
+
+- **`sign_deterministic` keeps its signature** (a scalar and a message in, 64 bytes of
+  r ‖ s out), so no caller changes. It now signs through the library and raises
+  `ValueError` for a scalar outside [1, n), where the old code signed with any integer.
+- **`public_point` stays** as readable double-and-add, for the keys chapter's point that
+  a public key is d × G. It is the only pure-Python arithmetic left. `/api/keys/sign` no
+  longer calls it just to report the public key.
+- **The RFC 6979 vectors stay** in `tests/test_ecdsa_p256.py`, now as a check that the
+  library's mode is the one relied on.
+- **Pin `cryptography>=43.0`.**
+- **Found on the way:** `xmldsig.py` gives "certificate signing in `cryptography` is
+  randomised" as a decisive reason for an inline key. Since 45.0.0 it is not, because
+  `CertificateBuilder.sign` takes `ecdsa_deterministic`. The other reason stands alone
+  and is enough, and the docstring is corrected to say so.
+
+## Checklist
+
+- [x] 1. `crypto/ecdsa_p256.py`: sign through the library; drop the nonce derivation;
+      module docstring
+- [x] 2. `web/app.py`: `/api/keys/sign` takes the public key from the library
+- [x] 3. `pyproject.toml` and `uv.lock`: `cryptography>=43.0`
+- [x] 4. Tests: the out-of-range scalar
+- [x] 5. Docs: ARCHITECTURE.md (the deterministic-signatures section and the compute
+      argument), the `web/limits.py` docstring, the `xmldsig.py` docstring
+- [x] 6. Verification: the full suite, and a `--dump` byte-identical to `develop`
+
+## Progress log
+
+- 2026-09-30: agreed in conversation ("let's fix #70"). Branch
+  `refactor/ecdsa-library-signer` from `develop`. A baseline `--dump` of `develop` at
+  `a12a219` was written first: 86 documents.
+- 2026-09-30: done.
+  - `sign_deterministic` is now `ec.derive_private_key`, `sign` with
+    `deterministic_signing=True`, and `decode_dss_signature` into 32-byte r and s. The
+    nonce derivation, `_bits_to_int`, `_bits_to_octets` and `_int_to_octets` are gone.
+    `_point_add` and `_scalar_multiply` stay, for `public_point`.
+  - `public_point`'s docstring said d × G takes "a fraction of a millisecond". In the
+    plain integers it takes about 7.4 ms. It now says both.
+  - `/api/keys/sign` called `_key_material` only for `publicKeyMultibase`, and so ran
+    `public_point` on every request. It takes the key from the library now. The value
+    is the same, because `_key_material` builds it from the library too.
+  - `uv lock` changed only the specifier: every resolved version is the same, and
+    `cryptography` stays 50.0.1.
+  - **`--dump` is byte-identical to `develop`**: 86 documents, including the
+    XMLDSig-signed DCC METAS-2026-0420. So every signature in the world comes out as
+    before, through both signing paths.
+  - Full suite: 822 pass, 46 skipped (818 before, and 4 new: the out-of-range scalars).
+    It now runs in about 15 s, where it took about 60 s, because signing was most of
+    the time.
+  - One process held `vc-demo.exe` open when `uv` rebuilt after the `pyproject.toml`
+    change. It could not be identified and was not killed, and it exited on its own.
+
+## Git
+
+Branch `refactor/ecdsa-library-signer` from `develop`, into `develop`.
