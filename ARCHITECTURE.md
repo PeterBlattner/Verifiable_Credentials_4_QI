@@ -721,9 +721,10 @@ loaded suite before checking anything, has none for `ecdsa-jcs-2019`, and so nev
 the signature. **Nothing outside this repository has yet checked a signature made here.**
 The Playground's own sample credential is an enveloped JWT signed with EdDSA. Its JSON-LD
 step failed too, on UNTP 0.6.0 itself, whose schema fills in type names its own context
-never defines. The 0.7.0 projection's run, on 30 September, passed that step and reported
-at the schema step exactly the findings the projection records, and nothing else. Change
-sets 24 and 28 of PLAN.md have both runs and what followed from them.
+never defines. The 0.7.0 projections of both certificates, run on 30 September, passed
+that step and reported at the schema step exactly the findings the projection records,
+and nothing else. Change sets 24 and 28 of PLAN.md have both runs and what followed from
+them.
 
 ### The UNTP projection is a probe, not a conformance target
 
