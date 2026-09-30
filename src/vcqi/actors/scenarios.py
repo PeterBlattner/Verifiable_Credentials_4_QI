@@ -367,7 +367,7 @@ def _callab_result(
     """Evaluate a calibration the accredited laboratory performed.
 
     The first contribution is the result the institute certified. How it is entered is
-    the whole subject of chapter 6.
+    the whole subject of the traceability chapter.
 
     In the default *dependency* mode the laboratory loads the dependency representation
     from the certificate, so the input quantities of the institute arrive with their own
@@ -568,9 +568,10 @@ def _build_schemas(world: World) -> dict[str, dict[str, Any]]:
     # The OIML schemas. These are what `outputValidation` on the two recognitions points
     # at, and they are the one place in this demonstration where that mechanism has a
     # real document behind it rather than an invented one -- an OIML Recommendation is
-    # numbered, edition-controlled and published by somebody else. What is still invented
-    # is the schema: the Recommendation is not machine-readable yet, so these encode a
-    # reading of it rather than the thing itself. That gap is the chapter 11 item.
+    # numbered, edition-controlled and published by somebody else. What is still
+    # invented is the schema: the Recommendation is not machine-readable yet, so these
+    # encode a reading of it rather than the thing itself. That gap is the harmonisation
+    # chapter's item.
     recommendation = recommendation_by_id("R 46")
     assert recommendation is not None
 
@@ -757,9 +758,9 @@ def _accreditation_scope_credentials(world: World) -> None:
     it verifies wherever it is found -- and the holder may carry it along with the
     certificate that points at it.
 
-    Both paths stay live on purpose. Chapter 5 shows one certificate adjudicated against
-    a signed scope and another against an unsigned CMC, and the difference in what the
-    verifier had to go and get is the price of not signing a register.
+    Both paths stay live on purpose. The scope chapter shows one certificate adjudicated
+    against a signed scope and another against an unsigned CMC, and the difference in
+    what the verifier had to go and get is the price of not signing a register.
 
     Args:
         world: The world being built.
@@ -1215,9 +1216,9 @@ def _calibration_certificates(world: World) -> None:
 def _shared_reference_pair(world: World, unused: MeasurementResult) -> None:
     """Issue two certificates from one institute against one national standard.
 
-    This is the material chapter 6 works with. Both check standards were compared with
-    the same national standard, so the uncertainty that standard contributes is common
-    to both results and cancels in their difference.
+    This is the material the traceability chapter works with. Both check standards were
+    compared with the same national standard, so the uncertainty that standard
+    contributes is common to both results and cancels in their difference.
 
     Whether the customer can take advantage of that depends entirely on what was
     transmitted. The dependency representation makes the shared influence recognisable
@@ -1584,8 +1585,8 @@ def _oiml_certification(world: World, schemas: dict[str, dict[str, Any]]) -> Non
     #
     # The same laboratory SAS accredited. Its description says so, and the two
     # recognitions are deliberately not cross-referenced: neither arrangement knows the
-    # other exists, which is exactly the situation chapter 11 says nobody has agreed how
-    # to compose.
+    # other exists, which is exactly the situation the harmonisation chapter says nobody
+    # has agreed how to compose.
     credential = recognized_entity_credential(
         credential_id=OIML_TL_RECOGNITION,
         issuer=issuer_reference("did:web:oiml.example", oiml.legal_name),

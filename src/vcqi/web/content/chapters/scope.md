@@ -1,6 +1,6 @@
-<!-- 06-scope.md -- chapter 5 in the rail; the NN- prefix is the position in the
-     CHAPTERS array, which counts the cautions. Rendered by chapterScope() in
-     ../../static/js/chapters.js.
+<!-- scope.md -- rendered by chapterScope() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite
@@ -30,9 +30,9 @@ That last one is the part that catches people out. The capability is a floor, no
 
 Move the sliders. The verdict, and with it the legitimacy of the logo, is decided from the published entry rather than from anybody’s judgement.
 
-The same machinery bounds the legal-metrology branch, and there the bound is a better one. An OIML Issuing Authority may certify a type only against a Recommendation it has been approved for, and a Recommendation is a numbered, edition-controlled document published by somebody else — not a declaration the organisation wrote about itself. Try *Certify a type against a Recommendation nobody approved* in chapter 7: the certificate is signed by a genuinely recognised body and rejected anyway, twice over, because the recognition names both the Recommendation and a schema built from it.
+The same machinery bounds the legal-metrology branch, and there the bound is a better one. An OIML Issuing Authority may certify a type only against a Recommendation it has been approved for, and a Recommendation is a numbered, edition-controlled document published by somebody else — not a declaration the organisation wrote about itself. Try *Certify a type against a Recommendation nobody approved* in [chapter](#break): the certificate is signed by a genuinely recognised body and rejected anyway, twice over, because the recognition names both the Recommendation and a schema built from it.
 
-What is still missing is that the schema is this project’s reading of R 46 rather than R 46 speaking for itself. The OIML is working towards machine-readable Recommendations; until then, the bound is only as good as whoever transcribed it. That is one of the items in chapter 11.
+What is still missing is that the schema is this project’s reading of R 46 rather than R 46 speaking for itself. The OIML is working towards machine-readable Recommendations; until then, the bound is only as good as whoever transcribed it. That is one of the items in [chapter](#harmonisation).
 
 <!-- block: inside.title -->
 
@@ -84,7 +84,7 @@ Read down the coverage column. The first row does not state a range at all; it s
 
 Then read the first two columns together. Calibrating an ohmmeter and calibrating a resistance are different rows with different capabilities, because they are different activities on different kinds of object: a *measuring instrument* and a *material measure*, VIM 3.1 and VIM 3.6. A certificate has to say which it is about, or no row can be chosen for it.
 
-The remarks column is the honest failure. The remarks that narrow a row have been folded into the row — fixed values became a list, frequency bands became conditions — but "on-site calibration is also covered, with appropriate measurement uncertainty" extends a scope by an amount nobody wrote down, and no model here is going to invent one. So the verifier reports that the row which decided the verdict carried words it did not read, and leaves the verdict standing: an extension cannot turn a pass into a failure. Chapter 4 shows that warning on the accredited certificate, every time.
+The remarks column is the honest failure. The remarks that narrow a row have been folded into the row — fixed values became a list, frequency bands became conditions — but "on-site calibration is also covered, with appropriate measurement uncertainty" extends a scope by an amount nobody wrote down, and no model here is going to invent one. So the verifier reports that the row which decided the verdict carried words it did not read, and leaves the verdict standing: an extension cannot turn a pass into a failure. [Chapter](#verification) shows that warning on the accredited certificate, every time.
 
 <!-- block: carried-or-linked -->
 
@@ -98,11 +98,11 @@ The answer is not about size, and four things decide it.
 
 **Whether the fact is about *then* or about *now*.** A signature freezes what it covers, and a measured value should be frozen: it was true on the day, and a result the issuer can change after signing is not a result. An accreditation should not be. It is suspended, reduced and renewed between certificates, and only the body that granted it can say whether it still stands — which is why the scope here travels signed and pinned while its status is still fetched from the body every time.
 
-**What the verifier loses.** Every link is a check that might not complete. Chapter 6 has the measured version of this: a certificate that points at its measurement instead of carrying it still comes out verified, and four of the checks on this page quietly stop happening. A verdict means whatever the checks behind it were able to reach.
+**What the verifier loses.** Every link is a check that might not complete. [Chapter](#traceability) has the measured version of this: a certificate that points at its measurement instead of carrying it still comes out verified, and four of the checks on this page quietly stop happening. A verdict means whatever the checks behind it were able to reach.
 
 **Whether it grows.** A dependency representation with thousands of input quantities cannot travel inside a credential, and a scope with forty-five rows should not be copied into every certificate issued under it. Past a threshold the content goes out by digest — integrity survives the move, availability does not.
 
-And one rule that trims whatever the four leave: add no link a check does not read. Every document a verification fetches is a way for it to stop working in thirty years without anyone having tampered with anything, and chapter 12 counts them.
+And one rule that trims whatever the four leave: add no link a check does not read. Every document a verification fetches is a way for it to stop working in thirty years without anyone having tampered with anything, and [chapter](#exchange) counts them.
 
 <!-- block: signed-registry -->
 
@@ -110,9 +110,9 @@ And one rule that trims whatever the four leave: add no link a check does not re
 
 There is a fifth thing, and it is the one this demonstration changed its mind about. Being a link does not have to mean being unverifiable.
 
-The CMC entry above is served unsigned, so a copy of it proves nothing and the verifier must go to the BIPM itself — which is why a holder may not carry it, and why one entry on chapter 12's list of what cannot travel is there for a reason that could be engineered away rather than a reason that is inherent. The accreditation scope used to sit beside it. It does not any more: the accreditation body signs its scopes, and every credential that cites one pins it by content digest. The link is still a link, and the laboratory still cannot state its own scope. But a verifier handed a copy can now check that it is the right scope, signed by the right body, still in force — without reaching the register at all.
+The CMC entry above is served unsigned, so a copy of it proves nothing and the verifier must go to the BIPM itself — which is why a holder may not carry it, and why one entry on [chapter](#exchange)'s list of what cannot travel is there for a reason that could be engineered away rather than a reason that is inherent. The accreditation scope used to sit beside it. It does not any more: the accreditation body signs its scopes, and every credential that cites one pins it by content digest. The link is still a link, and the laboratory still cannot state its own scope. But a verifier handed a copy can now check that it is the right scope, signed by the right body, still in force — without reaching the register at all.
 
-Try *Serve a different accreditation scope at the same address* in chapter 7. The document that comes back is signed by the accreditation body, in force and not suspended, and it is refused anyway, because it is not the scope the certificate was issued under. An unsigned register entry could never have been refused for that reason: a verifier could only ask what the register says today.
+Try *Serve a different accreditation scope at the same address* in [chapter](#break). The document that comes back is signed by the accreditation body, in force and not suspended, and it is refused anyway, because it is not the scope the certificate was issued under. An unsigned register entry could never have been refused for that reason: a verifier could only ask what the register says today.
 
 <!-- block: answered-registry -->
 
@@ -126,7 +126,7 @@ So `STS 0456` publishes no table. It publishes an address, and the verifier asks
 
 That should be a step backwards, and this is the demonstration that most sharply contradicts its own argument elsewhere: verification here is meant to be a computation and not a conversation, and a conversation is exactly what an endpoint makes it. An answer is not a document. It cannot be pinned by digest, archived by whoever holds it, or re-checked in ten years when the endpoint has gone.
 
-What buys it back is that **the question is the address**. The register signs its answer to one stated question on one stated date, and publishes it where that question spells out exactly one way. A verifier asking the same thing finds it; a verifier asking anything else does not and goes to the register. So the answer is a document after all — it travels with the holder, it can be archived, and chapter 12 counts it among the things that need not be fetched. Signing the reply is what makes the difference, and essentially no register does it today.
+What buys it back is that **the question is the address**. The register signs its answer to one stated question on one stated date, and publishes it where that question spells out exactly one way. A verifier asking the same thing finds it; a verifier asking anything else does not and goes to the register. So the answer is a document after all — it travels with the holder, it can be archived, and [chapter](#exchange) counts it among the things that need not be fetched. Signing the reply is what makes the difference, and essentially no register does it today.
 
 Two things still have to be checked that a document would not have needed. The endpoint is taken from the scope, never from the certificate, because a laboratory that could choose who answers could answer for itself. And the question echoed in the reply has to be the question that was asked, because a register can sign a perfectly good answer to something else.
 
@@ -136,9 +136,9 @@ Two things still have to be checked that a document would not have needed. The e
 
 The verifier asks whether the standard was covered **on the day the testing was performed** — not today.
 
-That is one parameter, and it is the difference between *is this laboratory accredited* and *was it accredited when it did the work*. A scope grows: rows are added as a laboratory extends what it can do. A register asked the naive question answers honestly and answers about the wrong day, and it fails in the permissive direction, which is the one that matters. Below, the same question is put twice about a standard this laboratory took on in July 2026, seven weeks after it issued the report in chapter 4.
+That is one parameter, and it is the difference between *is this laboratory accredited* and *was it accredited when it did the work*. A scope grows: rows are added as a laboratory extends what it can do. A register asked the naive question answers honestly and answers about the wrong day, and it fails in the permissive direction, which is the one that matters. Below, the same question is put twice about a standard this laboratory took on in July 2026, seven weeks after it issued the report in [chapter](#verification).
 
-Try *Test against a standard the scope did not yet cover* in chapter 7 to see it refused. Nothing about that report is forged: the signature is the laboratory's own, the equipment is traceable, the accreditation is real and in force. Only the date is wrong.
+Try *Test against a standard the scope did not yet cover* in [chapter](#break) to see it refused. Nothing about that report is forged: the signature is the laboratory's own, the equipment is traceable, the accreditation is real and in force. Only the date is wrong.
 
 <!-- block: asked.title -->
 

@@ -16,12 +16,12 @@ key discovery                the key itself, inline, in ``ds:KeyValue``
 ===========================  ===================================================
 
 **The key is inline on purpose, and it is the interesting part.** A real DCC would carry
-an X.509 certificate here and a verifier would walk a chain to a certification authority.
-This demonstration has no such authority, so putting a self-signed certificate in that
-slot would suggest a chain that does not exist. A bare key says what is true: the
-signature verifies arithmetically and tells you nothing whatever about who made it. That
-is chapter 2's lesson arriving in XML, and it is the honest reason the credential around
-the document is what carries the identity.
+an X.509 certificate here and a verifier would walk a chain to a certification
+authority. This demonstration has no such authority, so putting a self-signed
+certificate in that slot would suggest a chain that does not exist. A bare key says what
+is true: the signature verifies arithmetically and tells you nothing whatever about who
+made it. That is the keys chapter's lesson arriving in XML, and it is the honest reason
+the credential around the document is what carries the identity.
 
 A second reason used to be given here: certificate signing in ``cryptography`` was
 randomised, and this world has to build byte-for-byte identically on every run. That

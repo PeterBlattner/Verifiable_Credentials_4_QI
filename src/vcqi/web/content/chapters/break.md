@@ -1,6 +1,6 @@
-<!-- 08-break.md -- chapter 7 in the rail; the NN- prefix is the position in the
-     CHAPTERS array, which counts the cautions. Rendered by chapterBreakIt() in
-     ../../static/js/chapters.js.
+<!-- break.md -- rendered by chapterBreakIt() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite

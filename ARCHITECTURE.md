@@ -28,10 +28,11 @@ Data Integrity proofs use ECDSA over P-256 with **RFC 8785 JSON canonicalization
 cryptosuite the specification examples use, `ecdsa-rdfc-2019`, canonicalizes the RDF
 graph instead, which requires a full JSON-LD processor and dereferencing every context.
 
-JCS was chosen because the whole point of chapter 2 is to show a reader the exact bytes
-that get hashed. RDF canonicalization is correct and is what a production system should
-use; it is also impossible to display in a way that teaches anything. The proof objects
-have the same shape either way, so the difference is one string in `cryptosuite`.
+JCS was chosen because the whole point of the issuing chapter is to show a reader the
+exact bytes that get hashed. RDF canonicalization is correct and is what a production
+system should use; it is also impossible to display in a way that teaches anything. The
+proof objects have the same shape either way, so the difference is one string in
+`cryptosuite`.
 
 **Consequence:** the `@context` values are not dereferenced, so the term definitions are
 decorative here. A real deployment needs them resolvable and needs `ecdsa-rdfc-2019` or
@@ -206,11 +207,11 @@ third value when a step warns would be defensible and was not done: it would cha
 every caller for one credential, and the step tree already says it.
 
 That decision is narrower than the question behind it, which is now `reliance-policy` in
-chapter 11. Two outcomes are not the problem; having the rule that produces them written
-into the verifier rather than supplied to it is. A relying party cannot say what it
-requires, so a border authority and a purchaser receive the same word for what ought to be
-two different decisions — and adding a third value would only give them three words they
-had no part in choosing.
+the harmonisation chapter. Two outcomes are not the problem; having the rule that
+produces them written into the verifier rather than supplied to it is. A relying party
+cannot say what it requires, so a border authority and a purchaser receive the same word
+for what ought to be two different decisions — and adding a third value would only give
+them three words they had no part in choosing.
 
 The generated `outputValidation` schema grew an `anyOf` to accommodate this, and the
 reason is worth keeping. What a recognition authorises is a measurement, not a JSON
@@ -298,8 +299,8 @@ sensitivities forward. Every measurement model here is a sum of products of scal
 first-order propagation is exact rather than approximate, and the agreement with UncLib
 is exact too. What matters more than the arithmetic is that each independent input keeps
 an identifier, so two results resting on one influence are correlated because they name
-the same thing. That is the mechanism chapter 6 argues for, and it belongs to the
-representation rather than to any library.
+the same thing. That is the mechanism the traceability chapter argues for, and it
+belongs to the representation rather than to any library.
 
 `tests/test_linprop_equivalence.py` checks the claim over all eight models. Two of its
 checks need no licence and are the ones a deployment rests on: the committed binary
@@ -388,20 +389,19 @@ change.
 **What stays in code**, and the rule for deciding: move it if a reader reads it as a
 sentence or a heading; leave it if it is a label, a unit, an option name or a value. So
 button text, slider labels, `stat()` captions and the `triangle()` SVG strings stay.
-Chapter *order* stays too, because the prose says "chapter 5" and "the next chapter" in
-several places and letting an editor reorder chapters would silently break those. It has
-been changed twice, deliberately and to a rule, and the two changes are the two shapes
-such a change is allowed to take. The dependencies chapter was folded into traceability and
-the failure pair took the slot it left, so the count never moved and one editorial string
-pointing at the chapter that went away was corrected with it -- net zero. Then the pair was
-reordered so the catalogue comes before the hands-on chapter, which is not net zero: nothing
-from 9 upward moved, but 7 and 8 both changed meaning, and the five by-number references
-resolving to them were swept. Net zero, or a sweep -- there is no third option, and no test
-would catch a change that took neither. The
-long editorial fields in `actors/deployment.py` and `actors/harmonisation.py` also stay:
-they are records of nine correlated fields per item, which a markdown file expresses
-badly, and `test_web.py` asserts that one of them names the cryptosuite the
-demonstration actually uses — a coupling to code that moving the string would weaken.
+Chapter *order* stays too, in `CHAPTER_ORDER` in `web/content.py`, with the `CHAPTERS`
+array in `chapters.js` held to it by a test. It no longer freezes anything. The prose
+used to write "chapter N" by hand in some sixty places, so every reorder had to sweep
+them all, and nothing caught a reference the sweep missed; a few in docstrings were
+already wrong. Now a chapter is referred to by id, `[chapter](#scope)`, and the number
+is rendered when the page is served, as a link. The editorial fields do the same and get
+the number as plain text. Code and documents name the chapter instead ("the scope
+chapter"). A test fails on a number written after "chapter" anywhere outside the history, so moving a
+chapter is moving one line in each list (issue #73). The long editorial fields in
+`actors/deployment.py` and `actors/harmonisation.py` also stay: they are records of nine
+correlated fields per item, which a markdown file expresses badly, and `test_web.py`
+asserts that one of them names the cryptosuite the demonstration actually uses — a
+coupling to code that moving the string would weaken.
 
 **A bad edit fails in two places, neither of them silent.** At runtime a key nothing
 defines renders a red `[missing content: chapter/key]` marker in the position the prose
@@ -460,9 +460,9 @@ The national layer that would convert evidence into permission is not modelled, 
 neither are the OIML-CS Utilizer and Associate roles. That is a scope decision, not an
 oversight, and it leaves one honest gap: with no legal anchor in the world there is
 nothing for a "cited the wrong kind of document" check to point at as the correct
-alternative. So there is no such check. Chapter 11 carries the item instead, in the first
-tier, because a verifier that reads an attestation as an authorisation is worse than one
-that reads nothing.
+alternative. So there is no such check. The harmonisation chapter carries the item
+instead, in the first tier, because a verifier that reads an attestation as an
+authorisation is worse than one that reads nothing.
 
 ### A type is not an artefact
 
@@ -472,10 +472,11 @@ covers a design: the same document travels with every instrument built to it, an
 valid for about a decade rather than a year.
 
 `domain/oiml.py` carries `InstrumentType` separately rather than giving `Instrument` an
-optional serial number. Collapsing the two would have hidden the distinction in a nullable
-field, and the distinction is most of what makes the legal-metrology branch different.
-What identifies a design — as against a family, or a module, or a variant that changed
-something nobody wrote down — is not solved here, and is a first-tier item in chapter 11.
+optional serial number. Collapsing the two would have hidden the distinction in a
+nullable field, and the distinction is most of what makes the legal-metrology branch
+different. What identifies a design — as against a family, or a module, or a variant
+that changed something nobody wrote down — is not solved here, and is a first-tier item
+in the harmonisation chapter.
 
 ### The type evaluation report carries no dependency representation
 
@@ -525,12 +526,13 @@ and asserts `app.js` passes it. That found one property being passed and never r
 `api`, which chapters import directly -- and it is no longer passed.
 
 **The more useful lesson was about the harness**, which reported that every control on
-every chapter responded while chapter 0 was visibly broken. Two reasons, both now fixed
-and both worth knowing about any test that drives an interface. It imported the modules
-from the working tree rather than over HTTP, so it exercised the code and never the
-delivery. And it counted inert buttons — but a chapter that throws renders an error
-banner and *no* buttons, so "0 controls, all responded" was true and meaningless, and the
-console errors it collected were printed and then ignored by the exit code.
+every chapter responded while the orientation chapter was visibly broken. Two reasons,
+both now fixed and both worth knowing about any test that drives an interface. It
+imported the modules from the working tree rather than over HTTP, so it exercised the
+code and never the delivery. And it counted inert buttons — but a chapter that throws
+renders an error banner and *no* buttons, so "0 controls, all responded" was true and
+meaningless, and the console errors it collected were printed and then ignored by the
+exit code.
 
 `tools/served-modules.mjs` now fetches the interface from the running server, failing
 loudly on a module that 404s or arrives with a content type a browser will not execute.
@@ -563,17 +565,17 @@ Four kinds, three reasons:
   endpoint, so letting the holder supply it means letting the holder choose what the issuer
   says about itself. Inherent.
 - **`registry-entry`** -- a CMC, now that the accreditation scopes are signed -- carries
-  neither a signature nor a digest, so a copy cannot be checked at all and accepting one
-  would let an institute declare its own capability. **Not inherent**, and the
-  accreditation half has already been collected: the scopes are published as signed
-  credentials and travel, without this list changing at all. What *sign the KCDB* is worth
-  on the harmonisation ladder is now the remainder, and chapter 12 prices it at one of the
-  thirty-five documents.
+neither a signature nor a digest, so a copy cannot be checked at all and accepting one
+would let an institute declare its own capability. **Not inherent**, and the
+accreditation half has already been collected: the scopes are published as signed
+credentials and travel, without this list changing at all. What *sign the KCDB* is worth
+on the harmonisation ladder is now the remainder, and the exchange chapter prices it at
+one of the thirty-five documents.
 
 Everything else -- credentials, schemas, uncertainty data -- either carries its own
 signature or is covered by a `digestMultibase` inside one, so a copy from any source is
 checkable and may travel. That set is exactly what UN/CEFACT's portable-credential
-architecture assumes, and chapter 12 measures how far it gets.
+architecture assumes, and the exchange chapter measures how far it gets.
 
 ### The status list is the one retrieval no portable architecture can pre-ship
 
@@ -630,9 +632,10 @@ runs one.
 The cost is not only technical. `actors/deployment.py` argued that verification is a
 computation rather than a conversation and concluded that a verifier operates nothing.
 The premise is true and the conclusion does not follow once somebody has to *ask*. That
-module and chapter 10 now say so where it applies, and chapter 12 states the corrected
-split: checking a credential you already hold is free and works offline; obtaining one
-needs both parties reachable and needs the asking party to run a service.
+module and the infrastructure chapter now say so where it applies, and the exchange
+chapter states the corrected split: checking a credential you already hold is free and
+works offline; obtaining one needs both parties reachable and needs the asking party to
+run a service.
 
 ### The presentation's own proof is verified, and the ordering matters
 
@@ -691,9 +694,9 @@ and a suspension that cannot be narrower than the roster is the other.
 
 Nothing here fixes it, and the fix is not local. One credential per recognised entity
 would give each its own status entry at the cost of departing from the shape the
-specification demonstrates; a per-entity status member would keep the shape at the cost of
-inventing vocabulary. Both are governance rather than engineering, and chapter 11 is where
-that belongs.
+specification demonstrates; a per-entity status member would keep the shape at the cost
+of inventing vocabulary. Both are governance rather than engineering, and the
+harmonisation chapter is where that belongs.
 
 A second, milder version of the same cost showed up while the arrangement check below was
 being written. Read naively, "does this credential grant anything it is not entitled to
@@ -750,8 +753,8 @@ checking anything, and has none for `ecdsa-jcs-2019`, so it never reached the si
 Its JSON-LD step failed too, on UNTP 0.6.0 itself, whose schema fills in type names its
 own context never defines. The 0.7.0 projections of both certificates, run on
 30 September, passed that step and reported at the schema step exactly the findings the
-projection records, and nothing else. Change sets 24 and 28 of PLAN.md have both runs and
-what followed from them.
+projection records, and nothing else. Change sets 24 and 28 of
+`docs/history/PLAN-2026.md` have both runs and what followed from them.
 
 The Playground will not check a signature made here in any form this project should
 adopt, and the reason is in VCkit rather than here. Its Data Integrity path is configured
@@ -810,16 +813,16 @@ to something, so a misspelling passes there, and is reported here. It was writte
 same hand as the projection, so a clean result is necessary for the Playground's step to
 pass and no substitute for running it.
 
-What it found is in the harmonisation chapter and in change sets 24 and 28 of PLAN.md. In
-short, against 0.7.0: the envelope reaches calibration -- `attestationType` enumerates
-`calibration`, `conformance` is optional, the topic vocabulary has
-`metrology-and-measurement`, conditions have a member -- and what does not arrive is the
-uncertainty, since `Measure` is closed and offers only tolerances, together with the
-identifiers UNTP requires for the measurand, the scheme and a standard. `assessmentLevel`
-has no code for the CIPM MRA; reading 0.6.0's undefined `GlobalMRA` as one was this
-project's mistake and is withdrawn. And UNTP types the status index as an integer where
-the W3C Recommendation, and UNTP's own description of it, say a string: the projection
-writes it the W3C way and records the conflict.
+What it found is in the harmonisation chapter and in change sets 24 and 28 of
+`docs/history/PLAN-2026.md`. In short, against 0.7.0: the envelope reaches calibration
+-- `attestationType` enumerates `calibration`, `conformance` is optional, the topic
+vocabulary has `metrology-and-measurement`, conditions have a member -- and what does
+not arrive is the uncertainty, since `Measure` is closed and offers only tolerances,
+together with the identifiers UNTP requires for the measurand, the scheme and a
+standard. `assessmentLevel` has no code for the CIPM MRA; reading 0.6.0's undefined
+`GlobalMRA` as one was this project's mistake and is withdrawn. And UNTP types the
+status index as an integer where the W3C Recommendation, and UNTP's own description of
+it, say a string: the projection writes it the W3C way and records the conflict.
 
 The projection keeps the source credential's `id`, although it makes different claims
 under a different issuer identifier. That is the trade the portable copy already makes,
@@ -837,25 +840,25 @@ Accreditation Service's recognition of the certification body, the same pairing 
 case UNTP was not built for with the case it was.
 
 What arrives is the entity, its registrar, its entry on the registrar's site, and the
-capabilities it is recognised for, as a list of addresses. What does not is everything
-a verifier acts on: what the entity is recognised to do, the `outputValidation` schemas
-pinned by digest that chapter 4 checks a certificate against, and each action's own
-validity. So the W3C recognition keeps the part that makes it machine-checkable, and the
-UNTP anchor is a directory entry. UNTP also requires a registration number and a
-first-registration date that no recognition states. Its register types stop at
-`accreditation`, which fits the SAS's recognition and is recorded as a judgement there;
-for the CIPM MRA and the Global ACI MRA, which are peer recognition, it is left out and
-recorded. Both probed anchors went through the Playground on 30 September: they passed
-its JSON-LD step, and its schema step reported exactly the findings the projection
-records, and nothing else.
+capabilities it is recognised for, as a list of addresses. What does not is everything a
+verifier acts on: what the entity is recognised to do, the `outputValidation` schemas
+pinned by digest that the verification chapter checks a certificate against, and each
+action's own validity. So the W3C recognition keeps the part that makes it
+machine-checkable, and the UNTP anchor is a directory entry. UNTP also requires a
+registration number and a first-registration date that no recognition states. Its
+register types stop at `accreditation`, which fits the SAS's recognition and is recorded
+as a judgement there; for the CIPM MRA and the Global ACI MRA, which are peer
+recognition, it is left out and recorded. Both probed anchors went through the
+Playground on 30 September: they passed its JSON-LD step, and its schema step reported
+exactly the findings the projection records, and nothing else.
 
 ### A data model is not a permission
 
 Every credential of the eight types names its data model in `credentialSchema`: a JSON
 Schema per type, written in `vc/datamodel.py`, published at
 `https://vcqi.example/schemas/<type>.json`, and referenced with `type: "JsonSchema"` as
-the VC JSON Schema specification profiles it. Chapter 3 shows the model of whichever type
-is picked; chapter 4 checks it as `shape.data-model`.
+the VC JSON Schema specification profiles it. The issuing chapter shows the model of
+whichever type is picked; the verification chapter checks it as `shape.data-model`.
 
 The project already had schemas, and these are a different thing. The `outputValidation`
 schema a recognition names says what a recognised issuer **may** issue — this measurand,
@@ -874,9 +877,9 @@ Four decisions shape them.
   `jsonschema` an empty registry, so that a reference outside the document is an error
   rather than a request.
 - **Open.** No `additionalProperties: false`, which the profile advises against because
-  credentials are meant to be extended. The completeness the box in chapter 3 needs is a
-  test instead: `tests/test_datamodel.py` walks every credential in the world and fails on
-  any member its model does not declare.
+credentials are meant to be extended. The completeness the box in the issuing chapter
+needs is a test instead: `tests/test_datamodel.py` walks every credential in the world
+and fails on any member its model does not declare.
 - **Pinned by type.** The credential chooses its own `credentialSchema`, so the verifier
   does not take the choice on trust: `DATA_MODEL_URLS` says which model belongs to which
   type, and a credential naming another fails. Without that an issuer could cite a
@@ -946,12 +949,13 @@ is `DEFAULT_POINT_TOLERANCE`, which decides whether a reading of 19,2003 ohm is 
 19,2 ohm fixed value. No register states one and something has to, so it is published
 inside the scope document rather than hidden in the module that applies it.
 
-The offline schema gets weaker as the scope gets richer, and that is the right direction.
-`union_capabilities` collapses a table into one branch per quantity, taking the widest
-level any row touches and the smallest uncertainty any row permits. Fixed values, strict
-bounds and condition bands all vanish. Every one of those losses is permissive: the
-schema admits claims the register will refuse and never the reverse, so a certificate can
-fail `scope` after passing `output-validation`, which is exactly what chapter 5 is for.
+The offline schema gets weaker as the scope gets richer, and that is the right
+direction. `union_capabilities` collapses a table into one branch per quantity, taking
+the widest level any row touches and the smallest uncertainty any row permits. Fixed
+values, strict bounds and condition bands all vanish. Every one of those losses is
+permissive: the schema admits claims the register will refuse and never the reverse, so
+a certificate can fail `scope` after passing `output-validation`, which is exactly what
+the scope chapter is for.
 
 ### A signed register, and one that is not
 
@@ -969,13 +973,13 @@ through this change, and it should stay that way: if a future edit needs that fi
 relaxed, the edit is wrong.
 
 What signing buys is exact. A holder may now carry the scope, so `_step_scope` completes
-without reaching the register — chapter 12's residue drops by three documents, and the
-`ifRegistriesWereSigned` projection is half collected rather than entirely hypothetical.
-The reference also pins a *version*: `substituted-scope` serves a different scope at the
-same address, properly signed by the accreditation body and in force, and it is refused
-because it is not the scope the certificate was issued under. An unsigned entry could
-never have been refused for that reason, because a verifier could only ask what the
-register says today.
+without reaching the register — the exchange chapter's residue drops by three documents,
+and the `ifRegistriesWereSigned` projection is half collected rather than entirely
+hypothetical. The reference also pins a *version*: `substituted-scope` serves a
+different scope at the same address, properly signed by the accreditation body and in
+force, and it is refused because it is not the scope the certificate was issued under.
+An unsigned entry could never have been refused for that reason, because a verifier
+could only ask what the register says today.
 
 What signing does not buy is freshness. `_capability_document` verifies the proof, checks
 that the signing issuer is the body the scope names as having granted it, checks the
@@ -1076,8 +1080,9 @@ finer than that.
 
 The standard identifiers are ISO URNs in the form RFC 5141 defines, which makes them the
 one family of identifiers in this demonstration that was not invented for it -- worth
-contrasting with `dc.resistance` and the instrument URNs, both of which chapter 11 has to
-argue for. They do not resolve, so the human title travels beside each one.
+contrasting with `dc.resistance` and the instrument URNs, both of which the
+harmonisation chapter has to argue for. They do not resolve, so the human title travels
+beside each one.
 
 ### Status answers "now", and the chain asks about "then"
 
@@ -1092,7 +1097,7 @@ actually raises, since the certificates in it are older than the verification of
 Nothing here closes that. The three ways out are dated snapshots of the status list,
 credentials short-lived enough that the window itself answers the question, or an
 append-only log of recognition events beside the list; all three are infrastructure, and
-chapter 11 is where they belong.
+the harmonisation chapter is where they belong.
 
 ### Following a chain says nothing about what it is about
 
@@ -1151,10 +1156,10 @@ between them, and that is a governance problem rather than a technical one.
   and degrees of freedom are UncLib features with no substitute in this repository. If
   the demonstration ever needs one, the equivalence test fails on a licensed machine
   rather than quietly producing a plausible wrong number.
-- **Holder wallets.** Chapter 12 implements VCALM's exchange, so credentials are no
-  longer only handed around as JSON -- but the holder's key still lives on this server,
-  because one process plays every actor. A real holder keeps its own key in its own
-  wallet, and `/api/exchange/.../present` is the seam where that would be cut.
+- **Holder wallets.** The exchange chapter implements VCALM's exchange, so credentials
+  are no longer only handed around as JSON -- but the holder's key still lives on this
+  server, because one process plays every actor. A real holder keeps its own key in its
+  own wallet, and `/api/exchange/.../present` is the seam where that would be cut.
 - **Authorization on the exchange.** Anyone may open any exchange here and this world's
   fictional holders will present for them. A deployment puts OAuth or a capability in
   front of the endpoint; VCALM discusses it, and it would teach nothing extra here.
@@ -1210,13 +1215,13 @@ other such request, so leaving the header out buys nothing. `/healthz` reports w
 the two a request was, because the deployment is the only place the header can be seen
 arriving.
 
-`/api/edit` signs with a key the caller does *not* supply, which is a different shape and
-wants its own sentence. It re-signs an edited certificate as the organisation the document
-names, which is what makes chapter 8 worth having: without it every edit dies at `proof`
-and the half of the pipeline the demonstration exists to argue for is never reached. The
-same argument covers it -- every key here comes from the seed published in `config.py`, so
-a signature by METAS's demonstration key is something a reader could already produce for
-themselves, and the route is an oracle for nothing.
+`/api/edit` signs with a key the caller does *not* supply, which is a different shape
+and wants its own sentence. It re-signs an edited certificate as the organisation the
+document names, which is what makes the tamper chapter worth having: without it every
+edit dies at `proof` and the half of the pipeline the demonstration exists to argue for
+is never reached. The same argument covers it -- every key here comes from the seed
+published in `config.py`, so a signature by METAS's demonstration key is something a
+reader could already produce for themselves, and the route is an oracle for nothing.
 
 What that argument does *not* cover is shape, so the route does not take one. The document
 comes from a fixed list of five and only fields named in `actors/edit.py` may be written,

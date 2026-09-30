@@ -7,10 +7,11 @@ email, file transfer, a USB drive, a QR code. Anyone given it can verify it. Zer
 infrastructure, no counter-party dependency.
 
 This project was already built that way and had not noticed. ``actors/deployment.py``
-says verification is *a computation, not a conversation*; chapter 10 computes that the
-institute keeps three documents online while six of its credentials travel unhosted. And
-metrology has the oldest instance of the idea in existence: a calibration certificate
-already travels with the instrument. The paper in the box is a portable credential.
+says verification is *a computation, not a conversation*; the infrastructure chapter
+computes that the institute keeps three documents online while six of its credentials
+travel unhosted. And metrology has the oldest instance of the idea in existence: a
+calibration certificate already travels with the instrument. The paper in the box is a
+portable credential.
 
 So the interesting question is not whether the model works. It is **where it stops**, and
 that is measurable rather than arguable. Verifying one certificate of conformity reads 35
@@ -42,10 +43,10 @@ being unsigned. The projection below therefore prices one register rather than t
 half of what it used to promise has already been collected.
 
 The audit therefore prices that step. It reports what remains after everything that can
-travel has travelled, and then what would remain if the registries were signed too -- and
-the second number is each organisation's key and its revocation list, and nothing else.
-Which is precisely the hosting burden chapter 10 computed from the other end, without
-either chapter knowing it was describing the same quantity.
+travel has travelled, and then what would remain if the registries were signed too --
+and the second number is each organisation's key and its revocation list, and nothing
+else. Which is precisely the hosting burden the infrastructure chapter computed from the
+other end, without either chapter knowing it was describing the same quantity.
 
 ``vc/resolver.py`` enforces the split with ``RESOLVE_ONLY_KINDS`` and its ``retrieve``
 method. That enforcement is not decoration: before it existed, a holder could staple a DID
@@ -75,7 +76,8 @@ __all__ = [
 ]
 
 #: The credential the audit measures. The deepest chain in the world, and the same one
-#: chapter 10 uses for its retrieval figures, so the two chapters can be compared.
+#: the infrastructure chapter uses for its retrieval figures, so the two chapters can be
+#: compared.
 AUDIT_CREDENTIAL: str = "cab-conformity"
 
 
@@ -248,7 +250,8 @@ def _verify_once(
     Returns:
         The outcome, how many retrievals were attempted in total, and one record per
         distinct address. The two counts differ because this resolver refetches a DID
-        document at every hop, which chapter 10 quotes rather than hides.
+        document at every hop, which the infrastructure chapter quotes rather than
+        hides.
     """
     resolver = Resolver(store=world.store, presented=dict(supplied or {}))
     report = verify_credential(

@@ -4,7 +4,7 @@
 // inspector was appended to the page only for a hardcoded list of chapter ids, so a
 // chapter that was not on the list could fetch a document perfectly well and render it
 // into a node that had never been put in the page. Every request succeeded, every test
-// passed, and seven buttons in chapter 7 did nothing at all.
+// passed, and seven buttons in one chapter did nothing at all.
 //
 // Rendering a chapter is not the same as using one, so this drives the real application
 // in a real DOM: load it, navigate, click, and check that the page actually changed.
@@ -40,12 +40,12 @@
 // reasoning behind it, because chapter-snapshot.mjs needs exactly the same thing.
 //
 // A fifth was added after this harness watched a control disappear and said nothing. A
-// panel in chapter 11 offers one chip per register so a reader can fetch both documents
-// and compare the same free string in each; the accreditation scope stopped publishing
-// that string at the top level, the selector went on looking there, and the second chip
-// was never created. "2 controls, all responded" became "1 control, all responded", which
-// is true and is not the point. Every guard above asks whether what is on the page works.
-// None of them asks whether it is all still there.
+// panel in the harmonisation chapter offers one chip per register so a reader can fetch
+// both documents and compare the same free string in each; the accreditation scope
+// stopped publishing that string at the top level, the selector went on looking there,
+// and the second chip was never created. "2 controls, all responded" became "1 control,
+// all responded", which is true and is not the point. Every guard above asks whether
+// what is on the page works. None of them asks whether it is all still there.
 //
 // So MINIMUM_CONTROLS records what each chapter had when it was last known good, and a
 // chapter that renders fewer than that fails. It only fires on a decrease, which is the
@@ -56,9 +56,9 @@
 // VCQI_CLICK_TIMEOUT are deadlines.
 
 //: What counts as a control. Buttons, and the transparent hit paths that make the graph's
-//: edges clickable -- which are not buttons, are the primary interaction of chapter 2, and
-//: went unexercised by this harness for its whole existence. `onSelectEdge` could have
-//: been broken in any release and nothing here would have said a word.
+//: edges clickable -- which are not buttons, are the primary interaction of the graph
+//: chapter, and went unexercised by this harness for its whole existence. `onSelectEdge`
+//: could have been broken in any release and nothing here would have said a word.
 //:
 //: Be clear about what including them proves. This dispatches a click on the element
 //: directly, so it exercises the wiring: that an edge exists, carries a handler, and that
@@ -115,7 +115,7 @@ const MINIMUM_CONTROLS = {
   // and twelve while the chapter opened on the four calibration certificates.
   // The loop below clicks by position, so it now exercises every type chip and reaches
   // no document chip: by the time it gets there the last type is selected and its one
-  // document is already pressed. The change set 26 notes in PLAN.md record the jsdom pass
+  // document is already pressed. The change set 26 notes in docs/history/PLAN-2026.md record the jsdom pass
   // that clicked those instead.
   issuing: 13,
   verification: 2,
@@ -164,8 +164,8 @@ for (const [index, chapter] of CHAPTERS.entries()) {
   // Did the chapter render at all? That has to be asked separately, and the reason is
   // worth recording. A chapter that throws renders an error banner and no controls, so
   // "0 controls, all responded" is vacuously true — and this harness reported exactly
-  // that while chapter 0 was showing "context.text is not a function" in a browser.
-  // Counting dead buttons cannot notice a chapter that has none.
+  // that while the orientation chapter was showing "context.text is not a function" in
+  // a browser. Counting dead buttons cannot notice a chapter that has none.
   if (stage.textContent.includes('This chapter failed to render')) {
     const reason = ((stage.querySelector('.verdict__text span') || {}).textContent || '').trim();
     broken.push(`${chapter.id}: ${reason}`);

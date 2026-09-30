@@ -250,8 +250,8 @@ class DocumentStore:
         Kept apart from :meth:`contents` because an endpoint is not a document and
         counting it as one would lose the distinction that matters most about it: a
         document can be cached, mirrored and archived by anyone holding a copy, and a
-        service can only be reached. Chapter 10 computes a hosting burden from these two
-        numbers and it has to be able to tell them apart.
+        service can only be reached. The infrastructure chapter computes a hosting
+        burden from these two numbers and it has to be able to tell them apart.
 
         Returns:
             A mapping from base address to the kind its answers carry.

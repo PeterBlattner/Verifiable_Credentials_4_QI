@@ -1,6 +1,6 @@
-<!-- 10-implications.md -- chapter 9 in the rail; the NN- prefix is the position in the
-     CHAPTERS array, which counts the cautions. Rendered by chapterImplications() in
-     ../../static/js/chapters.js.
+<!-- implications.md -- rendered by chapterImplications() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite
@@ -74,6 +74,6 @@ Is a decentralised recognition chain actually better than each MRA simply publis
 
 Who verifies, in practice? The value depends entirely on the checking happening somewhere it does not happen today. If nobody runs the verifier, nothing has been gained.
 
-What does a failed check mean institutionally? The pipeline can say a certificate is outside a published CMC. It cannot say whether that is an error, a typo, or a capability that was updated last week and not yet published. Nor can it say who a *passing* verdict is good enough for: the rule that turns eleven checks into one answer is built into the verifier rather than supplied to it, so a border authority and a purchaser get the same word for what should be two different decisions. That is the last item in chapter 11's second tier.
+What does a failed check mean institutionally? The pipeline can say a certificate is outside a published CMC. It cannot say whether that is an error, a typo, or a capability that was updated last week and not yet published. Nor can it say who a *passing* verdict is good enough for: the rule that turns eleven checks into one answer is built into the verifier rather than supplied to it, so a border authority and a purchaser get the same word for what should be two different decisions. That is the last item in [chapter](#harmonisation)'s second tier.
 
 How do these credentials relate to the certificates that remain legally authoritative? For a long time both will exist, and which one governs is a legal question, not a technical one.

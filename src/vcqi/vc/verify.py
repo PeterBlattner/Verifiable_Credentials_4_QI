@@ -306,7 +306,8 @@ def _capability_from_document(document: dict[str, Any]) -> DeclaredCapability | 
     # Three names for the same thing, because three registers chose three words: the
     # KCDB says expandedUncertainty, an accreditation scope says
     # bestMeasurementCapability, and an OIML Recommendation states the uncertainty it
-    # recognises for an evaluation. Chapter 11 has an item about exactly this.
+    # recognises for an evaluation. The harmonisation chapter has an item about exactly
+    # this.
     floor_source = (
         document.get("expandedUncertainty")
         or document.get("bestMeasurementCapability")
@@ -1540,8 +1541,8 @@ def _step_scope(
 
     # A scope that publishes a table is adjudicated a row at a time. A CMC entry, and an
     # OIML Recommendation, publish none and are one row in themselves, so they keep the
-    # path below. Both are live: the difference between them is most of what chapter 5
-    # has to show.
+    # path below. Both are live: the difference between them is most of what the scope
+    # chapter has to show.
     rows = _rows_from_document(document)
     if rows:
         if claim is None:

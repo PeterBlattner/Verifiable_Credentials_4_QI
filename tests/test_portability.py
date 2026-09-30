@@ -282,9 +282,10 @@ class TestTheAuditIsAMeasurement:
 
         Once everything that can travel has travelled and the registries are signed,
         what a verifier still has to fetch is each organisation's key and its revocation
-        list, and nothing else -- which is exactly the hosting burden chapter 10 computes
-        from the other direction. If this ever reports a third kind, the two chapters have
-        stopped describing the same quantity and one of them is wrong.
+        list, and nothing else -- which is exactly the hosting burden the infrastructure
+        chapter computes from the other direction. If this ever reports a third kind,
+        the two chapters have stopped describing the same quantity and one of them is
+        wrong.
         """
         audit = portability_audit(
             build_world(), now=DEMO_NOW, trusted_issuers=TRUST_ANCHORS
@@ -410,7 +411,7 @@ class TestWithdrawalChangesNothingAboutTheDocument:
     """Why the list is fetched and not carried, stated as an equality on bytes."""
 
     def test_withdrawing_a_certificate_changes_no_byte_of_it(self) -> None:
-        """The demonstration chapter 12 runs, asserted on the canonical form.
+        """The demonstration the exchange chapter runs, asserted on the canonical form.
 
         Both cases leave the credential exactly as the laboratory signed it. One flips a
         bit on the laboratory's own revocation list and the other on the accreditation

@@ -97,7 +97,7 @@ function exportForms(name, credential) {
 // everything else works is a caution that fails when it is most needed. The banner in
 // index.html covers the case where not even this has loaded.
 async function chapterCautions(context) {
-  // Prose: web/content/chapters/00-cautions.md
+  // Prose: web/content/chapters/cautions.md
   const t = context.text('cautions');
   const fragment = document.createDocumentFragment();
 
@@ -118,7 +118,7 @@ async function chapterCautions(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 0
+// ---------------------------------------------------------------- orientation
 
 function triangle() {
   const ns = 'http://www.w3.org/2000/svg';
@@ -169,7 +169,7 @@ function colourJsonExamples(node) {
 }
 
 async function chapterOrientation(context) {
-  // Prose: web/content/chapters/01-orientation.md
+  // Prose: web/content/chapters/orientation.md
   const t = context.text('orientation');
   const fragment = document.createDocumentFragment();
 
@@ -213,7 +213,7 @@ async function chapterOrientation(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 1
+// ---------------------------------------------------------------- keys
 
 const ISSUE_MODES = [
   { key: 'honest', label: 'Sign as yourself' },
@@ -222,7 +222,7 @@ const ISSUE_MODES = [
 ];
 
 async function chapterKeys(context) {
-  // Prose: web/content/chapters/02-keys.md
+  // Prose: web/content/chapters/keys.md
   const t = context.text('keys');
   const fragment = document.createDocumentFragment();
   const state = { key: null };
@@ -484,10 +484,10 @@ function flipLast(value) {
   return value.slice(0, -1) + (last === '1' ? '2' : '1');
 }
 
-// ---------------------------------------------------------------- chapter 2
+// ---------------------------------------------------------------- graph
 
 async function chapterGraph(context) {
-  // Prose: web/content/chapters/03-graph.md
+  // Prose: web/content/chapters/graph.md
   const t = context.text('graph');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('the-world'));
@@ -619,10 +619,10 @@ async function chapterGraph(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 3
+// ---------------------------------------------------------------- issuing
 
 async function chapterIssuing(context) {
-  // Prose: web/content/chapters/04-issuing.md
+  // Prose: web/content/chapters/issuing.md
   const t = context.text('issuing');
   const fragment = document.createDocumentFragment();
 
@@ -816,10 +816,10 @@ function wrap(text, width) {
   return lines.join('\n');
 }
 
-// ---------------------------------------------------------------- chapter 4
+// ---------------------------------------------------------------- verification
 
 async function chapterVerification(context) {
-  // Prose: web/content/chapters/05-verification.md
+  // Prose: web/content/chapters/verification.md
   const t = context.text('verification');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('the-scenario'));
@@ -922,7 +922,7 @@ async function chapterVerification(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 5
+// ---------------------------------------------------------------- scope
 
 /**
  * Describe the levels a scope row covers, in whichever grammar the register used.
@@ -971,7 +971,7 @@ function scopeRowTable(scope) {
 }
 
 async function chapterScope(context) {
-  // Prose: web/content/chapters/06-scope.md
+  // Prose: web/content/chapters/scope.md
   const t = context.text('scope');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('the-floor'));
@@ -1093,7 +1093,7 @@ async function chapterScope(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 6
+// ---------------------------------------------------------------- traceability
 
 /**
  * Render the PTB/DKD DCC tab: the document, and what it does that the others do not.
@@ -1105,7 +1105,7 @@ async function chapterScope(context) {
  * looking at duplicates most of itself.
  */
 function dccTab(body, representations, context, duplication, carriage) {
-  // Prose: web/content/chapters/07-traceability.md, which is the only chapter that
+  // Prose: web/content/chapters/traceability.md, which is the only chapter that
   // reaches this helper.
   const t = context.text('traceability');
   const dcc = representations.find((item) => item.format === 'PTB-DKD-DCC-XML');
@@ -1179,7 +1179,7 @@ function findStep(report, id) {
  * @returns {Promise<Element>} the panel
  */
 async function carriagePanel(context) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const report = await api.verify({ name: 'metas-external-dcc' });
 
@@ -1216,7 +1216,7 @@ async function carriagePanel(context) {
 
 /** Show every fact the credential and the PTB/DKD DCC both state, and whether they agree. */
 async function duplicationPanel(context, certificateName) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const report = await api.verify({ name: certificateName });
 
@@ -1271,7 +1271,7 @@ async function duplicationPanel(context, certificateName) {
  * one measurement, and only the last two let the recipient do anything further with it.
  */
 async function representationPanel(context, certificateName) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const data = await api.credential(certificateName);
   const result = data.credential.credentialSubject.calibration.results[0];
@@ -1419,7 +1419,7 @@ const OPERATIONS = [
  * from the dependency representations and once from the printed numbers alone.
  */
 async function combiningPanel(context) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const fragment = document.createDocumentFragment();
 
@@ -1513,7 +1513,7 @@ async function combiningPanel(context) {
 }
 
 async function chapterTraceability(context) {
-  // Prose: web/content/chapters/07-traceability.md
+  // Prose: web/content/chapters/traceability.md
   const t = context.text('traceability');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('the-chain'));
@@ -1656,10 +1656,10 @@ async function chapterTraceability(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 7
+// ---------------------------------------------------------------- break
 
 async function chapterBreakIt(context) {
-  // Prose: web/content/chapters/08-break.md
+  // Prose: web/content/chapters/break.md
   const t = context.text('break');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('why-break-it'));
@@ -1725,7 +1725,7 @@ async function chapterBreakIt(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 8
+// ---------------------------------------------------------------- tamper
 
 /**
  * Draw one editable field as whatever control its kind calls for.
@@ -1831,7 +1831,7 @@ function perturb(field, pristine) {
 }
 
 async function chapterTamper(context) {
-  // Prose: web/content/chapters/09-tamper.md
+  // Prose: web/content/chapters/tamper.md
   const t = context.text('tamper');
   const fragment = document.createDocumentFragment();
   fragment.append(t.prose('by-hand'));
@@ -2005,10 +2005,10 @@ async function chapterTamper(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 9
+// ---------------------------------------------------------------- implications
 
 async function chapterImplications(context) {
-  // Prose: web/content/chapters/10-implications.md
+  // Prose: web/content/chapters/implications.md
   const t = context.text('implications');
   const fragment = document.createDocumentFragment();
 
@@ -2019,7 +2019,7 @@ async function chapterImplications(context) {
 
   return fragment;
 }
-// ---------------------------------------------------------------- chapter 10
+// ---------------------------------------------------------------- infrastructure
 
 // Blue for the anchor, amber for a key an organisation has to hold itself, green for
 // not holding one. The ordering is the argument: the further down the chain, the less
@@ -2039,7 +2039,7 @@ const ONLINE_KIND_LABELS = {
 };
 
 async function chapterInfrastructure(context) {
-  // Prose: web/content/chapters/11-infrastructure.md
+  // Prose: web/content/chapters/infrastructure.md
   const t = context.text('infrastructure');
   const fragment = document.createDocumentFragment();
   const data = await api.infrastructure();
@@ -2201,7 +2201,7 @@ async function chapterInfrastructure(context) {
   return fragment;
 }
 
-// ---------------------------------------------------------------- chapter 11
+// ---------------------------------------------------------------- harmonisation
 
 // Render a blank-line-separated editorial field as paragraphs, without opening it to
 // markup. `keyValues` sets textContent, which is deliberate -- tests/test_deployment.py
@@ -2230,7 +2230,7 @@ const HARMONISATION_STATUS = {
 };
 
 async function chapterHarmonisation(context) {
-  // Prose: web/content/chapters/12-harmonisation.md
+  // Prose: web/content/chapters/harmonisation.md
   const t = context.text('harmonisation');
   const fragment = document.createDocumentFragment();
   const data = await api.harmonisation();
@@ -2491,7 +2491,7 @@ async function untpProbe(context, t) {
   ]);
 }
 
-// ---------------------------------------------------------------- chapter 12
+// ---------------------------------------------------------------- exchange
 
 // What the coordinator is doing in a given exchange, which is a property of the exchange
 // and not of the organisation. Verifica is an issuer here and a verifier in the same
@@ -2517,7 +2517,7 @@ function exchangeMessage(number, direction, title, hint, body, context) {
 }
 
 async function chapterMoving(context) {
-  // Prose: web/content/chapters/13-exchange.md
+  // Prose: web/content/chapters/exchange.md
   const t = context.text('exchange');
   const fragment = document.createDocumentFragment();
   const data = await api.workflows();
@@ -2853,88 +2853,84 @@ async function chapterMoving(context) {
 
 // ----------------------------------------------------------------
 
+// The same ids in the same order as CHAPTER_ORDER in web/content.py, which is where a
+// chapter's number comes from, and a test holds the two together. The prose refers to a
+// chapter by id, [chapter](#scope), and the server writes the number in, so moving a
+// chapter is moving its entry here and its line there (issue #73).
 export const CHAPTERS = [
   {
     // First deliberately: app.js falls back to CHAPTERS[0] for an empty or unknown
     // hash, so this is also the landing page. Heading text comes from
-    // web/content/chapters/00-cautions.md
+    // web/content/chapters/cautions.md
     //
-    // `unnumbered` keeps it out of the chapter numbering rather than taking 0 from
-    // orientation. ARCHITECTURE.md fixes the numbers because the prose says "chapter 5"
-    // and "the next chapter" in twenty-odd places, several of them in editorial fields
-    // served to the reader from actors/harmonisation.py; shifting them all to seat this
-    // page at 0 would break every one of those silently.
+    // `unnumbered` keeps it out of the numbering, so orientation is numbered 0. Nothing
+    // refers a reader to the cautions, and they are read before anything else.
     id: 'cautions',
     unnumbered: true,
     render: chapterCautions,
   },
   {
-    // Heading text comes from web/content/chapters/01-orientation.md
+    // Heading text comes from web/content/chapters/orientation.md
     id: 'orientation',
     render: chapterOrientation,
   },
   {
-    // Heading text comes from web/content/chapters/02-keys.md
+    // Heading text comes from web/content/chapters/keys.md
     id: 'keys',
     render: chapterKeys,
   },
   {
-    // Heading text comes from web/content/chapters/03-graph.md
+    // Heading text comes from web/content/chapters/graph.md
     id: 'graph',
     render: chapterGraph,
   },
   {
-    // Heading text comes from web/content/chapters/04-issuing.md
+    // Heading text comes from web/content/chapters/issuing.md
     id: 'issuing',
     render: chapterIssuing,
   },
   {
-    // Heading text comes from web/content/chapters/05-verification.md
+    // Heading text comes from web/content/chapters/verification.md
     id: 'verification',
     render: chapterVerification,
   },
   {
-    // Heading text comes from web/content/chapters/06-scope.md
+    // Heading text comes from web/content/chapters/scope.md
     id: 'scope',
     render: chapterScope,
   },
   {
-    // Heading text comes from web/content/chapters/07-traceability.md
+    // Heading text comes from web/content/chapters/traceability.md
     id: 'traceability',
     render: chapterTraceability,
   },
   {
-    // Heading text comes from web/content/chapters/08-break.md
+    // Heading text comes from web/content/chapters/break.md
     id: 'break',
     render: chapterBreakIt,
   },
   {
-    // Heading text comes from web/content/chapters/09-tamper.md
+    // Heading text comes from web/content/chapters/tamper.md
     id: 'tamper',
     render: chapterTamper,
   },
   {
-    // Heading text comes from web/content/chapters/10-implications.md
+    // Heading text comes from web/content/chapters/implications.md
     id: 'implications',
     render: chapterImplications,
   },
   {
-    // Heading text comes from web/content/chapters/11-infrastructure.md
+    // Heading text comes from web/content/chapters/infrastructure.md
     id: 'infrastructure',
     render: chapterInfrastructure,
   },
   {
-    // Heading text comes from web/content/chapters/12-harmonisation.md
+    // Heading text comes from web/content/chapters/harmonisation.md
     id: 'harmonisation',
     render: chapterHarmonisation,
   },
   {
-    // Last, and after harmonisation on purpose. Seating it earlier would renumber
-    // every chapter from 9 upward, and two dozen references to a chapter by number --
-    // several of them editorial fields in actors/harmonisation.py served to the reader
-    // -- would quietly become wrong. ARCHITECTURE.md records the rule.
-    //
-    // Heading text comes from web/content/chapters/13-exchange.md
+    // Heading text comes from web/content/chapters/exchange.md
     id: 'exchange',
     render: chapterMoving,
   },

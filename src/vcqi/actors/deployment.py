@@ -13,10 +13,10 @@ about the issuer itself -- its key, and which of its credentials it has since wi
 The certificates themselves need not be hosted at all. :func:`hosting_burden` computes
 that split from what the demonstration actually published rather than restating it here.
 
-**Where the figures stop, which chapter 12 measures.** All of the above is about
-*checking* a credential, and it holds -- not by luck, but because a credential here
-travels as a signed file, which is the portable-credential architecture that UN/CEFACT
-argues for and that this module had been describing without naming.
+**Where the figures stop, which the exchange chapter measures.** All of the above is
+about *checking* a credential, and it holds -- not by luck, but because a credential
+here travels as a signed file, which is the portable-credential architecture that
+UN/CEFACT argues for and that this module had been describing without naming.
 
 It says nothing about *obtaining* one. Asking is a conversation, a conversation has
 state, and state is a service with a store, an expiry and something to attack -- see
@@ -283,15 +283,15 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
             "month.",
         ),
         hardest_part=(
-            "<strong>Succession, not custody.</strong> Every other profile here worries "
-            "about a key it expects to hold for decades. This body was eight months old "
-            "when the demonstration was built, and an accreditation granted in 2025 was "
-            "granted by an organisation that no longer exists. Renaming, merging and "
-            "dissolution are the ordinary life of accreditation bodies rather than the "
-            "exotic case. Chapter 11 files this under what nobody has undertaken: "
-            "did:webvh can carry an identifier through a move or a rename, and nothing "
-            "carries one through a dissolution except somebody agreeing to inherit the "
-            "obligation."
+            "<strong>Succession, not custody.</strong> Every other profile here "
+            "worries about a key it expects to hold for decades. This body was eight "
+            "months old when the demonstration was built, and an accreditation granted "
+            "in 2025 was granted by an organisation that no longer exists. Renaming, "
+            "merging and dissolution are the ordinary life of accreditation bodies "
+            "rather than the exotic case. [Chapter](#harmonisation) files this under "
+            "what nobody has undertaken: did:webvh can carry an identifier through a "
+            "move or a rename, and nothing carries one through a dissolution except "
+            "somebody agreeing to inherit the obligation."
         ),
         scale=(
             "Tens of signatories, reissued on a peer evaluation cycle measured in years. "
@@ -520,14 +520,15 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
     DeploymentProfile(
         did="did:web:surveillance.example",
         posture=(
-            "Operates nothing to <em>check</em> a certificate, which is the half of the "
-            "system that is genuinely free and the half on which all the value depends. "
-            "Operates a service to <em>ask</em> for one. An authority that wants a "
-            "document it does not have must run an exchange endpoint, hold state for "
-            "each conversation in progress, and expire it -- chapter 12 builds exactly "
-            "that. Which of the two a verifier is depends on the architecture around it "
-            "rather than on anything about verification: the cheap case is a courier "
-            "arriving with the credentials already in hand, and it is the common one."
+            "Operates nothing to <em>check</em> a certificate, which is the half of "
+            "the system that is genuinely free and the half on which all the value "
+            "depends. Operates a service to <em>ask</em> for one. An authority that "
+            "wants a document it does not have must run an exchange endpoint, hold "
+            "state for each conversation in progress, and expire it -- "
+            "[chapter](#exchange) builds exactly that. Which of the two a verifier is "
+            "depends on the architecture around it rather than on anything about "
+            "verification: the cheap case is a courier arriving with the credentials "
+            "already in hand, and it is the common one."
         ),
         custody=(
             "None. A verifier holds no key and signs nothing. It needs only a list of "

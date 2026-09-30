@@ -16,31 +16,30 @@ Every chapter is here.
 
 | # | Chapter | File |
 | --- | --- | --- |
-| — | About these pages, and what they are not | [`00-cautions.md`](src/vcqi/web/content/chapters/00-cautions.md) |
-| 0 | What a verifiable credential is | [`01-orientation.md`](src/vcqi/web/content/chapters/01-orientation.md) |
-| 1 | Keys: what a signature actually proves | [`02-keys.md`](src/vcqi/web/content/chapters/02-keys.md) |
-| 2 | The quality infrastructure as a trust graph | [`03-graph.md`](src/vcqi/web/content/chapters/03-graph.md) |
-| 3 | Issuing a Verifiable Credential | [`04-issuing.md`](src/vcqi/web/content/chapters/04-issuing.md) |
-| 4 | Verification and recognition discovery | [`05-verification.md`](src/vcqi/web/content/chapters/05-verification.md) |
-| 5 | The CMC decides the logo | [`06-scope.md`](src/vcqi/web/content/chapters/06-scope.md) |
-| 6 | Traceability and uncertainty | [`07-traceability.md`](src/vcqi/web/content/chapters/07-traceability.md) |
-| 7 | Break it | [`08-break.md`](src/vcqi/web/content/chapters/08-break.md) |
-| 8 | Break it yourself | [`09-tamper.md`](src/vcqi/web/content/chapters/09-tamper.md) |
-| 9 | What this would mean in practice | [`10-implications.md`](src/vcqi/web/content/chapters/10-implications.md) |
-| 10 | What it would take to run | [`11-infrastructure.md`](src/vcqi/web/content/chapters/11-infrastructure.md) |
-| 11 | What would have to be agreed | [`12-harmonisation.md`](src/vcqi/web/content/chapters/12-harmonisation.md) |
-| 12 | How a credential moves | [`13-exchange.md`](src/vcqi/web/content/chapters/13-exchange.md) |
+| — | About these pages, and what they are not | [`cautions.md`](src/vcqi/web/content/chapters/cautions.md) |
+| 0 | What a verifiable credential is | [`orientation.md`](src/vcqi/web/content/chapters/orientation.md) |
+| 1 | Keys: what a signature actually proves | [`keys.md`](src/vcqi/web/content/chapters/keys.md) |
+| 2 | The quality infrastructure as a trust graph | [`graph.md`](src/vcqi/web/content/chapters/graph.md) |
+| 3 | Issuing a Verifiable Credential | [`issuing.md`](src/vcqi/web/content/chapters/issuing.md) |
+| 4 | Verification and recognition discovery | [`verification.md`](src/vcqi/web/content/chapters/verification.md) |
+| 5 | The CMC decides the logo | [`scope.md`](src/vcqi/web/content/chapters/scope.md) |
+| 6 | Traceability and uncertainty | [`traceability.md`](src/vcqi/web/content/chapters/traceability.md) |
+| 7 | Break it | [`break.md`](src/vcqi/web/content/chapters/break.md) |
+| 8 | Break it yourself | [`tamper.md`](src/vcqi/web/content/chapters/tamper.md) |
+| 9 | What this would mean in practice | [`implications.md`](src/vcqi/web/content/chapters/implications.md) |
+| 10 | What it would take to run | [`infrastructure.md`](src/vcqi/web/content/chapters/infrastructure.md) |
+| 11 | What would have to be agreed | [`harmonisation.md`](src/vcqi/web/content/chapters/harmonisation.md) |
+| 12 | How a credential moves | [`exchange.md`](src/vcqi/web/content/chapters/exchange.md) |
 
-The cautions come first in the rail but carry no chapter number, because the prose refers
-to chapters by number in a good many places and seating them at 0 would make every one of
-those references wrong.
+The cautions come first in the rail and carry no number, because nothing refers a reader
+to them.
 
-**The number on a file is not the chapter number.** It is the position in the `CHAPTERS`
-array at the end of `src/vcqi/web/static/js/chapters.js`, which counts the cautions — so
-`01-orientation.md` is chapter 0, and every file after it is one ahead of its chapter. The
-prefix exists so that a directory listing reads in chapter order, and a test asserts the
-two agree so the listing cannot lie. The authoritative order is that array, not this
-table and not the file names.
+**Each file is named by its chapter's id**, and the number is not written anywhere a
+reader sees. To send a reader to another chapter, write `[chapter](#scope)`, or
+`[Chapter](#scope)` at the start of a sentence: the page shows it as "chapter N", linked
+to that chapter. So a chapter can move without any sentence having to change. The order
+is `CHAPTER_ORDER` in `src/vcqi/web/content.py`; this table follows it, and a test
+checks that it does.
 
 ## What is not here
 
@@ -48,13 +47,14 @@ The short caution banner at the top of every page. It is in
 `src/vcqi/web/static/index.html`, as plain markup rather than in a content file, because
 it has to be on the page even when the server cannot be reached and nothing has loaded —
 which is exactly when a reader most needs it. The full statement behind it *is* editable
-here, in `00-cautions.md`, and is mirrored in `README.md`; change one and change the other.
+here, in `cautions.md`, and is mirrored in `README.md`; change one and change the other.
 
 Button and slider labels, the names of the organisations and certificates, the failure
-cases, and the tables behind chapters 10, 11 and 12. Those are data rather than prose and
-live in `src/vcqi/actors/`. The editing guide explains why, and lists the few other things
-that stayed in the code: a sentence built around a number the page has just worked out,
-and three comparison tables that are assembled as tables rather than written as words.
-The boundary can move if it turns out to be in the wrong place.
+cases, and the tables behind the infrastructure, harmonisation and exchange chapters.
+Those are data rather than prose and live in `src/vcqi/actors/`. The editing guide
+explains why, and lists the few other things that stayed in the code: a sentence built
+around a number the page has just worked out, and three comparison tables that are
+assembled as tables rather than written as words. The boundary can move if it turns out
+to be in the wrong place.
 
 `README.md` and `ARCHITECTURE.md` are edited where they are.

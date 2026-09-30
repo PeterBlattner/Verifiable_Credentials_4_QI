@@ -62,7 +62,8 @@ export const api = {
   exchangeTurn: (workflowId, exchangeId, body) =>
     post(`/workflows/${workflowId}/exchanges/${exchangeId}`, body || {}),
   // Not part of VCALM. The browser has to play a holder whose key lives on the server,
-  // so it asks the server to sign on the holder's behalf; chapter 12 says so plainly.
+  // so it asks the server to sign on the holder's behalf; the exchange chapter says so
+  // plainly.
   presentAs: (workflowId, exchangeId) =>
     post(`/api/exchange/${workflowId}/${exchangeId}/present`, {}),
   // Dependency data is XML or a binary blob, so it comes back as text rather than JSON.
