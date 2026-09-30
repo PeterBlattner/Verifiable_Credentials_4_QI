@@ -1,25 +1,34 @@
-"""Deterministic ECDSA over NIST P-256, following RFC 6979.
+"""Deterministic ECDSA over NIST P-256, and the arithmetic behind a public key.
 
-Why this exists: the demonstrator is meant to be inspected. Its credentials get read
+Why deterministic: the demonstrator is meant to be inspected. Its credentials get read
 on screen, pasted into issues, and diffed between runs to show that changing one digit
 of a measurement result changes the signature. Randomised ECDSA would make every run
 produce a different ``proofValue`` even when nothing changed, which buries that signal
 in noise. RFC 6979 derives the per-signature nonce from the private key and the message
 instead, so identical inputs always produce an identical signature.
 
-Signature verification is delegated to ``cryptography``. Only signing is implemented
-here, and only because the library does not expose a deterministic mode.
+Signing and verification are both delegated to ``cryptography``, whose ECDSA has taken
+``deterministic_signing=True`` since 43.0. This module used to sign with its own
+RFC 6979 implementation, written when the library had no such mode. The two gave
+byte-identical signatures, and the library's is constant-time and about a hundred times
+faster (issue #70). The RFC 6979 vectors in ``tests/test_ecdsa_p256.py`` and the W3C's
+``ecdsa-jcs-2019`` vector in ``tests/test_w3c_vectors.py`` pin that it still does what
+the demonstration relies on.
+
+What stays here is :func:`public_point`, which the keys chapter uses to show that a
+public key is nothing but the private key times the curve's generator.
 
 .. warning::
-   This implementation uses ordinary Python integers and is not constant-time. It is
-   safe here only because every key in this project is derived from a published seed
-   and protects nothing. Never sign with a real key using this code.
+   :func:`public_point` uses ordinary Python integers and is not constant-time. It is
+   there to be read, and every key it meets in this project is either derived from a
+   published seed or handed over by the caller. Never use it with a real key.
 """
 
 from __future__ import annotations
 
-import hashlib
-import hmac
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 __all__ = ["sign_deterministic", "public_point", "P256"]
 
@@ -92,72 +101,6 @@ def _scalar_multiply(scalar: int, point: _Point) -> _Point:
     return result
 
 
-def _int_to_octets(value: int) -> bytes:
-    """Encode an integer as a fixed-width big-endian octet string.
-
-    Args:
-        value: A non-negative integer below the group order.
-
-    Returns:
-        The 32 byte encoding required by RFC 6979.
-    """
-    return value.to_bytes(P256.size, "big")
-
-
-def _bits_to_int(data: bytes) -> int:
-    """Convert an octet string to an integer, keeping the leftmost qlen bits.
-
-    Args:
-        data: The octet string, normally a hash output.
-
-    Returns:
-        The integer value of the leftmost bits.
-    """
-    value = int.from_bytes(data, "big")
-    excess = len(data) * 8 - P256.n.bit_length()
-    return value >> excess if excess > 0 else value
-
-
-def _bits_to_octets(data: bytes) -> bytes:
-    """Reduce an octet string modulo the group order and re-encode it.
-
-    Args:
-        data: The octet string, normally a hash output.
-
-    Returns:
-        The 32 byte encoding of the reduced value.
-    """
-    return _int_to_octets(_bits_to_int(data) % P256.n)
-
-
-def _generate_nonce(private_scalar: int, digest: bytes) -> int:
-    """Derive the per-signature nonce k as specified in RFC 6979 section 3.2.
-
-    Args:
-        private_scalar: The signer's private key.
-        digest: The SHA-256 digest of the message being signed.
-
-    Returns:
-        A nonce in the range [1, n).
-    """
-    v = b"\x01" * 32
-    k = b"\x00" * 32
-    prefix = _int_to_octets(private_scalar) + _bits_to_octets(digest)
-
-    k = hmac.new(k, v + b"\x00" + prefix, hashlib.sha256).digest()
-    v = hmac.new(k, v, hashlib.sha256).digest()
-    k = hmac.new(k, v + b"\x01" + prefix, hashlib.sha256).digest()
-    v = hmac.new(k, v, hashlib.sha256).digest()
-
-    while True:
-        v = hmac.new(k, v, hashlib.sha256).digest()
-        candidate = _bits_to_int(v)
-        if 1 <= candidate < P256.n:
-            return candidate
-        k = hmac.new(k, v + b"\x00", hashlib.sha256).digest()
-        v = hmac.new(k, v, hashlib.sha256).digest()
-
-
 def sign_deterministic(private_scalar: int, message: bytes) -> bytes:
     """Sign a message with deterministic ECDSA over P-256 and SHA-256.
 
@@ -169,32 +112,26 @@ def sign_deterministic(private_scalar: int, message: bytes) -> bytes:
     Returns:
         The signature as the 64 byte concatenation of r and s, each 32 bytes
         big-endian. This is the fixed-width form Data Integrity proofs carry, as
-        opposed to the DER encoding used elsewhere.
-    """
-    digest = hashlib.sha256(message).digest()
-    scalar_digest = _bits_to_int(digest)
+        opposed to the DER encoding the library returns.
 
-    nonce = _generate_nonce(private_scalar, digest)
-    while True:
-        point = _scalar_multiply(nonce, (P256.gx, P256.gy))
-        assert point is not None, "nonce below the group order cannot give infinity"
-        r = point[0] % P256.n
-        if r != 0:
-            s = pow(nonce, -1, P256.n) * (scalar_digest + r * private_scalar) % P256.n
-            if s != 0:
-                return _int_to_octets(r) + _int_to_octets(s)
-        # RFC 6979 says to keep drawing from the generator if r or s comes out zero.
-        # Neither has ever been observed for P-256; the branch exists for correctness.
-        nonce = _generate_nonce(private_scalar, digest + b"\x00")
+    Raises:
+        ValueError: If the scalar is outside [1, n), where it is not a P-256 key.
+    """
+    key = ec.derive_private_key(private_scalar, ec.SECP256R1())
+    der = key.sign(message, ec.ECDSA(hashes.SHA256(), deterministic_signing=True))
+    r, s = decode_dss_signature(der)
+    return r.to_bytes(P256.size, "big") + s.to_bytes(P256.size, "big")
+
 
 def public_point(private_scalar: int) -> tuple[int, int]:
     """Compute the public key belonging to a private key.
 
     This is the whole of what makes a keypair asymmetric, and it is one line of
-    arithmetic: multiply the curve generator by the private scalar. Doing it takes a
-    fraction of a millisecond. Undoing it, recovering the scalar from the resulting
-    point, is the elliptic curve discrete logarithm problem, and nobody knows how to do
-    it for P-256 in any useful amount of time.
+    arithmetic: multiply the curve generator by the private scalar. Doing it takes a few
+    milliseconds in the plain integers below, and a fraction of one in OpenSSL. Undoing
+    it, recovering the scalar from the resulting point, is the elliptic curve discrete
+    logarithm problem, and nobody knows how to do it for P-256 in any useful amount of
+    time.
 
     That asymmetry is the only reason a public key can be published safely.
 

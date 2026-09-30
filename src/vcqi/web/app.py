@@ -1654,6 +1654,14 @@ def post_sign(request: SignRequest) -> dict[str, Any]:
     scalar = _scalar_of(request.private_scalar_hex)
     payload = request.message.encode("utf-8")
     signature = sign_deterministic(scalar, payload)
+    # From the library rather than _key_material, which also computes the point in plain
+    # integers for the keys chapter to show. Nothing here shows it, and that
+    # multiplication is the one expensive step left on this route.
+    compressed = (
+        ec.derive_private_key(scalar, ec.SECP256R1())
+        .public_key()
+        .public_bytes(Encoding.X962, PublicFormat.CompressedPoint)
+    )
 
     return {
         "message": request.message,
@@ -1665,7 +1673,7 @@ def post_sign(request: SignRequest) -> dict[str, Any]:
             "bytes": len(signature),
             "multibase": multibase_encode_base58btc(signature),
         },
-        "publicKeyMultibase": _key_material(scalar)["publicKeyMultibase"],
+        "publicKeyMultibase": encode_p256_multikey(compressed),
         "note": (
             "The signature is 64 bytes whatever the message length, because what gets "
             "signed is the 32-byte digest rather than the message. That is also why the "

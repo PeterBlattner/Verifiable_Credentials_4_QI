@@ -23,8 +23,10 @@ signature verifies arithmetically and tells you nothing whatever about who made 
 is chapter 2's lesson arriving in XML, and it is the honest reason the credential around
 the document is what carries the identity.
 
-The second reason is duller and also decisive: certificate signing in ``cryptography`` is
-randomised, and this world has to build byte-for-byte identically on every run.
+A second reason used to be given here: certificate signing in ``cryptography`` was
+randomised, and this world has to build byte-for-byte identically on every run. That
+stopped being true in 45.0, whose ``CertificateBuilder.sign`` takes
+``ecdsa_deterministic``, so the choice rests on the first reason, which is enough.
 """
 
 from __future__ import annotations

@@ -1,4 +1,9 @@
-"""RFC 6979 test vectors and a cross-check against the cryptography library."""
+"""RFC 6979 test vectors for the signer, which is the cryptography library's.
+
+These were written for a hand-rolled RFC 6979 signer and outlived it (issue #70). They
+now check that the library's deterministic mode is the one the demonstration relies on,
+and that the fixed-width r and s the proofs carry survive the trip from its DER output.
+"""
 
 from __future__ import annotations
 
@@ -45,7 +50,7 @@ def test_signature_is_reproducible() -> None:
 
 
 def test_signature_verifies_with_cryptography() -> None:
-    """A signature produced here is accepted by an independent implementation."""
+    """The 64 bytes returned are r and s in the order and width a verifier expects."""
     key = derive_key("did:web:metas.example")
     private_numbers = key.private_key.private_numbers()
     message = b"a calibration certificate"
@@ -72,3 +77,14 @@ def test_altered_message_does_not_verify() -> None:
         key.private_key.public_key().verify(
             encode_dss_signature(r, s), b"10000.0013 ohm", ec.ECDSA(hashes.SHA256())
         )
+
+
+@pytest.mark.parametrize("scalar", [0, -1, P256.n, P256.n + 1])
+def test_a_scalar_outside_the_group_is_refused(scalar: int) -> None:
+    """Not a P-256 key, so nothing is signed with it.
+
+    The hand-rolled signer signed with any integer. The routes check the range before
+    they get here, but the signer should not depend on that.
+    """
+    with pytest.raises(ValueError):
+        sign_deterministic(scalar, b"sample")
