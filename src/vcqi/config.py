@@ -111,6 +111,18 @@ MAX_BODY_BYTES: Final[int] = _env_int("VCQI_MAX_BODY_BYTES", 256 * 1024)
 RATE_LIMIT_BURST: Final[int] = _env_int("VCQI_RATE_LIMIT_BURST", 0)
 RATE_LIMIT_PER_SECOND: Final[float] = _env_float("VCQI_RATE_LIMIT_PER_SECOND", 1.0)
 
+#: The request header the rate limiter takes the caller's address from, when the edge
+#: proxy in front of the deployment sets one that the caller cannot. Empty, the default,
+#: means the address of the connection, which is right when nothing is in front.
+#:
+#: Not X-Forwarded-For. Render's proxy appends to whatever the caller sent, so the
+#: leftmost entry is the caller's own writing, and uvicorn takes the leftmost when
+#: FORWARDED_ALLOW_IPS is `*`. Cloudflare, in front of Render, sets True-Client-IP
+#: itself. The container sets `true-client-ip`; behind any other proxy, name that
+#: proxy's header or leave this empty, because a header nobody overwrites is one the
+#: caller chooses.
+CLIENT_IP_HEADER: Final[str] = os.environ.get("VCQI_CLIENT_IP_HEADER", "").strip().lower()
+
 #: Asked of crawlers, and sent as X-Robots-Tag on every response. The demonstration is
 #: meant to be opened from a link that someone was given, not found in a search for the
 #: real organisations it names.

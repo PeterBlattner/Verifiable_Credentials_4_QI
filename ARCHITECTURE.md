@@ -1173,6 +1173,16 @@ a concurrency limit, so a burst queues instead of thrashing. What is knowingly l
 uncovered is distributed flooding, which a per-process bucket cannot address; there is no
 data and no secret behind this, so the worst case is that the demonstration is slow.
 
+A bucket is only as good as the address it is keyed on, and the first one chosen was the
+caller's to write. uvicorn, told to trust every proxy, takes the leftmost `X-Forwarded-For`
+entry. Render's proxy appends to whatever `X-Forwarded-For` the caller sent, so that entry
+was the caller's own, and every request could claim a new address and a full bucket
+(issue #69). The bucket is now keyed on `True-Client-IP`, which Cloudflare, in front of
+Render, sets itself. A request without it is charged to one bucket shared with every
+other such request, so leaving the header out buys nothing. `/healthz` reports which of
+the two a request was, because the deployment is the only place the header can be seen
+arriving.
+
 `/api/edit` signs with a key the caller does *not* supply, which is a different shape and
 wants its own sentence. It re-signs an edited certificate as the organisation the document
 names, which is what makes chapter 8 worth having: without it every edit dies at `proof`

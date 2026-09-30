@@ -29,7 +29,10 @@ browser.
    commit against `main`: a green dashboard says a build succeeded, not that the build
    was the one just merged. The endpoint answers only after the lifespan warm-up has
    built and signed the world, so a 200 means the process can serve rather than that a
-   port opened.
+   port opened. Opened in a browser, it should also report `"caller": "true-client-ip"`:
+   the rate limiter is charging callers by the address Cloudflare states for them.
+   `"unattributed"` means that header did not arrive, and every reader is sharing one
+   bucket.
 4. **Settings → Custom Domains**, add the hostname, then create the DNS records below.
    Certificates are issued and renewed automatically, and HTTP is redirected to HTTPS.
 
@@ -58,6 +61,8 @@ Environment variables, all optional and all defaulting to local behaviour:
 | `VCQI_PUBLIC` | `0` | Turns on the request limits, drops the API docs, and refuses to start if the interface is missing from the package. |
 | `VCQI_RATE_LIMIT_BURST` | `0` (off) | Token bucket size, per client address. |
 | `VCQI_RATE_LIMIT_PER_SECOND` | `1.0` | Refill rate. |
+| `VCQI_CLIENT_IP_HEADER` | unset | The header the rate limiter takes the caller's address from. The container sets `true-client-ip`, which Cloudflare, in front of Render, sets and a caller cannot. A request without it shares one bucket with every other. Unset, the connection's address is used. Never `x-forwarded-for`: Render appends to the caller's copy, so its first entry is whatever the caller wrote. |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | uvicorn's own. The container sets `*` so the scheme is read from `X-Forwarded-Proto`, which HSTS and the exchange URLs depend on. The address uvicorn derives from it is not used. |
 | `VCQI_MAX_BODY_BYTES` | `262144` | Largest request body parsed. |
 | `VCQI_ALLOW_INDEXING` | `0` | Whether `robots.txt` and `X-Robots-Tag` invite crawlers. |
 | `VCQI_ENGINE` | unset | Set to `linprop` to force the deployed uncertainty engine locally. |

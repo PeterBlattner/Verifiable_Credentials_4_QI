@@ -25,6 +25,14 @@ What is deliberately not here, and why:
   so many source addresses defeat them. Accepted: there is no data and no secret behind
   this, the worst case is that the demonstration is slow or the host restarts it, and a
   CDN in front is the proportionate answer if it ever matters.
+
+What *is* here is care about which address a bucket belongs to. Many real addresses
+defeat the limiter, as above; one caller writing a different address into every request
+must not. Behind a proxy, `scope["client"]` is whatever uvicorn read out of
+X-Forwarded-For, and Render's proxy appends to the caller's copy of that header rather
+than replacing it. So a deployment names a header its edge proxy sets
+(``VCQI_CLIENT_IP_HEADER``), and a request that does not carry one is charged to a bucket
+it shares with every other such request (issue #69).
 - **No authentication.** The audience is people who should be able to open a URL.
 - **Nothing done about the non-constant-time arithmetic.** It is the teaching material,
   and a timing side channel on a key published in the repository is not a finding.
@@ -32,11 +40,19 @@ What is deliberately not here, and why:
 
 from __future__ import annotations
 
+import ipaddress
 import time
 from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any, Final
 
-__all__ = ["BodySizeLimitMiddleware", "RateLimitMiddleware", "route_cost"]
+__all__ = [
+    "UNATTRIBUTED",
+    "BodySizeLimitMiddleware",
+    "RateLimitMiddleware",
+    "client_address",
+    "client_address_source",
+    "route_cost",
+]
 
 Scope = MutableMapping[str, Any]
 Receive = Callable[[], Awaitable[MutableMapping[str, Any]]]
@@ -45,6 +61,10 @@ Send = Callable[[MutableMapping[str, Any]], Awaitable[None]]
 #: Above this many buckets the table is pruned. Sized so that ordinary traffic never
 #: reaches it and a spray of forged addresses cannot grow it without bound.
 _MAX_BUCKETS: Final[int] = 4096
+
+#: The one bucket for every request that does not say who sent it in the header the
+#: deployment trusts. Shared, so that leaving the header out buys nothing.
+UNATTRIBUTED: Final[str] = "unattributed"
 
 
 async def _reject(send: Send, status: int, detail: str, headers: list[tuple[bytes, bytes]]) -> None:
@@ -209,6 +229,52 @@ def route_cost(path: str) -> int:
     return 0
 
 
+def client_address(scope: Scope, header: str) -> str | None:
+    """Return the caller's address, as the rate limiter charges it.
+
+    Args:
+        scope: The ASGI scope.
+        header: The request header the edge proxy states the caller's address in,
+            lower-case, or empty to take the address of the connection.
+
+    Returns:
+        The address. With a header named, the header's value, normalised, or ``None``
+        when the request does not carry it or it is not an IP address. Parsing it keeps
+        the bucket table's keys short, and it means a malformed value is treated the same
+        as a missing one rather than as a fresh address.
+    """
+    if not header:
+        return (scope.get("client") or ("unknown", 0))[0]
+    wanted = header.encode("latin-1")
+    for name, value in scope.get("headers", ()):
+        if name == wanted:
+            try:
+                return str(ipaddress.ip_address(value.decode("latin-1").strip()))
+            except ValueError:
+                return None
+    return None
+
+
+def client_address_source(scope: Scope, header: str) -> str:
+    """Say where the rate limiter took this request's address from.
+
+    Reported by ``/healthz``, because whether the edge proxy really sends the header can
+    only be seen on the deployment itself, and a wrong guess about it fails quietly: the
+    limiter goes on working, with every caller in one bucket.
+
+    Args:
+        scope: The ASGI scope.
+        header: As for :func:`client_address`.
+
+    Returns:
+        ``"connection"`` with no header named, the header's name when the request carried
+        a usable value, and :data:`UNATTRIBUTED` otherwise.
+    """
+    if not header:
+        return "connection"
+    return header if client_address(scope, header) is not None else UNATTRIBUTED
+
+
 class RateLimitMiddleware:
     """A token bucket per client address, charged only for POSTs that do real work.
 
@@ -218,7 +284,9 @@ class RateLimitMiddleware:
     run with several workers, which is one of the reasons ``main()`` runs one.
     """
 
-    def __init__(self, app: Any, *, burst: int, per_second: float) -> None:
+    def __init__(
+        self, app: Any, *, burst: int, per_second: float, client_ip_header: str = ""
+    ) -> None:
         """Wrap an application.
 
         Args:
@@ -226,10 +294,13 @@ class RateLimitMiddleware:
             burst: Bucket size, and so the number of cheap requests allowed at once.
                 Zero disables the limiter entirely.
             per_second: Tokens added per second.
+            client_ip_header: The header to take the caller's address from, as for
+                :func:`client_address`. Empty takes the connection's.
         """
         self.app = app
         self.burst = burst
         self.per_second = per_second
+        self.client_ip_header = client_ip_header.lower()
         self._buckets: dict[str, tuple[float, float]] = {}
 
     def _charge(self, client: str, cost: int, now: float) -> float:
@@ -287,10 +358,7 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # uvicorn's proxy-headers handling rewrites scope["client"] from
-        # X-Forwarded-For where FORWARDED_ALLOW_IPS permits, so behind the host's
-        # proxy this is the real caller rather than the proxy.
-        client = (scope.get("client") or ("unknown", 0))[0]
+        client = client_address(scope, self.client_ip_header) or UNATTRIBUTED
         now = time.monotonic()
         self._prune(now)
         wait = self._charge(client, cost, now)

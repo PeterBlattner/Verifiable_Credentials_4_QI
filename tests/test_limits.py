@@ -14,14 +14,26 @@ entirely, so every other test in this suite is unaffected, and a reader running
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from vcqi.config import MAX_BODY_BYTES, RATE_LIMIT_BURST
+from vcqi.config import CLIENT_IP_HEADER, MAX_BODY_BYTES, RATE_LIMIT_BURST
 from vcqi.web.app import app
-from vcqi.web.limits import BodySizeLimitMiddleware, RateLimitMiddleware, route_cost
+from vcqi.web.limits import (
+    UNATTRIBUTED,
+    BodySizeLimitMiddleware,
+    RateLimitMiddleware,
+    client_address,
+    client_address_source,
+    route_cost,
+)
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture(scope="module")
@@ -36,6 +48,10 @@ class TestTheDefaultsChangeNothing:
     def test_the_rate_limiter_is_off_by_default(self) -> None:
         """Zero burst, so the middleware short-circuits before it does any work."""
         assert RATE_LIMIT_BURST == 0
+
+    def test_no_header_is_trusted_by_default(self) -> None:
+        """Locally nothing stands in front, so the connection's address is the caller's."""
+        assert CLIENT_IP_HEADER == ""
 
     def test_many_expensive_requests_all_succeed(self, client: TestClient) -> None:
         """The route that costs the most is not limited in the default configuration."""
@@ -216,6 +232,120 @@ class TestRateLimiting:
         assert limiter._charge("second", 5, 0.0) == 0.0
 
 
+class TestTheCallersAddress:
+    """A bucket belongs to the caller, not to whatever address the caller wrote (#69).
+
+    The deployment runs uvicorn with FORWARDED_ALLOW_IPS=*, so uvicorn's proxy-headers
+    middleware takes the leftmost X-Forwarded-For entry as the client. Render's proxy
+    appends to a client-supplied X-Forwarded-For, so that entry is the caller's own.
+    These tests run the limiter behind uvicorn's middleware configured the same way,
+    rather than a stand-in for it, so what they pin is what the deployment does.
+    """
+
+    #: What Render passes on when a caller sends its own X-Forwarded-For: the forgery
+    #: first, the address the proxy saw appended after it.
+    FORGED = ("10.0.0.1, 198.51.100.7", "10.0.0.2, 198.51.100.7")
+
+    @staticmethod
+    def _behind_the_edge(header: str, burst: int = 5) -> TestClient:
+        """Return a client over a stub, rate-limited and behind uvicorn's proxy handling.
+
+        Args:
+            header: The header the limiter trusts, or empty for the connection.
+            burst: Bucket size. Five buys exactly one request to the key routes.
+
+        Returns:
+            A client whose requests pass through ProxyHeadersMiddleware with every host
+            trusted, as FORWARDED_ALLOW_IPS=* configures it, before the limiter.
+        """
+        probe = FastAPI()
+
+        @probe.post("/api/keys/derive")
+        async def derive() -> dict:
+            """Stand in for the expensive route."""
+            return {"ok": True}
+
+        probe.add_middleware(
+            RateLimitMiddleware, burst=burst, per_second=0.01, client_ip_header=header
+        )
+        return TestClient(ProxyHeadersMiddleware(probe, trusted_hosts="*"))
+
+    def test_a_forged_forwarded_for_is_charged_to_the_same_bucket(self) -> None:
+        """The test the issue asked for: two forgeries, one caller, one bucket."""
+        client = self._behind_the_edge("true-client-ip")
+        first, second = (
+            client.post(
+                "/api/keys/derive",
+                headers={"x-forwarded-for": forged, "true-client-ip": "198.51.100.7"},
+            )
+            for forged in self.FORGED
+        )
+        assert first.status_code == 200
+        assert second.status_code == 429
+
+    def test_without_the_header_a_forgery_buys_a_fresh_bucket(self) -> None:
+        """The control: the configuration as it was, and the bypass it allowed.
+
+        If this starts failing, uvicorn has stopped taking the leftmost entry under
+        FORWARDED_ALLOW_IPS=*, and the Dockerfile's comment about it needs rereading.
+        """
+        client = self._behind_the_edge("")
+        for forged in self.FORGED:
+            response = client.post("/api/keys/derive", headers={"x-forwarded-for": forged})
+            assert response.status_code == 200
+
+    def test_callers_the_edge_tells_apart_keep_their_own_buckets(self) -> None:
+        """Trusting the header must not put everybody behind the proxy in one bucket."""
+        client = self._behind_the_edge("true-client-ip")
+        for caller in ("198.51.100.7", "203.0.113.9"):
+            response = client.post("/api/keys/derive", headers={"true-client-ip": caller})
+            assert response.status_code == 200
+
+    def test_leaving_the_header_out_buys_nothing(self) -> None:
+        """Every request without it shares one bucket, whatever else it claims."""
+        client = self._behind_the_edge("true-client-ip")
+        first, second = (
+            client.post("/api/keys/derive", headers={"x-forwarded-for": forged})
+            for forged in self.FORGED
+        )
+        assert first.status_code == 200
+        assert second.status_code == 429
+
+    @pytest.mark.parametrize("value", ["", "not-an-address", "198.51.100.7, 10.0.0.1"])
+    def test_a_value_that_is_not_one_address_is_unattributed(self, value: str) -> None:
+        """A malformed value is treated as missing, not as a fresh address."""
+        scope = {"headers": [(b"true-client-ip", value.encode("latin-1"))]}
+        assert client_address(scope, "true-client-ip") is None
+        assert client_address_source(scope, "true-client-ip") == UNATTRIBUTED
+
+    def test_an_address_is_normalised(self) -> None:
+        """Two spellings of one IPv6 address are one caller."""
+        scope = {"headers": [(b"true-client-ip", b" 2001:DB8:0::1 ")]}
+        assert client_address(scope, "true-client-ip") == "2001:db8::1"
+        assert client_address_source(scope, "true-client-ip") == "true-client-ip"
+
+    def test_with_no_header_named_the_connection_is_the_caller(self) -> None:
+        """The local default, where nothing stands in front to state an address."""
+        scope = {"client": ("127.0.0.1", 50000), "headers": [(b"true-client-ip", b"1.2.3.4")]}
+        assert client_address(scope, "") == "127.0.0.1"
+        assert client_address_source(scope, "") == "connection"
+
+    def test_the_container_and_the_blueprint_trust_the_same_header(self) -> None:
+        """render.yaml repeats the Dockerfile's settings; this one must not drift.
+
+        The deployed service was created from the repository rather than the blueprint,
+        so it is the Dockerfile's value that reaches it unless the dashboard overrides it.
+        """
+        dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+        blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8")
+        in_image = re.findall(r"^ENV VCQI_CLIENT_IP_HEADER=(\S+)$", dockerfile, re.M)
+        in_blueprint = re.findall(
+            r"- key: VCQI_CLIENT_IP_HEADER\n\s+value: \"?([^\"\s]+)\"?", blueprint
+        )
+        assert in_image == ["true-client-ip"]
+        assert in_blueprint == in_image
+
+
 class TestResponseHeaders:
     """What every response carries, and what it deliberately does not."""
 
@@ -301,6 +431,26 @@ class TestHealth:
         assert body["status"] == "ok"
         assert body["version"]
         assert body["engine"] in {"unclib", "linprop"}
+
+    def test_healthz_says_where_the_caller_s_address_came_from(
+        self, client: TestClient
+    ) -> None:
+        """Locally, from the connection; the address itself is not echoed back."""
+        body = client.get("/healthz", headers={"true-client-ip": "198.51.100.7"}).json()
+        assert body["caller"] == "connection"
+        assert "198.51.100.7" not in json.dumps(body)
+
+    def test_healthz_says_whether_the_edge_sent_the_header(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """What Peter reads on the deployment, which cannot be reached from here."""
+        import vcqi.web.app as web_app
+
+        monkeypatch.setattr(web_app, "CLIENT_IP_HEADER", "true-client-ip")
+        sent = client.get("/healthz", headers={"true-client-ip": "198.51.100.7"}).json()
+        missing = client.get("/healthz").json()
+        assert sent["caller"] == "true-client-ip"
+        assert missing["caller"] == UNATTRIBUTED
 
     def test_the_warm_up_runs_and_does_not_raise(self) -> None:
         """Entering the lifespan is what a deployment does, so it is tested.
