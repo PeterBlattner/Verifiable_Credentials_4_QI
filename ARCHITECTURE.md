@@ -229,17 +229,40 @@ that are otherwise unnecessary:
   is exactly where the two versions differ; on a document with no `xml:base` and no
   `xml:id` they agree, and a test says so.
 - `crypto/xmldsig.py` -- an enveloped signature: the enveloped-signature transform, then
-  C14N 1.1, SHA-256, and ECDSA P-256 through the existing RFC 6979 deterministic signer,
-  so the published bytes and therefore the recorded digest are the same on every run.
+  C14N 1.1, SHA-256, and ECDSA P-256 through the deterministic signer in
+  `crypto/ecdsa_p256.py`, so the published bytes and therefore the recorded digest are
+  the same on every run.
 
-**`ds:KeyInfo` carries a bare `ds:KeyValue`, not an X.509 certificate.** Two reasons. A
-self-signed certificate would suggest a chain to a certification authority, and there is
-no such authority here; a bare key says the true thing, which is that the signature
-verifies arithmetically and identifies nobody. And certificate signing in `cryptography`
-is randomised, which would break the byte-identical build. A real DCC would use X.509,
-and the contrast is the point: the credential wrapped around the document is what
-supplies an issuer, a resolvable key and a revocation path, and the `ds:Signature` supplies
-none of the three.
+**`ds:KeyInfo` carries a bare `ds:KeyValue`, not an X.509 certificate.** A self-signed
+certificate would suggest a chain to a certification authority, and there is no such
+authority here; a bare key says the true thing, which is that the signature verifies
+arithmetically and identifies nobody. A second reason used to be given, that certificate
+signing in `cryptography` is randomised. Since 45.0 it need not be
+(`CertificateBuilder.sign` takes `ecdsa_deterministic`), so the first reason carries the
+choice alone. A real DCC would use X.509, and the contrast is the point: the credential
+wrapped around the document is what supplies an issuer, a resolvable key and a
+revocation path, and the `ds:Signature` supplies none of the three.
+
+**It is one profile of XML Signature, not a verifier for signed DCCs in the wild.**
+`verify_enveloped` reads what a signature declares: the canonicalization, the signature
+method, the one reference and its `URI=""`, the transforms, the digest and the form of
+the key. Anything outside the profile above is reported as *unsupported*, a warning in
+the pipeline, and nothing is compared (issue #71). Until then such a signature came back
+as a digest or signature mismatch, which reads as tampering when all it says is that this
+module does not implement what the signer chose. Unsupported is no loophole. Anyone able
+to alter the document can already delete the signature, and the credential's own digest
+of the bytes is what catches the alteration, in its own step. A test shows exactly that
+case.
+
+**No XML is parsed with its DTD.** Every parser here can be handed a caller's document,
+because `POST /api/verify` accepts a credential whose representations carry XML inline.
+`vcqi/xmlsafe.py` refuses any document that declares a DTD, in a first pass with Expat
+itself, and all five parse sites go through it. The first pass decodes as the real parse
+does, so UTF-16 cannot hide a declaration. Python's Expat, 2.6 here, already limits
+entity amplification, the parsers resolve no external entities, and bodies are capped at
+256 KB, so this is belt-and-braces. It costs nothing, because no document here has a DTD.
+It is `defusedxml`'s strictest setting without the dependency, and a test fails if a new
+parse site bypasses it.
 
 **What this is not.** No independent XML Signature implementation is installed on the
 machine this was written on -- `xmlsec` and `lxml` both need native builds -- so nothing

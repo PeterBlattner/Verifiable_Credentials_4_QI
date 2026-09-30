@@ -36,7 +36,9 @@ from __future__ import annotations
 
 from urllib.parse import urljoin
 from xml.dom import Node
-from xml.dom.minidom import Document, Element, parseString
+from xml.dom.minidom import Document, Element
+
+from vcqi.xmlsafe import parse_dom
 
 __all__ = ["ALGORITHM", "canonicalize", "parse"]
 
@@ -62,10 +64,14 @@ def parse(source: str | bytes) -> Document:
 
     Returns:
         The parsed document.
+
+    Raises:
+        xml.parsers.expat.ExpatError: If the document declares a DTD, which
+            ``vcqi.xmlsafe`` refuses, or is not well-formed.
     """
     if isinstance(source, str):
         source = source.encode("utf-8")
-    return parseString(source)
+    return parse_dom(source)
 
 
 def _escape_text(value: str) -> str:
