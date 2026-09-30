@@ -24,7 +24,7 @@ browser.
    ones reuse cached layers.
 3. **Check the health endpoint** at `https://<service>.onrender.com/healthz` — for this
    deployment, <https://verifiable-credentials-4-qi.onrender.com/healthz>. It reports
-   ` »engine »: « linprop »`, which is the confirmation that the deployment is computing
+   `"engine": "linprop"`, which is the confirmation that the deployment is computing
    with the engine it is licensed to ship, and the commit it is running. Compare that
    commit against `main`: a green dashboard says a build succeeded, not that the build
    was the one just merged. The endpoint answers only after the lifespan warm-up has
@@ -34,7 +34,7 @@ browser.
    Certificates are issued and renewed automatically, and HTTP is redirected to HTTPS.
 
 | Type | Name | Value | Notes |
-| — | — | — | — |
+| --- | --- | --- | --- |
 | `CNAME` | `vc` (or `www`) | `<service>.onrender.com.` | What Render wants for any non-apex name. |
 | `ALIAS` / `ANAME` | `@` | `<service>.onrender.com.` | For the bare domain, if the registrar supports it. Preferred: no address is hard-coded. |
 | `A` | `@` | Render’s load-balancer address | Fallback where `ALIAS` is unavailable. Take the address from the dashboard rather than from here. |
@@ -52,7 +52,7 @@ deliberate decision rather than a default.
 Environment variables, all optional and all defaulting to local behaviour:
 
 | Variable | Default | Effect |
-| — | — | — |
+| --- | --- | --- |
 | `VCQI_HOST` | `127.0.0.1` | Bind address. The container sets `0.0.0.0`. |
 | `PORT` | `8000` | Managed hosts assign this. |
 | `VCQI_PUBLIC` | `0` | Turns on the request limits, drops the API docs, and refuses to start if the interface is missing from the package. |
@@ -63,4 +63,4 @@ Environment variables, all optional and all defaulting to local behaviour:
 | `VCQI_ENGINE` | unset | Set to `linprop` to force the deployed uncertainty engine locally. |
 
 `ARCHITECTURE.md` records why `/api/keys/*` is safe to expose and what changed when the
-old answer — « the server binds to localhost » — stopped being true.
+old answer — "the server binds to localhost" — stopped being true.
