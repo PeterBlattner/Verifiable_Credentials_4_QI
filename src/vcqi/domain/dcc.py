@@ -29,6 +29,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ElementTree
 from typing import Any
 
+from vcqi import xmlsafe
 from vcqi.domain.uncertainty import MeasurementResult
 
 __all__ = [
@@ -284,7 +285,7 @@ def parse_dcc_result(dcc_xml: str) -> dict[str, Any]:
         ValueError: If the document cannot be parsed or states no quantity.
     """
     try:
-        root = ElementTree.fromstring(dcc_xml)
+        root = xmlsafe.fromstring(dcc_xml)
     except ElementTree.ParseError as error:
         raise ValueError(f"the PTB/DKD DCC could not be parsed: {error}") from error
 
@@ -328,7 +329,7 @@ def parse_dcc_administrative(dcc_xml: str) -> dict[str, Any]:
         ValueError: If the document cannot be parsed.
     """
     try:
-        root = ElementTree.fromstring(dcc_xml)
+        root = xmlsafe.fromstring(dcc_xml)
     except ElementTree.ParseError as error:
         raise ValueError(f"the PTB/DKD DCC could not be parsed: {error}") from error
 

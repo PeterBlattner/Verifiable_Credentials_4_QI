@@ -383,3 +383,65 @@ class TestTheSchemaAcceptsEitherCarrier:
         broken = copy.deepcopy(world.credential(NAME))
         broken["credentialSubject"]["externalDocument"]["measurand"] = "dc.voltage"
         assert not Draft202012Validator(schema).is_valid(broken)
+
+
+#: The published document's canonicalization, as its ds:Signature declares it, and what
+#: other tooling commonly declares instead.
+OURS = b'<ds:CanonicalizationMethod Algorithm="http://www.w3.org/2006/12/xml-c14n11"'
+EXCLUSIVE = b'<ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"'
+
+
+class TestADocumentSignedAnotherWay:
+    """What a DCC signed by other tooling gets from the pipeline (#71)."""
+
+    def test_its_signature_is_a_warning_not_a_failure(self, world, credential) -> None:
+        """Only the declared profile differs, so only the signature step may change.
+
+        The document travels inline with digests that match it, so the bytes check
+        passes. The credential's proof fails, because the credential was changed to
+        carry it, and this step is judged on its own.
+        """
+        _, published = world.artefacts[ADDRESS]
+        other = published.replace(OURS, EXCLUSIVE, 1)
+        assert other != published
+        altered = copy.deepcopy(credential)
+        resource = altered["relatedResource"][0]
+        resource["content"] = other.decode("utf-8")
+        resource["digestMultibase"] = digest_multibase(other)
+        resource["digestSRI"] = digest_sri(other)
+
+        report = _verify(world, altered)
+        assert _step(report, "external-document.digest").status == "pass"
+        signature = _step(report, "external-document.xml-signature")
+        assert signature.status == "warn"
+        assert "xml-exc-c14n" in signature.detail
+        assert "does not implement" in signature.detail
+        parent = _step(report, "external-document")
+        assert parent.status == "warn"
+        assert "its own ds:Signature was not checked" in parent.detail
+
+    def test_declaring_another_profile_gets_nothing_past_the_digest(
+        self, world, credential
+    ) -> None:
+        """Unsupported is not a loophole: the credential's digest still catches the edit.
+
+        Someone altering the published document could change the declared algorithm to
+        make its signature unsupported rather than failed. The credential they cannot
+        re-sign carries a digest of the original bytes.
+        """
+        altered = copy.deepcopy(world)
+        _, published = world.artefacts[ADDRESS]
+        swapped = published.replace(b"100.001502", b"100.001999").replace(OURS, EXCLUSIVE)
+        altered.publish_artefacts({ADDRESS: ("application/xml", swapped)})
+
+        report = _verify(altered, credential)
+        assert report.outcome == "rejected"
+        assert _step(report, "external-document.digest").status == "fail"
+        assert _step(report, "external-document.xml-signature").status == "warn"
+
+    def test_the_summary_says_signed_twice_only_when_it_was(
+        self, world, credential
+    ) -> None:
+        """The summary used to say so whether or not the document carried a signature."""
+        detail = _step(_verify(world, credential), "external-document").detail
+        assert detail.startswith("the document is intact and signed twice over")

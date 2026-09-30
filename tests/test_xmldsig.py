@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
 
 import pytest
 
@@ -193,3 +194,93 @@ def test_the_key_arrives_with_no_chain_and_the_report_says_so(signed: str) -> No
     assert report.verified
     assert "no certificate chain" in report.key_discovery
     assert "X509" not in signed
+
+
+#: A signature made to another profile, as other tooling would make it, and the words
+#: the report has to use for it. Each pattern changes one declared choice of the
+#: signature this module makes, and nothing else.
+OTHER_PROFILES = {
+    "exclusive canonicalization": (
+        r'(<ds:CanonicalizationMethod Algorithm=")[^"]*',
+        r"\1http://www.w3.org/2001/10/xml-exc-c14n#",
+        "xml-exc-c14n",
+    ),
+    "RSA": (
+        r'(<ds:SignatureMethod Algorithm=")[^"]*',
+        r"\1http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+        "rsa-sha256",
+    ),
+    "a second reference": (
+        r"(</ds:Reference>)",
+        r'\1<ds:Reference URI="#annex"><ds:DigestValue>AA==</ds:DigestValue></ds:Reference>',
+        "2 references",
+    ),
+    "a reference to an ID": (r'<ds:Reference URI=""', '<ds:Reference URI="#cert"', "#cert"),
+    "a reference with no URI": (r'<ds:Reference URI=""', "<ds:Reference", "no URI"),
+    "the enveloped transform alone, which means C14N 1.0": (
+        r'<ds:Transform Algorithm="http://www.w3.org/2006/12/xml-c14n11"/>',
+        "",
+        "the transforms http://www.w3.org/2000/09/xmldsig#enveloped-signature",
+    ),
+    "another digest": (
+        r'(<ds:DigestMethod Algorithm=")[^"]*',
+        r"\1http://www.w3.org/2001/04/xmlenc#sha512",
+        "sha512",
+    ),
+    "a key in an X.509 certificate": (
+        r"<ds:KeyValue>.*</ds:KeyValue>",
+        "<ds:X509Data><ds:X509Certificate>MIIB</ds:X509Certificate></ds:X509Data>",
+        "X509Data",
+    ),
+    "an RSA key": (
+        r"<dsig11:ECKeyValue.*</dsig11:ECKeyValue>",
+        "<ds:RSAKeyValue><ds:Modulus>AQAB</ds:Modulus>"
+        "<ds:Exponent>AQAB</ds:Exponent></ds:RSAKeyValue>",
+        "RSAKeyValue",
+    ),
+    "another curve": (
+        r'(<dsig11:NamedCurve URI=")[^"]*',
+        r"\1urn:oid:1.3.132.0.34",
+        "urn:oid:1.3.132.0.34",
+    ),
+}
+
+
+class TestWhatItDoesNotImplement:
+    """A signature made to another profile is unsupported, not a mismatch (#71).
+
+    Before, each of these came back as a digest or signature mismatch, which a reader
+    could take for tampering, when all it said was that this module does not implement
+    what the signer chose.
+    """
+
+    @pytest.mark.parametrize(
+        ("pattern", "replacement", "named"),
+        OTHER_PROFILES.values(),
+        ids=OTHER_PROFILES.keys(),
+    )
+    def test_it_is_reported_as_unsupported(
+        self, signed: str, pattern: str, replacement: str, named: str
+    ) -> None:
+        """Present, unchecked, and the report names what the signature declared."""
+        other = re.sub(pattern, replacement, signed, count=1, flags=re.DOTALL)
+        assert other != signed
+        report = verify_enveloped(other)
+        assert report.present
+        assert not report.supported
+        assert not report.verified
+        assert "does not implement" in report.detail
+        assert named in report.detail
+        assert report.key_discovery == "not attempted"
+
+    def test_the_profile_it_implements_is_supported(self, signed: str) -> None:
+        """The control: the signature it makes is one it can check."""
+        report = verify_enveloped(signed)
+        assert report.supported
+        assert report.verified
+
+    def test_tampering_within_the_profile_is_still_a_mismatch(self, signed: str) -> None:
+        """Unsupported is about the declaration, not a softer word for a failure."""
+        report = verify_enveloped(signed.replace("100.001502", "100.001503"))
+        assert report.supported
+        assert not report.digest_matches

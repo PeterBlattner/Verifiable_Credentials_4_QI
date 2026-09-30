@@ -44,6 +44,7 @@ from typing import Any, Final
 
 from referencing.exceptions import Unresolvable
 
+from vcqi import xmlsafe
 from vcqi.crypto.jcs import canonicalize
 from vcqi.crypto.multibase import verify_digest_multibase, verify_digest_sri
 from vcqi.crypto.xmldsig import verify_enveloped
@@ -2443,11 +2444,22 @@ def _step_external_document(credential: dict[str, Any], resolver: Resolver) -> S
     )
 
     signature = verify_enveloped(payload.decode("utf-8", errors="replace"))
+    if signature.verified:
+        signature_status = PASS
+    elif not signature.present:
+        signature_status = SKIP
+    elif not signature.supported:
+        # Signed with a profile this demonstration does not implement, so nothing was
+        # compared. A failure would read as tampering; the digest above is what checks
+        # the bytes.
+        signature_status = WARN
+    else:
+        signature_status = FAIL
     children.append(
         Step(
             id="external-document.xml-signature",
             title="The document's own signature",
-            status=PASS if signature.verified else (SKIP if not signature.present else FAIL),
+            status=signature_status,
             detail=(
                 f"{signature.detail}. Key discovery: {signature.key_discovery}. This is "
                 "a second trust path over the same bytes, and the credential's proof is "
@@ -2477,6 +2489,12 @@ def _step_external_document(credential: dict[str, Any], resolver: Resolver) -> S
     )
 
     failed = [child for child in children if child.status == FAIL]
+    if signature.verified:
+        signed = "the document is intact and signed twice over"
+    elif signature.present:
+        signed = "the document is intact, and its own ds:Signature was not checked"
+    else:
+        signed = "the document is intact, and carries no ds:Signature of its own"
     return Step(
         id="external-document",
         title="External document is intact",
@@ -2484,10 +2502,7 @@ def _step_external_document(credential: dict[str, Any], resolver: Resolver) -> S
         detail=(
             "; ".join(child.detail for child in failed)
             if failed
-            else (
-                "the document is intact and signed twice over; what it says about the "
-                "measurement was not read"
-            )
+            else f"{signed}; what it says about the measurement was not read"
         ),
         evidence={"resource": resource},
         children=children,
@@ -2560,7 +2575,7 @@ def _reconstruct(unclib_xml: str) -> tuple[float, float]:
     influences = parse_input_quantities(unclib_xml)
     combined = math.sqrt(sum(item.uncertainty_contribution**2 for item in influences))
     try:
-        root = ElementTree.fromstring(unclib_xml)
+        root = xmlsafe.fromstring(unclib_xml)
     except ElementTree.ParseError as error:
         raise ValueError(str(error)) from error
     text = root.findtext("./Value")

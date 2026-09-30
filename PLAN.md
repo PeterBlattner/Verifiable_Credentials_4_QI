@@ -5012,3 +5012,104 @@ Why it matters:
 ## Git
 
 Branch `refactor/ecdsa-library-signer` from `develop`, into `develop`.
+
+# Change set 33 - the XML signature says what it does not implement, and no DTDs (#71)
+
+## Context
+
+Issue #71 raised three points.
+1. `crypto/xmldsig.py::verify_enveloped` never reads `CanonicalizationMethod`,
+   `SignatureMethod`, `DigestMethod`, `Reference/@URI`, the transforms or the key's
+   form. A DCC signed by any other tool (exclusive C14N, RSA, another digest, a reference
+   to an ID, an X.509 key) is reported as a digest or signature *mismatch*, which a
+   reader can take for tampering.
+2. Neither the module nor the chapter that shows the DCC says this is an XMLDSig-shaped
+   subset for the demonstration.
+3. Untrusted XML is parsed with `xml.dom.minidom`.
+
+Found while reading:
+- **Point 3 covers five parse sites, not one.** `xmlc14n.parse` (minidom) and
+  `ElementTree.fromstring` in `domain/dcc.py` (twice), `domain/linprop.py`,
+  `domain/uncertainty.py` and `vc/verify.py`. Every one is reachable by a caller, because
+  `_representation_bytes` accepts inline `content`, so a credential posted to
+  `/api/verify` can carry any XML.
+- Python 3.11.9 bundles Expat 2.6.0, which already defends against entity expansion and
+  large tokens, and bodies are capped at 256 KB. So point 3 is belt-and-braces, as the
+  issue says.
+- No XML the project makes or reads has a DOCTYPE. A PTB/DKD DCC is defined by an XML
+  Schema, not a DTD.
+- ARCHITECTURE.md still says certificate signing in `cryptography` is randomised. #70
+  corrected the same sentence in `xmldsig.py` and missed this copy.
+- The parent step's summary says "signed twice over" even when the document carries no
+  `ds:Signature`.
+
+## Decisions
+
+- **Unsupported is its own outcome.** A signature declaring anything outside the one
+  implemented profile is reported as `supported=False`, with what it declared, and is
+  not checked. The step is a warning, not a failure.
+  - This grants an attacker nothing. Anyone who can alter the document can already
+    delete the signature, which is reported as absent.
+  - The credential's digest of the DCC bytes is what catches tampering, in its own step.
+  - The profile is exact: C14N 1.1; ECDSA-SHA256; one reference with `URI=""`; the
+    transforms enveloped then C14N 1.1; SHA-256; an inline `ECKeyValue` on P-256. The
+    transform list must match exactly, because `[enveloped]` alone would mean C14N 1.0.
+- **DTDs refused in-repo** (Peter's choice over `defusedxml`): `vcqi/xmlsafe.py`, used by
+  all five parse sites.
+  - A first pass with Expat itself refuses any DOCTYPE, so an encoding a text search would
+    miss, such as UTF-16, cannot hide one.
+  - The helper raises each parser's own error type, so no caller's error handling changes.
+  - A test keeps new parse sites going through it.
+- **Say it is a subset**: in the `xmldsig.py` docstring, in chapter 7 where the DCC's
+  own signature is shown, and in ARCHITECTURE.md.
+
+## Checklist
+
+- [x] 1. `vcqi/xmlsafe.py`: `parse_dom`, `fromstring`; the five sites use them
+- [x] 2. `crypto/xmldsig.py`: read the declared profile; `SignatureReport.supported`;
+      docstring
+- [x] 3. `vc/verify.py`: unsupported is a warning; the parent summary says what was signed
+- [x] 4. Tests: `test_xmlsafe.py`; each declared difference in `test_xmldsig.py`; the step
+      in `test_external_dcc.py`
+- [x] 5. Docs: chapter 7's paragraph, ARCHITECTURE.md, README.md layout
+- [x] 6. Verification: the full suite, `--dump` byte-identical, the click harness
+
+## Progress log
+
+- 2026-09-30: agreed in conversation. Peter chose to refuse DTDs in-repo. Branch
+  `fix/xmldsig-declared-algorithms` from `develop`.
+- 2026-09-30: done.
+  - **`vcqi/xmlsafe.py`.**
+    - `parse_dom` and `fromstring` run a first Expat pass whose
+      `StartDoctypeDeclHandler` stops at any DOCTYPE.
+    - A document that is not well-formed passes through, so the real parser reports it
+      in its own words.
+    - The refusal raises `ExpatError` or `ParseError`, so no except clause changed.
+    - `xmlc14n.parse` and the four `ElementTree.fromstring` sites use it.
+  - **`crypto/xmldsig.py`.**
+    - `_unsupported` checks, in processing order, the canonicalization, the signature
+      method, a single reference with `URI=""`, the exact transform list, the digest,
+      an inline `ECKeyValue` and the named curve.
+    - For a key inside `ds:KeyValue`, it names what is inside, such as `RSAKeyValue`.
+    - `SignatureReport.supported` defaults to True, so existing constructors are
+      unchanged.
+  - **`vc/verify.py`.** An unsupported signature is WARN. The parent summary now says
+    "signed twice over" only when the signature verified, and otherwise says it was not
+    checked or is absent.
+  - **Tests** (37 new): the DTD cases, including UTF-16 and bytes; the DKD example
+    parsing exactly as before; every reader refusing a DTD; a guard that no module parses
+    XML any other way; ten other profiles reported as unsupported; and, through the real
+    pipeline, a DCC carried inline with matching digests getting a warning while a
+    tampered one is still caught by the digest.
+  - **Deliberate breaks, each restored:**
+    - the profile check turned off failed 12 tests;
+    - the DTD refusal turned off failed 19;
+    - a direct `ElementTree.fromstring` in `dcc.py` failed the guard, naming the line.
+  - Full suite: 859 pass, 46 skipped (822 before). `--dump` is byte-identical to the
+    `develop` baseline: 86 documents. `ui-clicks.mjs`: every control responds.
+    `/api/verify` on METAS-2026-0420 is unchanged, still verified and "signed twice
+    over".
+
+## Git
+
+Branch `fix/xmldsig-declared-algorithms` from `develop`, into `develop`.

@@ -33,6 +33,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from vcqi import xmlsafe
 from vcqi.config import COVERAGE_FACTOR, DEMO_SEED
 from vcqi.domain.engine import mu, unclib_available
 from vcqi.domain.unclib_blobs import blob_for
@@ -670,7 +671,7 @@ def parse_input_quantities(unclib_xml: str) -> list[InputQuantity]:
         ValueError: If the document cannot be parsed.
     """
     try:
-        root = ElementTree.fromstring(unclib_xml)
+        root = xmlsafe.fromstring(unclib_xml)
     except ElementTree.ParseError as error:
         raise ValueError(f"could not parse the dependency representation: {error}") from error
 
