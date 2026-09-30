@@ -177,7 +177,7 @@ Two SHA-256 digests, concatenated, then signed with ECDSA over P-256
 
 <!-- block: deterministic -->
 
-Signing here is deterministic, per RFC 6979. Identical input always produces an identical signature, so any change in the signature is caused by a change in the document rather than by a fresh random number.
+Signing here is deterministic, per RFC 6979. Identical input always produces an identical signature, so any change in the signature is caused by a change in the document rather than by a fresh random number. It also makes the signer checkable against the W3C: the Recommendation that defines this cryptosuite publishes a worked example, and signing that example here reproduces the W3C's signature byte for byte.
 
 <!-- block: finished.title -->
 

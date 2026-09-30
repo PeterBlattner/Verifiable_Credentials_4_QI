@@ -331,10 +331,11 @@ src/vcqi/
   vendor/    untp/  w3c/  the pinned UNTP 0.7.0 schema and contexts, so the checks run
              with no network
   web/       app.py  static/
-tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_xmlc14n.py
-             test_xmldsig.py  test_keys.py  test_domain.py  test_dcc.py  test_pipeline.py
-             test_portability.py  test_untp.py  test_harmonisation.py  test_exchange.py
-             test_web.py  test_linprop_equivalence.py
+tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_w3c_vectors.py
+             test_xmlc14n.py  test_xmldsig.py  test_keys.py  test_domain.py  test_dcc.py
+             test_pipeline.py  test_portability.py  test_untp.py  test_harmonisation.py
+             test_exchange.py  test_web.py  test_linprop_equivalence.py
+  vectors/   the W3C's ecdsa-jcs-2019 test vector, unchanged
 ```
 
 `CONTENT.md` says where the words are and how to change them without touching code. The

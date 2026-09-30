@@ -46,8 +46,11 @@ identical signature. This is what lets the demonstration be diffed: any change i
 
 It exists because `cryptography` exposes no deterministic mode. Verification is still
 delegated to `cryptography`, so the implementation is cross-checked against an
-independent one on every signature, and against the published RFC 6979 vectors in
-`tests/test_ecdsa_p256.py`.
+independent one on every signature, against the published RFC 6979 vectors in
+`tests/test_ecdsa_p256.py`, and, end to end, against the W3C's own `ecdsa-jcs-2019` test
+vector in `tests/test_w3c_vectors.py`, whose signature it reproduces exactly. The
+Recommendation says signatures SHOULD be deterministic, which is what makes that exact
+comparison possible.
 
 **It is not constant-time.** That is acceptable only because every key in this project
 is derived from a published seed and protects nothing. It must never be used with a real
@@ -716,15 +719,35 @@ one.
 
 When the `untp` form was finally run, on 29 September 2026 against UNTP 0.6.0, the
 Playground confirmed the schema step error for error and answered nothing else. Its
-verifier -- Veramo over `@digitalcredentials/jsonld-signatures` -- matches a proof to a
-loaded suite before checking anything, has none for `ecdsa-jcs-2019`, and so never reached
-the signature. **Nothing outside this repository has yet checked a signature made here.**
-The Playground's own sample credential is an enveloped JWT signed with EdDSA. Its JSON-LD
-step failed too, on UNTP 0.6.0 itself, whose schema fills in type names its own context
-never defines. The 0.7.0 projections of both certificates, run on 30 September, passed
-that step and reported at the schema step exactly the findings the projection records,
-and nothing else. Change sets 24 and 28 of PLAN.md have both runs and what followed from
-them.
+verifier -- VCkit, on a fork of Veramo -- matches a proof to a loaded suite before
+checking anything, and has none for `ecdsa-jcs-2019`, so it never reached the signature.
+Its JSON-LD step failed too, on UNTP 0.6.0 itself, whose schema fills in type names its
+own context never defines. The 0.7.0 projections of both certificates, run on
+30 September, passed that step and reported at the schema step exactly the findings the
+projection records, and nothing else. Change sets 24 and 28 of PLAN.md have both runs and
+what followed from them.
+
+The Playground will not check a signature made here in any form this project should
+adopt, and the reason is in VCkit rather than here. Its Data Integrity path is configured
+with one suite, `JsonWebSignature2020`, which came from a Community Group and never
+became a Recommendation; none of the W3C Recommendation cryptosuites is loaded. Its
+VC-JOSE-COSE path accepts a key only if the issuer's DID document lists it with the type
+`JsonWebKey` exactly, and VCkit's own `did:key` resolver labels every key
+`JsonWebKey2020`, so a `did:key` issuer is refused before its signature is read. Only a
+publicly resolvable `did:web` passes, which here would mean serving DID documents from the
+deployment for the sake of one tool. The project answers to W3C first, so neither route
+is taken (change set 29).
+
+**The independent check comes from the W3C instead.** VC Data Integrity ECDSA
+Cryptosuites v1.0, a Recommendation, publishes the whole computation for `ecdsa-jcs-2019`
+with P-256 as a test vector: key pair, credential, proof configuration, both canonical
+forms, both hashes, signature and signed credential. `tests/test_w3c_vectors.py` checks
+every one of them against the vendored files, and because both sides sign
+deterministically, signing the W3C's credential with the W3C's key reproduces the W3C's
+signed credential byte for byte. That rules out, for the cryptosuite, the misreading
+shared by signer and verifier that the outside check was wanted for. What it does not
+provide is an outside verifier looking at one of this demonstration's own credentials;
+nothing has done that yet.
 
 ### The UNTP projection is a probe, not a conformance target
 
