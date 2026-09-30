@@ -70,6 +70,7 @@ from vcqi.actors.scenarios import DEMO_NOW, World, build_world
 from vcqi.actors.tamper import TAMPER_CASES, tamper_by_key
 from vcqi.config import (
     ALLOW_INDEXING,
+    CLIENT_IP_HEADER,
     SAS_ORIGIN,
     DEFAULT_HOST,
     DEFAULT_PORT,
@@ -104,7 +105,11 @@ from vcqi.vc.datamodel import DATA_MODEL_URLS
 from vcqi.vc.resolver import DID_KEY_PREFIX, did_key_document
 from vcqi.vc.verify import verify_credential
 from vcqi.web.content import content_payload
-from vcqi.web.limits import BodySizeLimitMiddleware, RateLimitMiddleware
+from vcqi.web.limits import (
+    BodySizeLimitMiddleware,
+    RateLimitMiddleware,
+    client_address_source,
+)
 
 STATIC_ROOT = Path(__file__).parent / "static"
 
@@ -272,7 +277,7 @@ async def security_headers(request: Any, call_next: Any) -> Any:
 
 
 @app.get("/healthz", include_in_schema=False)
-def healthz() -> dict[str, Any]:
+def healthz(request: Request) -> dict[str, Any]:
     """Report that this process is alive and warm.
 
     Reached only after the lifespan warm-up, so a 200 here means the world is built and
@@ -280,9 +285,16 @@ def healthz() -> dict[str, Any]:
     is reported so that a deploy can be confirmed to be the one that was just pushed,
     rather than assumed from a green dashboard.
 
+    Args:
+        request: The request, whose headers say where the rate limiter would take its
+            caller's address from.
+
     Returns:
-        The status, the version, the engine computing uncertainty, and the deployed
-        commit where the host supplies one.
+        The status, the version, the engine computing uncertainty, the deployed commit
+        where the host supplies one, and ``caller``: where the rate limiter took this
+        request's address from. Opened in a browser on the public deployment it should
+        name the edge proxy's header; ``unattributed`` means the header did not arrive
+        and every caller is sharing one bucket. The address itself is not echoed.
     """
     return {
         "status": "ok",
@@ -291,6 +303,7 @@ def healthz() -> dict[str, Any]:
         "commit": (
             os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GIT_COMMIT") or ""
         )[:7],
+        "caller": client_address_source(request.scope, CLIENT_IP_HEADER),
     }
 
 
@@ -1216,7 +1229,10 @@ if STATIC_ROOT.exists():
 # of all, so a 413 or a 429 carries the same headers as everything else.
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
-    RateLimitMiddleware, burst=RATE_LIMIT_BURST, per_second=RATE_LIMIT_PER_SECOND
+    RateLimitMiddleware,
+    burst=RATE_LIMIT_BURST,
+    per_second=RATE_LIMIT_PER_SECOND,
+    client_ip_header=CLIENT_IP_HEADER,
 )
 app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_BODY_BYTES)
 

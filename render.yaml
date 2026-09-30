@@ -66,8 +66,12 @@ services:
         value: "5.0"
       - key: VCQI_MAX_BODY_BYTES
         value: "262144"
+      # For the scheme only. The caller's address comes from the next one, because
+      # Render's proxy appends to a client-supplied X-Forwarded-For (issue #69).
       - key: FORWARDED_ALLOW_IPS
         value: "*"
+      - key: VCQI_CLIENT_IP_HEADER
+        value: true-client-ip
       # Crawlers are asked off while the link is being shown to colleagues rather than
       # published. Set to "1" to allow indexing, which is a deliberate decision about
       # a site that names METAS, BIPM and PTB/DKD while inventing their documents.

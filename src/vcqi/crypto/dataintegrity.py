@@ -162,15 +162,18 @@ def sign_document(
         proof_config["challenge"] = challenge
     if domain is not None:
         proof_config["domain"] = domain
-    # The proof configuration repeats the context of the document. Under this suite that
-    # is redundant and it is worth being exact about why, because the obvious reason is
-    # the wrong one: `ecdsa-jcs-2019` canonicalizes the JSON, so `@context` is an ordinary
-    # member of the document and is already inside the document hash. Nothing could show
-    # the same claims under different term definitions without breaking that hash first.
-    # The restatement is kept because it is what an RDF canonicalization suite would need
-    # -- there the context is consumed and discarded before hashing, and the proof
-    # configuration is the only place it survives -- so a document signed here carries the
-    # member a reader of `ecdsa-rdfc-2019` would look for.
+    # The proof configuration repeats the context of the document because the suite says
+    # to: Create Proof (ecdsa-jcs-2019), section 3.3.1 of VC Data Integrity ECDSA
+    # Cryptosuites v1.0, sets `proof.@context` to the document's before the
+    # configuration is canonicalized, and the W3C's own test vector carries it. Removing
+    # it breaks `test_the_proof_configuration_is_the_published_one`.
+    #
+    # It is not what protects the context. `ecdsa-jcs-2019` canonicalizes the JSON, so
+    # `@context` is an ordinary member of the document and already inside the document
+    # hash. Its use is in Verify Proof (section 3.3.2): a verifier checks that the
+    # document's context begins with the proof's, then hashes the document under the
+    # proof's, so a context appended after signing does not break the signature.
+    # `verify_proof` here is stricter and requires the two to be equal.
     if "@context" in unsecured:
         proof_config["@context"] = unsecured["@context"]
 

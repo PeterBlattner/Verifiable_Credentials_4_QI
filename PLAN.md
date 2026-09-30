@@ -4842,3 +4842,87 @@ Expected going in:
 ## Git
 
 Branch `feature/untp-dia-probe` from `develop`, into `develop`.
+
+# Change set 31 - the rate limiter charges the caller, not what the caller wrote (#69)
+
+## Context
+
+Issue #69. `Dockerfile` and `render.yaml` set `FORWARDED_ALLOW_IPS=*`, so uvicorn's
+proxy-headers middleware takes the **leftmost** `X-Forwarded-For` entry as the client
+(`always_trust` in `uvicorn/middleware/proxy_headers.py`, 0.52.4). The caller writes that
+entry. `RateLimitMiddleware` keys its buckets on `scope["client"]`, so each request can
+claim a new address and get a fresh bucket on `/api/keys/*`, `/api/verify`, `/api/edit`
+and `/workflows/*`.
+
+Whether that holds on Render depends on its proxy, and the answer is that it appends:
+- Render's proxy keeps a client-supplied `X-Forwarded-For` and adds to it (Render feature
+  request "Send the correct X_FORWARDED_FOR"; another project demonstrated the spoof
+  against its production Render service on 2026-09-28, mariapazGomez/cycles#19).
+- Cloudflare sits in front of Render and sets `True-Client-IP`, which a client cannot
+  override. arcjet-js (#3899) and that project both key on it.
+
+Walking `X-Forwarded-For` from the right instead (a CIDR in `FORWARDED_ALLOW_IPS`) would
+need Render's and Cloudflare's address ranges, which are theirs to change.
+
+## Decisions
+
+- **A named header, opt-in.** `VCQI_CLIENT_IP_HEADER` names a request header that the
+  edge proxy sets and the caller cannot. Unset, the default, keeps the connection's
+  address, so local use is unchanged. The container and the blueprint set
+  `true-client-ip`.
+- **Fail closed.** With a header configured, a request that lacks it, or whose value is
+  not an IP address, is charged to one shared bucket. Leaving the header out therefore
+  buys nothing. If Render stops sending it, every caller shares one bucket: the site gets
+  slower, never unlimited.
+- **Visible.** `/healthz` reports where this request's address came from. On the live
+  site it should say `true-client-ip`; `unattributed` means the header did not arrive.
+  The deployed site cannot be reached from this machine, so this is how it is checked.
+- **`FORWARDED_ALLOW_IPS=*` stays**, for the scheme alone. `X-Forwarded-Proto` is what
+  makes HSTS and the exchange URLs `https`. The limiter no longer reads `scope["client"]`
+  when a header is configured.
+
+## Checklist
+
+- [x] 1. `config.py`: `CLIENT_IP_HEADER`
+- [x] 2. `web/limits.py`: `client_address`, `client_address_source`, the middleware keyed
+      on them
+- [x] 3. `web/app.py`: pass the header; `/healthz` reports the source
+- [x] 4. `Dockerfile`, `render.yaml`: `VCQI_CLIENT_IP_HEADER=true-client-ip`, and the
+      `FORWARDED_ALLOW_IPS` comments say it is for the scheme
+- [x] 5. Tests: the issue's two-spoofed-headers test through uvicorn's own middleware,
+      the header missing or malformed, the default unchanged, `/healthz`
+- [x] 6. Docs: DEPLOYMENT.md (variables, step 3), ARCHITECTURE.md
+- [x] 7. Verification
+- [ ] 8. After deploy: Peter opens `/healthz` and reads `caller`
+
+## Progress log
+
+- 2026-09-30: plan agreed in conversation ("let's fix the rate limiter in #69"). Branch
+  `fix/rate-limit-client-address` from `develop`.
+- 2026-09-30: items 1-7 done.
+  - `limits.client_address` reads the named header and parses it as an IP address, so
+    the bucket keys stay short and a malformed value counts as missing.
+    `client_address_source` says which of the two a request was, and `/healthz` reports
+    it as `caller` without echoing the address.
+  - Tests run the limiter behind uvicorn's own `ProxyHeadersMiddleware` with
+    `trusted_hosts="*"`, not a stand-in, so they pin what the deployment does. The
+    issue's test: two forged `X-Forwarded-For` values with one `True-Client-IP` share a
+    bucket. The control, with no header named, shows the bypass as it was.
+    `test_the_container_and_the_blueprint_trust_the_same_header` keeps the Dockerfile and
+    `render.yaml` in step.
+  - Deliberate break: keying the bucket on `scope["client"]` again failed three of the
+    new tests: the forged header, the two callers and the missing header. Restored.
+  - End to end, the issue's reproduction on a local server with the deployment's
+    settings, burst 20: the forged requests went `200 ×4, 429 ×4`, where they had gone
+    `200 ×8`. A second caller got its own four, and requests with no header shared one
+    bucket. `/healthz` said `unattributed` without the header and `true-client-ip` with
+    it.
+  - Found on the way: `DEPLOYMENT.md` had em dashes for its table separators, so neither
+    table rendered, and French guillemets with non-breaking spaces in two quotations.
+    They came in with 2a91810, which moved the section out of README.md, and are
+    restored from README.md before it. Committed separately.
+  - Full suite: 818 pass, 46 skipped (805 before, and 13 new).
+
+## Git
+
+Branch `fix/rate-limit-client-address` from `develop`, into `develop`.
