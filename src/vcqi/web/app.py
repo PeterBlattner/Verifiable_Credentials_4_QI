@@ -1475,10 +1475,14 @@ def get_gtc_status() -> dict[str, Any]:
 # the custody problem concrete in a way that any amount of prose does not.
 #
 # It is also, obviously, the last thing a real system would do. Nothing here protects
-# anything: the demonstration keys come from a seed published in the repository, the
-# server binds to localhost, and /api/keys/sign will sign whatever bytes it is handed
-# with whatever key it is handed. That is safe only because the key is always the
-# caller's own.
+# anything: the demonstration keys come from a seed published in the repository, and
+# /api/keys/sign will sign whatever bytes it is handed with whatever key it is handed.
+# That is safe only because the key is always the caller's own, so the route is an
+# oracle for nothing the caller did not bring.
+#
+# This used to add that the server binds to localhost. The demonstration is public now,
+# so that clause is gone, and what is left to guard is compute rather than secrecy:
+# web/limits.py charges these routes, and ARCHITECTURE.md gives the argument in full.
 
 
 class DeriveKeyRequest(BaseModel):
