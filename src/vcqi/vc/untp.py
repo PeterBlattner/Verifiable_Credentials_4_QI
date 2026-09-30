@@ -41,6 +41,14 @@ What the probe finds, against UNTP 0.7.0. It was run against 0.6.0 first, and ch
 * UNTP types ``statusListIndex`` as an integer, while its own description of the member
   and the W3C Bitstring Status List Recommendation both say a string. The status entry is
   carried as W3C writes it, and the conflict recorded.
+
+The recognitions go the same way, into UNTP's Digital Identity Anchor, one per entity a
+recognition lists (:func:`project_recognition`). The entity, its registrar, its entry on
+the registrar's site and its capabilities arrive, the capabilities as a list of links.
+What a verifier acts on does not: the recognised actions, the ``outputValidation``
+schemas a document issued under them must satisfy, and each action's own validity. UNTP
+also requires a registration number and a first-registration date no recognition
+states, and its register types stop at accreditation, so the CIPM MRA has none.
 """
 
 from __future__ import annotations
@@ -70,16 +78,25 @@ UNTP_DCC_CONTEXT = f"https://vocabulary.uncefact.org/untp/{UNTP_VERSION}/context
 #: The context array of a projected credential, which the schema fixes in this order.
 UNTP_CONTEXT = [CONTEXT_CREDENTIALS_V2, UNTP_DCC_CONTEXT]
 
-#: The type array the Playground matches on, first to accept the upload at all and then to
-#: select a schema.
+#: The type arrays the Playground matches on, first to accept the upload at all and then
+#: to select a schema: a certificate becomes a Digital Conformity Credential, and each
+#: entity a recognition lists becomes a Digital Identity Anchor of its own.
 UNTP_DCC_TYPE = ["VerifiableCredential", "DigitalConformityCredential"]
+UNTP_DIA_TYPE = ["VerifiableCredential", "DigitalIdentityAnchor"]
 
 _VENDOR = Path(__file__).resolve().parent.parent / "vendor"
 
-#: The vendored copy of the schema, taken from the UNTP specification repository at tag
-#: ``v0.7.0`` -- the copy the Playground bundles. Vendored rather than fetched, so the
-#: check runs with no network and a change to the published schema is a visible diff.
+#: The vendored schemas, the copies the Playground bundles: the DCC taken from the UNTP
+#: specification repository at tag ``v0.7.0``, the DIA from the Playground's own bundle,
+#: whose manifest ties it to the same tag by the content hash below. Vendored rather than
+#: fetched, so the check runs with no network and a change to a published schema is a
+#: visible diff.
 SCHEMA_PATH = _VENDOR / "untp" / f"untp-dcc-schema-{UNTP_VERSION}.json"
+DIA_SCHEMA_PATH = _VENDOR / "untp" / f"untp-dia-schema-{UNTP_VERSION}.json"
+SCHEMA_PATHS = {
+    "DigitalConformityCredential": SCHEMA_PATH,
+    "DigitalIdentityAnchor": DIA_SCHEMA_PATH,
+}
 
 #: The vendored contexts a projected credential names, by the URL it names them with.
 #: Used by :mod:`vcqi.vc.jsonld_terms` to check every term expands, offline.
@@ -92,6 +109,9 @@ CONTEXT_PATHS = {
 #: computes it (see :func:`content_sha256`), so the two can be compared by eye.
 VENDORED_CONTENT_SHA256 = {
     SCHEMA_PATH.name: "10869cc870bdf9e1d499c46a319c78fcdae7b1a4f37d837a84d34a4aaffb0883",
+    DIA_SCHEMA_PATH.name: (
+        "0f125c2e8c6f0b01c79c7bf05ece2e33a88982edf023ee90479454b60b6b5eea"
+    ),
     CONTEXT_PATHS[UNTP_DCC_CONTEXT].name: (
         "3c0f6d7e6fdd4e54fc167c98a8ae232739c582fab845522bf81e7c67c881714f"
     ),
@@ -152,14 +172,17 @@ def content_sha256(document: Any) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-@lru_cache(maxsize=1)
-def untp_schema() -> dict[str, Any]:
-    """Load the pinned UNTP Digital Conformity Credential schema.
+@lru_cache(maxsize=None)
+def untp_schema(kind: str = "DigitalConformityCredential") -> dict[str, Any]:
+    """Load one of the pinned UNTP schemas.
+
+    Args:
+        kind: The UNTP credential type, a key of :data:`SCHEMA_PATHS`.
 
     Returns:
         The JSON Schema, as published for :data:`UNTP_VERSION`.
     """
-    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return json.loads(SCHEMA_PATHS[kind].read_text(encoding="utf-8"))
 
 
 @lru_cache(maxsize=1)
@@ -184,7 +207,8 @@ def schema_errors(credential: dict[str, Any]) -> list[dict[str, str]]:
     the schema does, which is the point of pinning it.
 
     Args:
-        credential: The credential to validate.
+        credential: The credential to validate. Its type chooses the schema: a Digital
+            Identity Anchor against the DIA schema, anything else against the DCC's.
 
     Returns:
         One entry per error, sorted so the result is stable: ``path`` is where the
@@ -192,7 +216,11 @@ def schema_errors(credential: dict[str, Any]) -> list[dict[str, str]]:
         the missing property added for a ``required`` error. ``member`` is what a
         :class:`Finding` path is compared with.
     """
-    validator = Draft202012Validator(untp_schema())
+    types = credential.get("type") or []
+    kind = "DigitalIdentityAnchor" if "DigitalIdentityAnchor" in types else (
+        "DigitalConformityCredential"
+    )
+    validator = Draft202012Validator(untp_schema(kind))
     errors = []
     for error in validator.iter_errors(credential):
         steps = [str(step) for step in error.absolute_path]
@@ -596,28 +624,205 @@ def project_product_conformity(
     return Projection(_envelope(source, attestation, findings), tuple(findings))
 
 
-#: Which projection handles which source credential type.
+def project_recognition(source: dict[str, Any], subject: str | None) -> Projection:
+    """Express one entity of a recognition as an UNTP Digital Identity Anchor.
+
+    A W3C Recognized Entities credential lists several entities, each recognised to do
+    particular things -- issue, accredit -- within a named capability and against a
+    schema the documents it issues must satisfy. An UNTP anchor names one registered
+    entity and a list of scopes. So a recognition becomes one anchor per entity. What
+    arrives is the entity, its registrar and its capabilities as links; what does not is
+    the part a verifier can check a document against.
+
+    Args:
+        source: A signed or unsigned ``RecognizedEntityCredential``.
+        subject: The DID of the recognised entity to anchor.
+
+    Returns:
+        The projection and the account of what it had to decide.
+
+    Raises:
+        ValueError: If ``subject`` is missing or not an entity the recognition lists.
+    """
+    subjects = source.get("credentialSubject")
+    entries = subjects if isinstance(subjects, list) else [subjects]
+    entity = next(
+        (item for item in entries if isinstance(item, dict) and item.get("id") == subject),
+        None,
+    )
+    if subject is None or entity is None:
+        listed = [item.get("id") for item in entries if isinstance(item, dict)]
+        raise ValueError(f"name one of the recognised entities {listed}, not {subject!r}")
+
+    findings: list[Finding] = []
+    actions = [item for item in entity.get("recognizedTo") or [] if isinstance(item, dict)]
+    capabilities = [
+        item["capabilityReference"]
+        for item in actions
+        if isinstance(item.get("capabilityReference"), dict)
+        and isinstance(item["capabilityReference"].get("id"), str)
+    ]
+
+    registered: dict[str, Any] = {"type": ["RegisteredIdentity"], "id": subject}
+    name = entity.get("legalName") or entity.get("name")
+    if isinstance(name, str):
+        registered["registeredName"] = name
+    findings.append(
+        Finding(
+            REQUIRED,
+            f"{SUBJECT}/registeredId",
+            "(nothing in the source)",
+            "UNTP identifies the entity by its number in the register. The recognition "
+            "names the entity by its DID and lists it; it gives no registration number, "
+            "and one taken from an address would be a guess.",
+        )
+    )
+    findings.append(
+        Finding(
+            REQUIRED,
+            f"{SUBJECT}/registeredDate",
+            "(nothing in the source)",
+            "UNTP wants the date the entity was first registered. The recognition states "
+            "when this edition, and each recognised action, is valid -- not when the "
+            "entity was first recognised.",
+        )
+    )
+    same_as = entity.get("sameAs")
+    if isinstance(same_as, list) and same_as and isinstance(same_as[0], str):
+        registered["publicInformation"] = same_as[0]
+    registered["idScheme"] = {
+        "type": ["IdentifierScheme"],
+        "id": source.get("id"),
+        "name": source.get("name"),
+    }
+    findings.append(
+        Finding(
+            JUDGEMENT,
+            f"{SUBJECT}/idScheme",
+            "(the recognition itself)",
+            "UNTP names the register the entity is listed in. The recognition is that "
+            "list, so it serves as the register -- a reading, since it names no "
+            "identifier scheme of its own.",
+        )
+    )
+    registrar = _party(source.get("issuer"))
+    if registrar is not None:
+        registered["registrar"] = registrar
+
+    kinds = {str(item.get("type")) for item in capabilities}
+    every_action_scoped = bool(capabilities) and len(capabilities) == len(actions)
+    if every_action_scoped and kinds == {"AccreditationScope"}:
+        registered["registerType"] = "accreditation"
+        findings.append(
+            Finding(
+                JUDGEMENT,
+                f"{SUBJECT}/registerType",
+                "recognizedTo[].capabilityReference",
+                "Every capability the entity is recognised for is an accreditation "
+                "scope, so the register is a register of accreditations, which is what "
+                "UNTP's accreditation code names.",
+            )
+        )
+    else:
+        findings.append(
+            Finding(
+                REQUIRED,
+                f"{SUBJECT}/registerType",
+                "(the arrangement behind the recognition)",
+                "UNTP's register types are product, facility, business, trademark, land "
+                "and accreditation. This recognition rests on an arrangement none of them "
+                "names -- peer recognition, not accreditation -- and choosing the nearest "
+                "would misstate it.",
+            )
+        )
+
+    if capabilities:
+        registered["registrationScope"] = list(
+            dict.fromkeys(item["id"] for item in capabilities)
+        )
+        if any(item.get("digestMultibase") for item in capabilities):
+            findings.append(
+                Finding(
+                    DROPPED,
+                    f"{SUBJECT}/registrationScope",
+                    "recognizedTo[].capabilityReference.digestMultibase",
+                    "The scopes arrive as bare addresses, so the digests that pin the "
+                    "version of each scope the entity was recognised under do not.",
+                )
+            )
+    for member, reason in (
+        (
+            "action",
+            "What the entity is recognised to do -- issue, accredit, evaluate -- has no "
+            "member. A scope says where, not what.",
+        ),
+        (
+            "outputValidation",
+            "The schemas a document issued under the recognition must satisfy, pinned by "
+            "digest, have no member. They are what chapter 4 checks a certificate "
+            "against, so this is the part of a recognition a verifier can act on.",
+        ),
+        (
+            "validFrom",
+            "Each recognised action carries its own validity; the anchor has only the "
+            "credential's, so an action that lapses early cannot say so.",
+        ),
+    ):
+        if any(member in item for item in actions):
+            findings.append(
+                Finding(DROPPED, "(no equivalent)", f"recognizedTo[].{member}", reason)
+            )
+    if isinstance(entity.get("url"), str):
+        findings.append(
+            Finding(
+                DROPPED,
+                SUBJECT,
+                "credentialSubject.url",
+                "The entity's own website has no member on a registered identity.",
+            )
+        )
+
+    credential = _envelope(
+        source,
+        registered,
+        findings,
+        untp_type=UNTP_DIA_TYPE,
+        identifier=f"{source.get('id')}#{subject}",
+        name=f"{source.get('name')}: {entity.get('name') or subject}",
+    )
+    return Projection(credential, tuple(findings))
+
+
+#: Which projection handles which certificate type. A recognition goes through
+#: :func:`project_recognition` instead, since it needs an entity named.
 PROJECTIONS: dict[str, Callable[[dict[str, Any], Lookup | None], Projection]] = {
     "CalibrationCertificateCredential": project_calibration_certificate,
     "ProductConformityCredential": project_product_conformity,
 }
 
 
-def project(source: dict[str, Any], lookup: Lookup | None = None) -> Projection:
+def project(
+    source: dict[str, Any], lookup: Lookup | None = None, subject: str | None = None
+) -> Projection:
     """Project whichever credential type this is into UNTP terms.
 
     Args:
         source: The source credential.
         lookup: Resolves a URL to the document published there. See
             :func:`project_calibration_certificate`.
+        subject: For a recognition, the DID of the entity to anchor.
 
     Returns:
         The projection.
 
     Raises:
-        ValueError: If no projection is defined for this credential type.
+        ValueError: If no projection is defined for this credential type, or a
+            recognition's entity is missing or unknown.
     """
-    for name in source.get("type", []):
+    types = source.get("type", [])
+    if "RecognizedEntityCredential" in types:
+        return project_recognition(source, subject)
+    for name in types:
         handler = PROJECTIONS.get(name)
         if handler is not None:
             return handler(source, lookup)
@@ -824,9 +1029,15 @@ def _endorsement(
 
 
 def _envelope(
-    source: dict[str, Any], attestation: dict[str, Any], findings: list[Finding]
+    source: dict[str, Any],
+    subject: dict[str, Any],
+    findings: list[Finding],
+    *,
+    untp_type: list[str] = UNTP_DCC_TYPE,
+    identifier: str | None = None,
+    name: str | None = None,
 ) -> dict[str, Any]:
-    """Wrap an attestation in the UNTP credential envelope.
+    """Wrap a credential subject in the UNTP credential envelope.
 
     ``credentialSchema`` does not travel: it names the data model of the source type,
     which the UNTP document is not an instance of. The status entry does, exactly as the
@@ -834,20 +1045,26 @@ def _envelope(
 
     Args:
         source: The source credential, for the members that carry across unchanged.
-        attestation: The ConformityAttestation to carry.
+        subject: The ConformityAttestation or RegisteredIdentity to carry.
         findings: The findings so far, appended to.
+        untp_type: The UNTP type array of the document.
+        identifier: The document's identifier, when it is not the source's own -- one
+            recognition becomes several anchors, and each needs its own.
+        name: The document's name, when it is not the source's own.
 
     Returns:
         The unsecured UNTP credential.
     """
     credential: dict[str, Any] = {
         "@context": list(UNTP_CONTEXT),
-        "type": list(UNTP_DCC_TYPE),
-        "id": source.get("id"),
+        "type": list(untp_type),
+        "id": identifier if identifier is not None else source.get("id"),
         "issuer": _issuer(source),
     }
-    if isinstance(source.get("name"), str):
-        credential["name"] = source["name"]
+    if name is None and isinstance(source.get("name"), str):
+        name = source["name"]
+    if name is not None:
+        credential["name"] = name
     else:
         findings.append(
             Finding(
@@ -877,7 +1094,7 @@ def _envelope(
                     "the W3C Recommendation this project answers to.",
                 )
             )
-    credential["credentialSubject"] = attestation
+    credential["credentialSubject"] = subject
     return credential
 
 

@@ -42,9 +42,10 @@ from vcqi.vc.untp import (
     DROPPED,
     JUDGEMENT,
     REQUIRED,
-    SCHEMA_PATH,
+    SCHEMA_PATHS,
     UNTP_CONTEXT,
     UNTP_DCC_TYPE,
+    UNTP_DIA_TYPE,
     UNTP_VERSION,
     VENDORED_CONTENT_SHA256,
     Finding,
@@ -56,21 +57,31 @@ from vcqi.vc.untp import (
     vendored_contexts,
 )
 
-#: Every credential with a projection: the two the probe shows, and the accredited
-#: laboratory's calibration, which is the one with a traceability chain to lose.
-PROJECTED = (*PROBED, "callab-calibration")
+#: Every projection checked, as the credential and, for a recognition, the entity it
+#: anchors: the four the probe shows, the accredited laboratory's calibration, which is
+#: the one with a traceability chain to lose, and PTB, the second entity of the BIPM's
+#: recognition.
+PROJECTED = (
+    *PROBED,
+    ("callab-calibration", None),
+    ("bipm-recognition", "did:web:ptb.example"),
+)
+
+#: The certificates among them, whose projection is a Digital Conformity Credential.
+CERTIFICATES = tuple(item for item in PROJECTED if item[1] is None)
 
 #: Where the one assessment sits in a projected document, as a finding path.
 ASSESSMENT = "credentialSubject/conformityAssessment/0"
 
 
 def _projection(
-    name: str, *, lookup: bool = True
+    name: str, subject: str | None = None, *, lookup: bool = True
 ) -> tuple[World, dict[str, Any], Projection]:
     """Project one credential of a freshly built world.
 
     Args:
         name: Short name of the credential.
+        subject: For a recognition, the DID of the entity to anchor.
         lookup: Whether the projection may read the documents the credential points at.
 
     Returns:
@@ -78,7 +89,7 @@ def _projection(
     """
     world = build_world()
     source = world.credential(name)
-    return world, source, project(source, world.store.get if lookup else None)
+    return world, source, project(source, world.store.get if lookup else None, subject)
 
 
 def _assessment(projection: Projection) -> dict[str, Any]:
@@ -203,7 +214,7 @@ class TestUntpProjection:
     def test_the_vendored_artefacts_are_the_published_ones(self) -> None:
         # Hashed the way the Playground's artefact manifest hashes them, so a mismatch
         # means a different document rather than different line endings.
-        for path in (SCHEMA_PATH, *CONTEXT_PATHS.values()):
+        for path in (*SCHEMA_PATHS.values(), *CONTEXT_PATHS.values()):
             document = json.loads(path.read_text(encoding="utf-8"))
             assert content_sha256(document) == VENDORED_CONTENT_SHA256[path.name], path.name
 
@@ -266,8 +277,8 @@ class TestUntpProjection:
     def test_every_schema_error_is_a_recorded_blocking_finding(self) -> None:
         # The load-bearing assertion. The projection is allowed to fail UNTP validation,
         # but only in ways it chose and can explain, at the member it recorded.
-        for name in PROJECTED:
-            _, _, projection = _projection(name)
+        for name, subject in PROJECTED:
+            _, _, projection = _projection(name, subject)
             errors = schema_errors(projection.credential)
             assert {error["member"] for error in errors} == {
                 finding.path for finding in projection.blocking
@@ -327,16 +338,18 @@ class TestUntpProjection:
         # The 0.6.0 projection gave the credential, the attestation and the assessment one
         # identifier, and the scheme, its issuer, the endorsement and its authority
         # another. Read as linked data, each of those groups is one node.
-        for name in PROJECTED:
-            _, _, projection = _projection(name)
-            seen: dict[str, set[tuple[Any, Any]]] = {}
+        for name, subject in PROJECTED:
+            _, _, projection = _projection(name, subject)
+            # One identifier, one name. The type may differ, because the same party can
+            # appear in two roles -- the BIPM as an anchor's issuer and as its registrar.
+            seen: dict[str, set[Any]] = {}
             for node in _objects(projection.credential):
-                if isinstance(node.get("id"), str):
-                    kind = node.get("type")
-                    kind = tuple(kind) if isinstance(kind, list) else kind
-                    seen.setdefault(node["id"], set()).add((kind, node.get("name")))
+                if isinstance(node.get("id"), str) and "name" in node:
+                    seen.setdefault(node["id"], set()).add(node["name"])
             shared = [identifier for identifier, named in seen.items() if len(named) > 1]
             assert not shared, f"{name}: {shared}"
+            if subject is not None:
+                continue
 
             credential = projection.credential
             identifiers = {
@@ -379,7 +392,7 @@ class TestUntpProjection:
         # The 0.7.0 context defines a class's members inside the class's own type, so a
         # class node without its type has them dropped; and it defines no type for the
         # value objects, so one with a type fails expansion. Both directions matter.
-        for name in PROJECTED:
+        for name, _ in CERTIFICATES:
             _, _, projection = _projection(name)
             credential = projection.credential
             attestation = credential["credentialSubject"]
@@ -418,18 +431,118 @@ class TestUntpProjection:
         assert audit["version"] == UNTP_VERSION
         assert audit["accountedFor"]
         assert audit["expands"]
-        assert [entry["name"] for entry in audit["credentials"]] == list(PROBED)
+        probed = [(entry["name"], entry["subject"]) for entry in audit["credentials"]]
+        assert probed == list(PROBED)
         for entry in audit["credentials"]:
             assert entry["findings"], "a projection that cost nothing would be suspicious"
             assert entry["accounted"]
+
+
+class TestIdentityAnchor:
+    """The recognitions as UNTP Digital Identity Anchors, one per recognised entity."""
+
+    def test_one_anchor_per_recognised_entity(self) -> None:
+        # A recognition lists several entities and an anchor names one, so each entity
+        # gets its own anchor, with an identifier of its own.
+        world = build_world()
+        source = world.credential("bipm-recognition")
+        anchors = {
+            entity["id"]: project(source, world.store.get, entity["id"]).credential
+            for entity in source["credentialSubject"]
+        }
+
+        assert set(anchors) == {"did:web:metas.example", "did:web:ptb.example"}
+        assert len({anchor["id"] for anchor in anchors.values()}) == 2
+        for subject, anchor in anchors.items():
+            assert anchor["type"] == UNTP_DIA_TYPE
+            assert anchor["@context"] == UNTP_CONTEXT
+            assert anchor["credentialSubject"]["id"] == subject
+            assert anchor["credentialSubject"]["type"] == ["RegisteredIdentity"]
+
+    def test_a_recognition_needs_an_entity_named(self) -> None:
+        world = build_world()
+        source = world.credential("bipm-recognition")
+
+        with pytest.raises(ValueError, match="recognised entities"):
+            project(source, world.store.get)
+        with pytest.raises(ValueError, match="recognised entities"):
+            project(source, world.store.get, "did:web:cab.example")
+
+    def test_the_anchors_reported_in_the_chapter_are_pinned(self) -> None:
+        subject = "credentialSubject"
+        _, _, metas = _projection("bipm-recognition", "did:web:metas.example")
+        assert {(finding.kind, finding.path) for finding in metas.blocking} == {
+            (CONFLICT, "credentialStatus/statusListIndex"),
+            (REQUIRED, f"{subject}/registeredId"),
+            (REQUIRED, f"{subject}/registeredDate"),
+            (REQUIRED, f"{subject}/registerType"),
+        }
+
+        _, _, cab = _projection("sas-recognition", "did:web:cab.example")
+        assert {(finding.kind, finding.path) for finding in cab.blocking} == {
+            (CONFLICT, "credentialStatus/statusListIndex"),
+            (REQUIRED, f"{subject}/registeredId"),
+            (REQUIRED, f"{subject}/registeredDate"),
+        }
+        # Validated against the anchor's own schema, not the conformity credential's.
+        members = {error["member"] for error in schema_errors(cab.credential)}
+        assert f"{subject}/registeredId" in members
+        assert "credentialSubject/conformityAssessment" not in " ".join(members)
+
+    def test_the_registrar_is_the_issuer_and_the_scopes_are_the_capabilities(self) -> None:
+        for name, subject in (
+            ("bipm-recognition", "did:web:metas.example"),
+            ("sas-recognition", "did:web:cab.example"),
+        ):
+            _, source, projection = _projection(name, subject)
+            registered = projection.credential["credentialSubject"]
+            entity = next(
+                item for item in source["credentialSubject"] if item["id"] == subject
+            )
+
+            assert registered["registrar"]["id"] == source["issuer"]["id"]
+            assert registered["registeredName"] == entity["legalName"]
+            assert registered["registrationScope"] == [
+                action["capabilityReference"]["id"] for action in entity["recognizedTo"]
+            ]
+            same_as = entity.get("sameAs") or [None]
+            assert registered.get("publicInformation") == same_as[0]
+
+    def test_the_register_type_is_a_judgement_only_for_accreditation_scopes(self) -> None:
+        # The CAB is recognised within accreditation scopes, which is what UNTP's code
+        # names. The CIPM MRA and the Global ACI MRA are peer recognition, and no code fits.
+        for name, subject, expected in (
+            ("sas-recognition", "did:web:cab.example", "accreditation"),
+            ("bipm-recognition", "did:web:metas.example", None),
+            ("global-aci-recognition", "did:web:sas.example", None),
+        ):
+            _, _, projection = _projection(name, subject)
+            kinds = {
+                finding.kind
+                for finding in projection.findings
+                if finding.path == "credentialSubject/registerType"
+            }
+            registered = projection.credential["credentialSubject"]
+            assert registered.get("registerType") == expected
+            assert kinds == ({JUDGEMENT} if expected else {REQUIRED}), name
+
+    def test_what_a_verifier_acts_on_is_recorded_as_dropped(self) -> None:
+        _, _, projection = _projection("bipm-recognition", "did:web:metas.example")
+        dropped = {item.source for item in projection.findings if item.kind == DROPPED}
+
+        assert {
+            "recognizedTo[].action",
+            "recognizedTo[].outputValidation",
+            "recognizedTo[].validFrom",
+        } <= dropped
 
 
 class TestTermExpansion:
     """The offline stand-in for the Playground's JSON-LD step, and proof that it can fail."""
 
     def test_every_term_expands(self) -> None:
-        for name in PROJECTED:
-            _, _, projection = _projection(name)
+        for name, subject in PROJECTED:
+            _, _, projection = _projection(name, subject)
             problems = term_problems(projection.credential, vendored_contexts())
             assert problems == [], f"{name}: {[problem.to_json() for problem in problems]}"
 
@@ -503,6 +616,22 @@ class TestExport:
         second = export_document(world, "cab-conformity", "untp")
 
         assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+
+    def test_a_recognition_exports_one_anchor_per_entity(self) -> None:
+        world = build_world()
+        first = export_document(
+            world, "sas-recognition", "untp", subject="did:web:cab.example"
+        )
+        again = export_document(
+            world, "sas-recognition", "untp", subject="did:web:cab.example"
+        )
+
+        assert first["type"] == UNTP_DIA_TYPE
+        assert first["issuer"]["id"].startswith(DID_KEY_PREFIX)
+        assert first["credentialSubject"]["id"] == "did:web:cab.example"
+        assert json.dumps(first, sort_keys=True) == json.dumps(again, sort_keys=True)
+        with pytest.raises(ValueError):
+            export_document(world, "sas-recognition", "untp")
 
     def test_an_unknown_form_is_refused(self) -> None:
         world = build_world()

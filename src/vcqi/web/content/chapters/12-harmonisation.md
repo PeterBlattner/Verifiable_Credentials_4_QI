@@ -88,7 +88,7 @@ One of them tried rather than argued
 
 <!-- block: probe.hint -->
 
-both certificates really projected, validated and expanded, against pinned UNTP
+two certificates and two recognitions really projected, validated and expanded, against pinned UNTP
 
 <!-- block: probe.body -->
 
@@ -99,6 +99,8 @@ The rule the projection follows is the only thing that makes the result mean any
 More arrives than the first run of this probe, against UNTP 0.6.0, suggested. A calibration is no longer forced into a verdict: `conformance` is optional. `conformityTopic` is an open list, and UNTP's own topic vocabulary has `metrology-and-measurement` — the accuracy and traceability of measurements and calibrations to national and international measurement standards — and `product-safety-standards` for the kettle. The conditions of measurement travel as text in `specifiedCondition`. The authority behind each certificate travels as an endorsement naming whoever issued the recognition or the accreditation, with a link to it.
 
 What still does not arrive is the uncertainty. `Measure` holds a value, a unit and two tolerances, and a tolerance is a limit — UNTP's own example reads 10 kg + 0.1 kg — where an Expanded Uncertainty at k=2 is a coverage interval. Writing one into the other would restate a 95 % statement as a certainty, so the value travels rounded as the certificate reports it, and without its uncertainty. Three identifiers UNTP requires do not exist on this side: one for the measurand, which ISO and IEC are still defining; one for the scheme, since nothing here gives the CIPM MRA an identifier; and one for IEC 60335-1, which the certificate names by its designation. The unit arrives as a UNECE Recommendation 20 code, `OHM`, expanded against UN/CEFACT's code list — a second register beside the BIPM's.
+
+One layer up, the recognitions go the same way. UN/CEFACT's counterpart of a W3C recognition is the Digital Identity Anchor, in which a registrar says that a DID belongs to an entity in its register. So the BIPM's recognition of METAS and the Swiss Accreditation Service's recognition of the certification body are each expressed as an anchor too — one per entity, since an anchor names one where a recognition lists several. The entity arrives, with its registrar, its entry on the registrar's site and the capabilities it is recognised for, as a list of links. What does not arrive is the part a verifier acts on: what the entity is recognised to *do*, the `outputValidation` schemas a document issued under the recognition must satisfy — the check chapter 4 runs — and the validity of each recognised action. UNTP also wants a registration number and a first-registration date that no recognition here states, and its register types stop at accreditation, so the CIPM MRA has none.
 
 One thing is carried and refused. The W3C Bitstring Status List Recommendation says a status index is an integer written as a string, and so does UNTP's own description of the member, but UNTP's schema types it as a number. The projection writes it the way W3C does, and the schema says so.
 

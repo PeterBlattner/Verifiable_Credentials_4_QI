@@ -688,8 +688,28 @@ def test_every_export_form_downloads_as_a_file(client: TestClient) -> None:
 
 def test_an_export_of_something_unprojectable_is_refused(client: TestClient) -> None:
     """Rather than served as a credential with the wrong shape inside it."""
-    assert client.get("/api/export/bipm-recognition?form=untp").status_code == 400
-    assert client.get("/api/export/bipm-recognition?form=native").status_code == 200
+    assert client.get("/api/export/scope-SCS-0123?form=untp").status_code == 400
+    assert client.get("/api/export/scope-SCS-0123?form=native").status_code == 200
+
+
+def test_a_recognition_exports_one_anchor_file_per_entity(client: TestClient) -> None:
+    """The entity goes in the query and in the file name, so three anchors of one
+    recognition do not overwrite each other in the reader's downloads. Without one, the
+    request is refused rather than answered with a guess at which entity was meant."""
+    response = client.get(
+        "/api/export/sas-recognition?form=untp&subject=did:web:cab.example"
+    )
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="sas-recognition-untp-cab.example.json"'
+    )
+    assert "DigitalIdentityAnchor" in response.json()["type"]
+
+    missing = client.get("/api/export/sas-recognition?form=untp")
+    assert missing.status_code == 400
+    assert "did:web:cab.example" in missing.json()["detail"]
+    unknown = client.get("/api/export/sas-recognition?form=untp&subject=did:web:bipm.example")
+    assert unknown.status_code == 400
 
 
 def test_the_untp_panel_cannot_take_its_chapter_down() -> None:

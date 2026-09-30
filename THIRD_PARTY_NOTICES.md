@@ -3,11 +3,12 @@
 This repository includes or references material developed by third parties.
 Such material remains subject to its respective licence terms.
 
-## UN Transparency Protocol — Digital Conformity Credential schema and JSON-LD context
+## UN Transparency Protocol — Digital Conformity Credential and Digital Identity Anchor schemas, and JSON-LD context
 
 Files:
 
 `src/vcqi/vendor/untp/untp-dcc-schema-0.7.0.json`  
+`src/vcqi/vendor/untp/untp-dia-schema-0.7.0.json`  
 `src/vcqi/vendor/untp/untp-context-0.7.0.jsonld`
 
 Source:
@@ -20,11 +21,18 @@ UN/CEFACT — United Nations Transparency Protocol (UNTP), version 0.7.0, releas
   `https://untp.unece.org/artefacts/schema/v0.7.0/dcc/ConformityCredential.json`
 - `artefacts/contexts/v0.7.0/untp-context.jsonld`, published at
   `https://vocabulary.uncefact.org/untp/0.7.0/context/`
+- `artefacts/schema/v0.7.0/dia/DigitalIdentityAnchor.json`, published at
+  `https://untp.unece.org/artefacts/schema/v0.7.0/dia/DigitalIdentityAnchor.json`. The
+  specification repository could not be reached when this was vendored, so the copy was
+  taken from the UNTP Playground's bundle (`https://github.com/uncefact/tests-untp`,
+  `packages/untp-utils/artefacts/schema/untp/0.7.0/dia.json`). Its content hash equals the
+  one the Playground's manifest records for that tag.
 
-These are the copies the UNTP Playground bundles. The copy of the schema served at
+These are the copies the UNTP Playground bundles. The copy of the DCC schema served at
 `untp.unece.org` differs from the tag in two `example` strings. Content hashes (SHA-256 of
 the JSON with keys sorted and no whitespace, as the Playground's artefact manifest computes
-them): schema `10869cc870bdf9e1d499c46a319c78fcdae7b1a4f37d837a84d34a4aaffb0883`, context
+them): DCC schema `10869cc870bdf9e1d499c46a319c78fcdae7b1a4f37d837a84d34a4aaffb0883`, DIA
+schema `0f125c2e8c6f0b01c79c7bf05ece2e33a88982edf023ee90479454b60b6b5eea`, context
 `3c0f6d7e6fdd4e54fc167c98a8ae232739c582fab845522bf81e7c67c881714f`.
 
 Licence:

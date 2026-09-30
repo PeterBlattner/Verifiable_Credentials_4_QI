@@ -27,8 +27,10 @@ without leaving the machine:
   confirmation rather than news.
 * **portable** -- the same claims, same key, re-issued under the ``did:key`` that key
   stands for. This is the one that makes the cryptographic step answerable by a stranger.
-* **untp** -- the projection into UNTP's vocabulary, signed the same portable way. The
-  only form the Playground accepts, and it carries published contexts only.
+* **untp** -- the projection into UNTP's vocabulary, signed the same portable way: a
+  certificate as a Digital Conformity Credential, a recognition as a Digital Identity
+  Anchor for one of the entities it lists. The only form the Playground accepts, and it
+  carries published contexts only.
 
 Two of the Playground's steps can be answered here, offline, for the projection: what
 the schema step says, against the vendored UNTP schema, and whether every term expands,
@@ -48,17 +50,30 @@ from vcqi.vc.jsonld_terms import term_problems
 from vcqi.vc.portable import portable_copy
 from vcqi.vc.untp import UNTP_VERSION, project, schema_errors, vendored_contexts
 
-#: The credentials the probe is run over: the case UNTP was not built for, and the case
-#: it was. Both are needed -- one of them failing alone would say nothing about which of
-#: the format and the document was the reason.
-PROBED = ("metas-calibration", "cab-conformity")
+#: What the probe is run over, as the credential and, for a recognition, the entity it
+#: anchors. At each layer, the case UNTP was not built for and the case it was: a
+#: calibration and a certificate of conformity, and the CIPM MRA's recognition of METAS
+#: and an accreditation body's recognition of a certification body. Both are needed --
+#: one of them failing alone would say nothing about which of the format and the
+#: document was the reason.
+PROBED: tuple[tuple[str, str | None], ...] = (
+    ("metas-calibration", None),
+    ("cab-conformity", None),
+    ("bipm-recognition", "did:web:metas.example"),
+    ("sas-recognition", "did:web:cab.example"),
+)
 
 #: The three forms a credential can be exported in.
 FORMS = ("native", "portable", "untp")
 
 
 def export_document(
-    world: World, name: str, form: str, *, created: datetime = DEMO_NOW
+    world: World,
+    name: str,
+    form: str,
+    *,
+    subject: str | None = None,
+    created: datetime = DEMO_NOW,
 ) -> dict[str, Any]:
     """Return one credential in one of the three exportable forms.
 
@@ -66,6 +81,8 @@ def export_document(
         world: The built demonstration world.
         name: Short name of the credential, for example ``metas-calibration``.
         form: One of :data:`FORMS`.
+        subject: For the ``untp`` form of a recognition, the DID of the entity to
+            anchor; UNTP anchors one entity where a recognition lists several.
         created: When a re-issued proof was created. Fixed by default, so that exporting
             the same credential twice produces the same bytes.
 
@@ -74,8 +91,8 @@ def export_document(
 
     Raises:
         KeyError: If no credential is registered under that name.
-        ValueError: If the form is not one of :data:`FORMS`, or the credential has no
-            UNTP projection.
+        ValueError: If the form is not one of :data:`FORMS`, the credential has no
+            UNTP projection, or a recognition's entity is missing or unknown.
     """
     credential = world.credential(name)
     if form == "native":
@@ -86,7 +103,7 @@ def export_document(
         signed, _ = portable_copy(credential, key, created=created)
         return signed
     if form == "untp":
-        projected = project(credential, world.store.get).credential
+        projected = project(credential, world.store.get, subject).credential
         signed, _ = portable_copy(projected, key, created=created)
         return signed
     raise ValueError(f"unknown export form {form!r}")
@@ -106,16 +123,18 @@ def untp_audit(world: World) -> dict[str, Any]:
     """
     contexts = vendored_contexts()
     entries = []
-    for name in PROBED:
+    for name, subject in PROBED:
         credential = world.credential(name)
-        projection = project(credential, world.store.get)
+        projection = project(credential, world.store.get, subject)
         errors = schema_errors(projection.credential)
         problems = term_problems(projection.credential, contexts)
         entries.append(
             {
                 "name": name,
-                "title": credential.get("name"),
+                "subject": subject,
+                "title": projection.credential.get("name"),
                 "sourceType": _own_type(credential),
+                "untpType": _own_type(projection.credential),
                 "findings": [finding.to_json() for finding in projection.findings],
                 "blocking": len(projection.blocking),
                 "schemaErrors": errors,

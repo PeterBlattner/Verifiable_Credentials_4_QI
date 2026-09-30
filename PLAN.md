@@ -4724,3 +4724,107 @@ W3C feature in its own right, not as a route into the Playground.
 ## Git
 
 Branch `feature/w3c-ecdsa-jcs-vectors` from `develop`, into `develop`.
+
+# Change set 30 - the recognitions in UNTP: a Digital Identity Anchor probe
+
+## Context
+
+A review point: the updates on the UNTP Playground discussed only the Digital Conformity
+Credential and never the Digital Identity Anchor (DIA), which the Playground also
+validates. It was not already solved. `vc/untp.py` projected only the two certificates;
+the five recognitions, the W3C Recognized Entities layer this project is founded on, had
+no UNTP form, and chapter 3 told the reader none of their files got into the Playground.
+
+The DIA is UNTP's counterpart of a recognition: a registrar attests that a DID belongs to
+an entity in its register, with a list of scopes. UNTP 0.7.0 requires one
+`RegisteredIdentity` per anchor, with `registeredName`, `registeredId`,
+`registeredDate`, `idScheme` and a `registerType` from `product`, `facility`,
+`business`, `trademark`, `land` and `accreditation`.
+
+## Decisions
+
+Taken with Peter:
+- a DIA probe, run the way the DCC probe is;
+- where no register type fits - the CIPM MRA - it is left out and recorded.
+
+## Checklist
+
+- [x] 1. Vendor the DIA 0.7.0 schema, pinned by content hash
+- [x] 2. `vc/untp.py`: `project_recognition`, one anchor per entity; the schema chosen by
+      type
+- [x] 3. `interop.py` and `app.py`: probed pairs, `subject` on the export
+- [x] 4. Front end: one anchor link per entity in chapter 3, four entries in the probe,
+      and the harmonisation floor
+- [x] 5. Prose: chapter 3's notes, chapter 11's probe text
+- [x] 6. Tests, docs
+- [ ] 7. Peter runs both anchors through the Playground; table below
+
+## Progress log
+
+- 2026-09-30: plan approved. Branch `feature/untp-dia-probe` from `develop`.
+- 2026-09-30: items 1-6.
+  - The UNTP specification repository timed out, so the DIA schema was taken from the
+    Playground's bundle in `uncefact/tests-untp`. Its content hash, `0f125c2e…6eea`,
+    equals the one the Playground's manifest records for tag `v0.7.0`.
+  - One anchor per recognised entity:
+    - the entity's DID, `legalName`, and `sameAs[0]` as `publicInformation`;
+    - the issuer as registrar;
+    - the capability references as `registrationScope`;
+    - the recognition itself as `idScheme` (judgement);
+    - `registerType: accreditation` only when every capability is an accreditation
+      scope (judgement), otherwise left out and recorded.
+
+    `registeredId` and `registeredDate` are required and stated nowhere. The recognised
+    actions, the `outputValidation` schemas and digests, each action's validity, the
+    scope digests and the entity's website are recorded as dropped. The anchor's `id` is
+    the recognition's with the entity's DID as fragment.
+  - Blocking findings:
+    - METAS in the BIPM recognition: 4 - the status index (conflict), `registeredId`,
+      `registeredDate`, `registerType`;
+    - the CAB in the SAS recognition: 3, as a dry run predicted before any code was
+      written.
+
+    Every recognised entity of every recognition projects with its schema errors equal
+    to its blocking findings, and every term expands.
+  - `no identifier names two things` now compares names only. In an anchor, the BIPM is
+    both the issuer (`CredentialIssuer`) and the registrar (`Party`): one party in two
+    roles, rightly under one identifier.
+  - Chapter 3 offers "As a UNTP identity anchor: <entity>" for each entity of the two
+    probed recognitions, with the entity in the query and the file name.
+    `takeaway.untp-anchors` is new; `takeaway.no-untp` names all four documents.
+- 2026-09-30: verification.
+  - Full suite: 804 pass, 46 skipped (796 before).
+  - `--dump`: byte-identical, 86 documents.
+  - Deliberate break: a plausible `registeredId` on METAS's anchor fails the member
+    match.
+  - Against a server of the branch on port 8011: `ui-clicks.mjs` has every control
+    responding, with harmonisation at its new floor of 6. `chapter-snapshot.mjs`, run
+    twice, is identical, with no `.content-missing`. Chapter 3 opens on the BIPM
+    recognition with an anchor link for METAS and one for PTB.
+  - Both anchor exports are in `temp/` for the Playground run.
+
+## The Playground run of the anchors
+
+To be filled in from an actual run.
+
+| Step | METAS (bipm-recognition) | CAB (sas-recognition) |
+|---|---|---|
+| 1. Proof Type Detection | | |
+| 2. VCDM Version Detection | | |
+| 3. VCDM Schema Validation | | |
+| 4. Credential Verification | | |
+| 5. UNTP Schema Validation | | |
+| 6. JSON-LD Expansion and Context Validation | | |
+| 7. Extension Schema Validation | | |
+
+Expected going in:
+- 1–3 pass;
+- 4 `NotFoundError`, as for every signature made here;
+- 5 exactly the blocking findings: METAS the status index, `registeredId`,
+  `registeredDate` and `registerType`; the CAB the first three;
+- 6 passes;
+- 7 does not run.
+
+## Git
+
+Branch `feature/untp-dia-probe` from `develop`, into `develop`.

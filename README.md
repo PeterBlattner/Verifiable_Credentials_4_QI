@@ -328,7 +328,7 @@ src/vcqi/
              engine.py  linprop.py  gtc_archive.py
   actors/    registry.py  scenarios.py  tamper.py  deployment.py  harmonisation.py
              portability.py  exchange.py  interop.py  edit.py
-  vendor/    untp/  w3c/  the pinned UNTP 0.7.0 schema and contexts, so the checks run
+  vendor/    untp/  w3c/  the pinned UNTP 0.7.0 schemas and contexts, so the checks run
              with no network
   web/       app.py  static/
 tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_w3c_vectors.py
