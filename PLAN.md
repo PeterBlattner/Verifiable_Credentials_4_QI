@@ -4560,7 +4560,8 @@ Taken with Peter:
 - [x] 9. Tests: `test_untp.py` rewritten, `test_domain.py`, `test_web.py`
 - [x] 10. Docs: ARCHITECTURE.md, THIRD_PARTY_NOTICES.md, README.md
 - [x] 11. Verification: suite, `--dump` identical, deliberate break, harnesses
-- [ ] 12. Peter re-runs both `untp` exports through the Playground; table below
+- [ ] 12. Peter re-runs both `untp` exports through the Playground; table below. The
+      calibration is done (2026-09-30); the certificate of conformity is still to run
 
 ## Progress log
 
@@ -4598,20 +4599,39 @@ Taken with Peter:
     Against the baseline, issuing is identical, exchange differs by the one added
     sentence, and harmonisation differs from the probe panel to the
     `uncertainty-transport` item, with no `.content-missing`.
+- 2026-09-30: item 12, the calibration. Peter ran the 0.7.0 `untp` export of
+  METAS-2026-0417 through the Playground 0.4.2; the report is
+  `temp/untp-test-report-metas-calibration-untp-(1).json`, and the file uploaded is
+  identical to what `GET /api/export/metas-calibration?form=untp` serves. The prediction
+  held step for step.
+  - **Step 6 passes.** It was the 0.6.0 failure, and it is the first time a JSON-LD
+    processor that is not ours has expanded one of these documents. It agrees with
+    `vc/jsonld_terms.py`.
+  - **Step 5 reports exactly the three recorded blocking findings, and nothing else.**
+    The Playground's tips are not followed, because each would break the rule: an integer
+    `statusListIndex` would break the W3C Recommendation, and a `referenceScheme` or a
+    metric `id` would be an identifier invented for the CIPM MRA or the measurand.
+  - The schema was fetched from `untp.unece.org`, whose copy differs from the vendored
+    one, taken at tag `v0.7.0`, only in two `example` strings, which validation ignores.
+    The errors agree because the constraints do.
+  - **Step 4 is unchanged:** `NotFoundError`, no suite for `ecdsa-jcs-2019`. The only
+    open question left from the run is whether to offer a second export in a format that
+    verifier accepts - its own sample is an enveloped JWT signed with EdDSA - and that is
+    a decision of its own, not part of this change set.
 
 ## The Playground run on 0.7.0
 
-To be filled in from an actual run.
+Run on 2026-09-30 against Playground 0.4.2, UNTP 0.7.0.
 
 | Step | metas-calibration | cab-conformity |
 |---|---|---|
-| 1. Proof Type Detection | | |
-| 2. VCDM Version Detection | | |
-| 3. VCDM Schema Validation | | |
-| 4. Credential Verification | | |
-| 5. UNTP Schema Validation | | |
-| 6. JSON-LD Expansion and Context Validation | | |
-| 7. Extension Schema Validation | | |
+| 1. Proof Type Detection | pass, embedded | not yet run |
+| 2. VCDM Version Detection | pass, v2 | not yet run |
+| 3. VCDM Schema Validation | pass | not yet run |
+| 4. Credential Verification | fail: `NotFoundError`, no suite for `ecdsa-jcs-2019` | not yet run |
+| 5. UNTP Schema Validation | fail: `statusListIndex` not an integer; `referenceScheme` and the metric's `id` required | not yet run |
+| 6. JSON-LD Expansion and Context Validation | pass | not yet run |
+| 7. Extension Schema Validation | not run | not yet run |
 
 Expected going in: 1-3 pass; 4 unchanged, `NotFoundError`, since nothing about the
 signature changed; 5 reports exactly the blocking findings - three for the calibration
