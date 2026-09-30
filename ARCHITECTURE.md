@@ -819,7 +819,9 @@ UNTP anchor is a directory entry. UNTP also requires a registration number and a
 first-registration date that no recognition states. Its register types stop at
 `accreditation`, which fits the SAS's recognition and is recorded as a judgement there;
 for the CIPM MRA and the Global ACI MRA, which are peer recognition, it is left out and
-recorded.
+recorded. Both probed anchors went through the Playground on 30 September: they passed
+its JSON-LD step, and its schema step reported exactly the findings the projection
+records, and nothing else.
 
 ### A data model is not a permission
 
