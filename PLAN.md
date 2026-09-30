@@ -4560,8 +4560,7 @@ Taken with Peter:
 - [x] 9. Tests: `test_untp.py` rewritten, `test_domain.py`, `test_web.py`
 - [x] 10. Docs: ARCHITECTURE.md, THIRD_PARTY_NOTICES.md, README.md
 - [x] 11. Verification: suite, `--dump` identical, deliberate break, harnesses
-- [ ] 12. Peter re-runs both `untp` exports through the Playground; table below. The
-      calibration is done (2026-09-30); the certificate of conformity is still to run
+- [x] 12. Peter re-runs both `untp` exports through the Playground; table below
 
 ## Progress log
 
@@ -4618,6 +4617,15 @@ Taken with Peter:
     open question left from the run is whether to offer a second export in a format that
     verifier accepts - its own sample is an enveloped JWT signed with EdDSA - and that is
     a decision of its own, not part of this change set.
+- 2026-09-30: item 12, the certificate of conformity. Peter ran the 0.7.0 `untp` export
+  of CPC-2026-0055 through the same Playground, and this prediction held too: steps 1-3
+  pass, step 4 is the same `NotFoundError`, step 6 passes, and step 5 reports exactly the
+  four recorded blocking findings - the status index, `referenceScheme`,
+  `assessedPerformance`, and the criterion's `id` - which are the four members the
+  offline check reports for this certificate. The uploaded file was not kept, so it was
+  compared by result rather than byte for byte. Both certificates now pass the JSON-LD
+  step, and every schema error either of them raises is a finding the projection records
+  and can explain. The change set is complete.
 
 ## The Playground run on 0.7.0
 
@@ -4625,13 +4633,13 @@ Run on 2026-09-30 against Playground 0.4.2, UNTP 0.7.0.
 
 | Step | metas-calibration | cab-conformity |
 |---|---|---|
-| 1. Proof Type Detection | pass, embedded | not yet run |
-| 2. VCDM Version Detection | pass, v2 | not yet run |
-| 3. VCDM Schema Validation | pass | not yet run |
-| 4. Credential Verification | fail: `NotFoundError`, no suite for `ecdsa-jcs-2019` | not yet run |
-| 5. UNTP Schema Validation | fail: `statusListIndex` not an integer; `referenceScheme` and the metric's `id` required | not yet run |
-| 6. JSON-LD Expansion and Context Validation | pass | not yet run |
-| 7. Extension Schema Validation | not run | not yet run |
+| 1. Proof Type Detection | pass, embedded | pass, embedded |
+| 2. VCDM Version Detection | pass, v2 | pass, v2 |
+| 3. VCDM Schema Validation | pass | pass |
+| 4. Credential Verification | fail: `NotFoundError`, no suite for `ecdsa-jcs-2019` | same |
+| 5. UNTP Schema Validation | fail: `statusListIndex` not an integer; `referenceScheme` and the metric's `id` required | fail: `statusListIndex` not an integer; `referenceScheme`, `assessedPerformance` and the criterion's `id` required |
+| 6. JSON-LD Expansion and Context Validation | pass | pass |
+| 7. Extension Schema Validation | not run | not run |
 
 Expected going in: 1-3 pass; 4 unchanged, `NotFoundError`, since nothing about the
 signature changed; 5 reports exactly the blocking findings - three for the calibration
