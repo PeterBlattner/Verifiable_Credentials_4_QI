@@ -4893,7 +4893,7 @@ need Render's and Cloudflare's address ranges, which are theirs to change.
       the header missing or malformed, the default unchanged, `/healthz`
 - [x] 6. Docs: DEPLOYMENT.md (variables, step 3), ARCHITECTURE.md
 - [x] 7. Verification
-- [ ] 8. After deploy: Peter opens `/healthz` and reads `caller`
+- [x] 8. After deploy: Peter opens `/healthz` and reads `caller`
 
 ## Progress log
 
@@ -4922,6 +4922,11 @@ need Render's and Cloudflare's address ranges, which are theirs to change.
     They came in with 2a91810, which moved the section out of README.md, and are
     restored from README.md before it. Committed separately.
   - Full suite: 818 pass, 46 skipped (805 before, and 13 new).
+- 2026-09-30: released in #100 (`main` at `dbb5c78`). Item 8: Peter opened `/healthz`
+  on the deployment and got `"commit": "dbb5c78"` and `"caller": "true-client-ip"`.
+  Cloudflare's header arrives, so the limiter charges callers by the address Cloudflare
+  states, not by `X-Forwarded-For`. The first reading still showed `14f4fb5`, because the
+  deploy had not finished. Change set complete.
 
 ## Git
 
