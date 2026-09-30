@@ -2229,6 +2229,21 @@ const HARMONISATION_STATUS = {
   open: ['anchor', 'Nothing exists yet'],
 };
 
+// The tier an item sits in, as the map's column names it. Labels, so they stay here.
+const TIER_SHORT = {
+  floor: 'The minimum',
+  irreversible: 'Decide now',
+  optional: 'Worth having',
+};
+
+// The status filter: which items to show, and how the note under the map names them.
+const STATUS_FILTER_NAMES = {
+  available: 'already exist',
+  partial: 'answered in part',
+  emerging: 'being built',
+  open: 'genuinely open',
+};
+
 async function chapterHarmonisation(context) {
   // Prose: web/content/chapters/harmonisation.md
   const t = context.text('harmonisation');
@@ -2237,6 +2252,14 @@ async function chapterHarmonisation(context) {
   const titleOf = {};
   for (const tier of data.tiers) {
     for (const item of tier.items) titleOf[item.key] = item.title;
+  }
+  const topics = data.topics || [];
+  const topicLabel = Object.fromEntries(topics.map((topic) => [topic.key, topic.label]));
+  // Which rungs of the ladder advance each item, so an item can say so without the
+  // reader scrolling to the ladder and back.
+  const rungsOf = {};
+  for (const step of data.nextSteps) {
+    for (const key of step.unblocks) (rungsOf[key] = rungsOf[key] || []).push(step.order);
   }
 
   fragment.append(t.prose('the-harder-question'));
@@ -2284,53 +2307,166 @@ async function chapterHarmonisation(context) {
   const openCount = count('open');
   const share = Math.round((openCount / items.length) * 100);
 
+  // What the reader has narrowed the list to, and which items they have opened. A filter
+  // only hides: the tiers keep their order and every item stays in its own tier, because
+  // the order is the chapter's argument (actors/harmonisation.py says so at the top).
+  const state = { topic: null, status: null, expanded: new Set() };
+  const matches = (item) =>
+    (!state.topic || (item.topics || []).includes(state.topic)) &&
+    (!state.status || item.status === state.status);
+
+  const statusChips = el('div', { class: 'chips' });
+  const topicChips = el('div', { class: 'chips' });
+  const note = el('p', { class: 'muted' });
+  const mapHolder = el('div', { class: 'map-wrap' });
+  const listHolder = el('div', {});
+
+  const chip = (label, pressed, onclick) =>
+    el('button', { class: 'chip', text: label, 'aria-pressed': String(pressed), onclick });
+
+  // Filters change what is listed, and so what the page says. A filter that only toggled
+  // visibility would change no text, and tools/ui-clicks.mjs -- rightly -- cannot tell
+  // that from a control that does nothing. The note says what was selected.
+  function describe(shown) {
+    const parts = [];
+    if (state.status) parts.push(STATUS_FILTER_NAMES[state.status]);
+    if (state.topic) parts.push(topicLabel[state.topic]);
+    return parts.length
+      ? `Showing ${shown} of ${items.length}: ${parts.join(', in ')}.`
+      : `Showing all ${items.length}, tier by tier.`;
+  }
+
+  function details(item) {
+    return [
+      ['What would have to be agreed', textParagraphs(item.requirement)],
+      ['This demonstration', textParagraphs(item.demonstrated)],
+      item.exists ? ['What already exists', textParagraphs(item.exists)] : null,
+      // A bare URL in a field of its own, linked here rather than written into the
+      // prose: every other field reaches textContent, so an anchor tag in one of them
+      // would show the reader its angle brackets.
+      item.source ? ['Where to read it', el('a', { href: item.source, text: item.source })] : null,
+      ['If two parties answer differently', textParagraphs(item.consequence)],
+      ['Who would have to agree it', item.forum],
+    ].filter(Boolean);
+  }
+
+  // Collapsed, an item is its title, what it is, and what goes wrong without it. The
+  // fields are inserted when it is opened rather than hidden until then, for the same
+  // reason the filters re-render: showing them has to change what the page says.
+  function itemPanel(item) {
+    const [tone, statusLabel] = HARMONISATION_STATUS[item.status];
+    const opened = state.expanded.has(item.key);
+    const rungs = rungsOf[item.key] || [];
+    const node = panel(item.title, null, [
+      el('div', { class: 'item-meta' }, [
+        badge(tone, statusLabel),
+        ...(item.topics || []).map((key) => badge('neutral', topicLabel[key] || key)),
+        rungs.length
+          ? el('span', { class: 'muted', text: `Advanced by rung ${rungs.join(', ')}` })
+          : null,
+      ]),
+      opened
+        ? keyValues(details(item))
+        : keyValues([
+            ['If two parties answer differently', String(item.consequence).split('\n\n')[0]],
+          ]),
+      el('button', {
+        class: 'chip',
+        text: opened ? 'Hide the details' : 'Show the details',
+        'aria-expanded': String(opened),
+        onclick: () => {
+          if (opened) state.expanded.delete(item.key);
+          else state.expanded.add(item.key);
+          render();
+        },
+      }),
+    ]);
+    node.id = `item-${item.key}`;
+    return node;
+  }
+
+  function render() {
+    clear(statusChips).append(
+      chip(`All ${items.length}`, state.status === null, () => {
+        state.status = null;
+        render();
+      }),
+      ...Object.keys(STATUS_FILTER_NAMES).map((status) =>
+        chip(`${count(status)} ${STATUS_FILTER_NAMES[status]}`, state.status === status, () => {
+          state.status = status;
+          render();
+        })
+      )
+    );
+    clear(topicChips).append(
+      chip('All topics', state.topic === null, () => {
+        state.topic = null;
+        render();
+      }),
+      ...topics.map((topic) =>
+        chip(topic.label, state.topic === topic.key, () => {
+          state.topic = topic.key;
+          render();
+        })
+      )
+    );
+
+    const shown = items.filter(matches);
+    clear(note).append(document.createTextNode(describe(shown.length)));
+    clear(mapHolder).append(
+      shown.length
+        ? table(
+            ['Item', 'Tier', 'Status', 'Topic', 'Rung'],
+            shown.map((item) => [
+              el('button', {
+                class: 'item-link',
+                text: item.title,
+                onclick: () => {
+                  state.expanded.add(item.key);
+                  render();
+                  const target = document.getElementById(`item-${item.key}`);
+                  if (target) target.scrollIntoView({ block: 'start' });
+                },
+              }),
+              TIER_SHORT[item.tier] || item.tier,
+              badge(...HARMONISATION_STATUS[item.status]),
+              (item.topics || []).map((key) => topicLabel[key] || key).join(', '),
+              (rungsOf[item.key] || []).join(', ') || '—',
+            ])
+          )
+        : el('p', { class: 'muted', text: t.text('filter.none') })
+    );
+
+    clear(listHolder);
+    for (const tier of data.tiers) {
+      const inTier = tier.items.filter(matches);
+      listHolder.append(
+        el('h3', { text: tier.label }),
+        el('p', { class: 'muted', style: 'max-width:70ch;margin-top:-6px', text: tier.test })
+      );
+      if (!inTier.length) {
+        listHolder.append(el('p', { class: 'muted', text: t.text('filter.empty-tier') }));
+      }
+      for (const item of inTier) listHolder.append(itemPanel(item));
+    }
+  }
+
   fragment.append(
     panel(t.text('open.title'), t.text('open.hint'), [
-      el('div', { class: 'chips' }, [
-        badge('pass', `${count('available')} already exist`),
-        badge('warn', `${count('partial')} answered in part`),
-        badge('skip', `${count('emerging')} being built`),
-        badge('anchor', `${openCount} genuinely open`),
-      ]),
+      statusChips,
       el('div', {
         class: 'callout',
         html: t.fill('open.body', { total: items.length, open: openCount, share }),
       }),
-    ])
+    ]),
+    panel(t.text('map.title'), t.text('map.hint'), [topicChips, note, mapHolder]),
+    listHolder
   );
+  render();
 
+  // After the list rather than before it: the probe is one item worked through at
+  // length, and ahead of the list it kept every other item a long scroll away.
   fragment.append(await untpProbe(context, t));
-
-  for (const tier of data.tiers) {
-    fragment.append(
-      el('h3', { text: tier.label }),
-      el('p', { class: 'muted', style: 'max-width:70ch;margin-top:-6px', text: tier.test })
-    );
-
-    for (const item of tier.items) {
-      const [tone, statusLabel] = HARMONISATION_STATUS[item.status];
-      const pairs = [
-        ['What would have to be agreed', textParagraphs(item.requirement)],
-        ['This demonstration', textParagraphs(item.demonstrated)],
-        item.exists ? ['What already exists', textParagraphs(item.exists)] : null,
-        // A bare URL in a field of its own, linked here rather than written into the
-        // prose: every other field reaches textContent, so an anchor tag in one of them
-        // would show the reader its angle brackets.
-        item.source
-          ? ['Where to read it', el('a', { href: item.source, text: item.source })]
-          : null,
-        ['If two parties answer differently', item.consequence],
-        ['Who would have to agree it', item.forum],
-      ].filter(Boolean);
-
-      fragment.append(
-        panel(item.title, null, [
-          el('div', { style: 'margin-bottom:12px' }, [badge(tone, statusLabel)]),
-          keyValues(pairs),
-        ])
-      );
-    }
-  }
 
   fragment.append(t.prose('the-ladder'));
 
@@ -2480,7 +2616,11 @@ async function untpProbe(context, t) {
   );
 
   show(data.credentials[0]);
-  return panel(t.text('probe.title'), `${t.text('probe.hint')} ${data.version}`, [
+
+  // Collapsed to its summary until asked for. The findings are one item worked through
+  // in detail, and a reader browsing the list should not have to scroll past them. They
+  // are inserted when opened rather than hidden, so opening them changes the page.
+  const body = [
     t.callout('probe.body'),
     picker,
     holder,
@@ -2488,6 +2628,24 @@ async function untpProbe(context, t) {
       ? el('p', { class: 'muted', text: t.text('probe.accounted') })
       : el('div', { class: 'callout', text: t.text('probe.unaccounted') }),
     data.expands ? el('p', { class: 'muted', text: t.text('probe.expands') }) : null,
+  ].filter(Boolean);
+  const findings = el('div', {});
+  const toggle = el('button', {
+    class: 'chip',
+    text: 'Show the probe',
+    'aria-expanded': 'false',
+    onclick: () => {
+      const opening = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', String(opening));
+      toggle.textContent = opening ? 'Hide the probe' : 'Show the probe';
+      clear(findings);
+      if (opening) findings.append(...body);
+    },
+  });
+  return panel(t.text('probe.title'), `${t.text('probe.hint')} ${data.version}`, [
+    t.callout('probe.summary'),
+    toggle,
+    findings,
   ]);
 }
 

@@ -613,6 +613,23 @@ svg.graph { display: block; width: 100%; height: auto; }
 
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* The harmonisation map. An item's name is a button, because pressing it opens the item
+   in the list below; it reads as a link because that is what it does for the reader. The
+   wrapper lets the five columns scroll sideways on a phone instead of the page. */
+.map-wrap { overflow-x: auto; }
+.item-link {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.item-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+
 /* The row that gets a credential off this page and into another tool. Deliberately not
    a .chip: a chip selects what the page shows next, and these leave the page. Same size
    so the two read as equals, different shape so they do not read as the same gesture. */
