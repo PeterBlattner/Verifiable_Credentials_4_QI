@@ -24,17 +24,20 @@ browser.
    ones reuse cached layers.
 3. **Check the health endpoint** at `https://<service>.onrender.com/healthz` — for this
    deployment, <https://verifiable-credentials-4-qi.onrender.com/healthz>. It reports
-   ` »engine »: « linprop »`, which is the confirmation that the deployment is computing
+   `"engine": "linprop"`, which is the confirmation that the deployment is computing
    with the engine it is licensed to ship, and the commit it is running. Compare that
    commit against `main`: a green dashboard says a build succeeded, not that the build
    was the one just merged. The endpoint answers only after the lifespan warm-up has
    built and signed the world, so a 200 means the process can serve rather than that a
-   port opened.
+   port opened. Opened in a browser, it should also report `"caller": "true-client-ip"`:
+   the rate limiter is charging callers by the address Cloudflare states for them.
+   `"unattributed"` means that header did not arrive, and every reader is sharing one
+   bucket.
 4. **Settings → Custom Domains**, add the hostname, then create the DNS records below.
    Certificates are issued and renewed automatically, and HTTP is redirected to HTTPS.
 
 | Type | Name | Value | Notes |
-| — | — | — | — |
+| --- | --- | --- | --- |
 | `CNAME` | `vc` (or `www`) | `<service>.onrender.com.` | What Render wants for any non-apex name. |
 | `ALIAS` / `ANAME` | `@` | `<service>.onrender.com.` | For the bare domain, if the registrar supports it. Preferred: no address is hard-coded. |
 | `A` | `@` | Render’s load-balancer address | Fallback where `ALIAS` is unavailable. Take the address from the dashboard rather than from here. |
@@ -52,15 +55,17 @@ deliberate decision rather than a default.
 Environment variables, all optional and all defaulting to local behaviour:
 
 | Variable | Default | Effect |
-| — | — | — |
+| --- | --- | --- |
 | `VCQI_HOST` | `127.0.0.1` | Bind address. The container sets `0.0.0.0`. |
 | `PORT` | `8000` | Managed hosts assign this. |
 | `VCQI_PUBLIC` | `0` | Turns on the request limits, drops the API docs, and refuses to start if the interface is missing from the package. |
 | `VCQI_RATE_LIMIT_BURST` | `0` (off) | Token bucket size, per client address. |
 | `VCQI_RATE_LIMIT_PER_SECOND` | `1.0` | Refill rate. |
+| `VCQI_CLIENT_IP_HEADER` | unset | The header the rate limiter takes the caller's address from. The container sets `true-client-ip`, which Cloudflare, in front of Render, sets and a caller cannot. A request without it shares one bucket with every other. Unset, the connection's address is used. Never `x-forwarded-for`: Render appends to the caller's copy, so its first entry is whatever the caller wrote. |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | uvicorn's own. The container sets `*` so the scheme is read from `X-Forwarded-Proto`, which HSTS and the exchange URLs depend on. The address uvicorn derives from it is not used. |
 | `VCQI_MAX_BODY_BYTES` | `262144` | Largest request body parsed. |
 | `VCQI_ALLOW_INDEXING` | `0` | Whether `robots.txt` and `X-Robots-Tag` invite crawlers. |
 | `VCQI_ENGINE` | unset | Set to `linprop` to force the deployed uncertainty engine locally. |
 
 `ARCHITECTURE.md` records why `/api/keys/*` is safe to expose and what changed when the
-old answer — « the server binds to localhost » — stopped being true.
+old answer — "the server binds to localhost" — stopped being true.

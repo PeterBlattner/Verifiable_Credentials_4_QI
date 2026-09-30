@@ -102,9 +102,16 @@ ENV VCQI_RATE_LIMIT_BURST=150 \
     VCQI_RATE_LIMIT_PER_SECOND=5.0 \
     VCQI_MAX_BODY_BYTES=262144
 
-# So uvicorn rewrites scope["client"] from X-Forwarded-For and the rate limiter charges
-# the caller rather than the host's proxy.
+# So uvicorn takes the scheme from X-Forwarded-Proto, which is what makes HSTS and the
+# exchange URLs https behind the host's TLS. It also rewrites scope["client"] from the
+# leftmost X-Forwarded-For entry, which the caller writes, so nothing trusts that.
 ENV FORWARDED_ALLOW_IPS=*
+
+# Who the rate limiter charges: the address Cloudflare, in front of Render, states in
+# True-Client-IP. A caller cannot set it, where X-Forwarded-For is theirs to write
+# (issue #69). This assumes Cloudflare in front. Behind another proxy, name the header
+# that proxy sets, or clear this and the connection's address is used.
+ENV VCQI_CLIENT_IP_HEADER=true-client-ip
 
 WORKDIR /app
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
