@@ -94,3 +94,68 @@ Taken with Peter:
 ## Git
 
 Branch `fix/documentation-drift` from `develop`, into `develop`.
+
+# Change set 35 - the harmonisation chapter, up to date and browsable
+
+## Context
+
+Peter found the harmonisation chapter very long and asked whether it is still up to date,
+and how its points could be presented by priority or by topic. The chapter is long mostly
+outside its markdown file: the 24 items in `actors/harmonisation.py` run to about 6,700
+words, and `chapterHarmonisation()` renders every one of them fully expanded.
+
+Review, every claim checked against the code. Out of date:
+1. `certificate-format` said every calibration certificate carries DCC 3.3.0 "with its
+   signature slot unused". METAS-2026-0420 points at the signed 3.4.0-rc.2 example.
+2. The same item named only two certificates. The two recognitions are also projected
+   (Digital Identity Anchors, #94), and all four have been through the Playground.
+3. `governing-copy` said every certificate carries a DCC that is checked against the
+   subject, which is not true of the pointer certificate.
+4. `exchange` opened "Every item above this one", with one item above it.
+5. `timestamps` pointed at the event-log item as "the item below" and reached
+   `governing-copy`. `scope-grammar`'s "the item above" meant `measurands`.
+6. The open panel called what is left "a short list" and named six items, one of them
+   not open. The count is 10 of 24.
+7. The module docstring gave the open share as "near a quarter".
+8. `probe.expands` said "both documents" of a probe over four, and deferred the
+   Playground's result to the history.
+
+Seven later-tier items are advanced by no rung of the ladder. That is by design: the
+ladder has to reach the first tier.
+
+## Decisions
+
+Taken with Peter:
+- **A map, filters and collapsed items**, with the tier order kept as the default.
+- **The open panel rewritten short.**
+- **Two pull requests**, the content first because the prose is his.
+- **Branch.** The first PR is stacked on `fix/documentation-drift` (#73), because that
+  branch renames the chapter file and rewrites its references. So #73's PR merges first.
+
+## Checklist
+
+- [x] 1. PR 1: findings 1 to 8, and a test that no item points at another by position
+- [ ] 2. PR 2: topics on the items, the map, the filters, collapsed items and probe
+- [ ] 3. PR 2: tests, the click-harness floor, docs
+- [ ] 4. Verification
+
+## Progress log
+
+- 2026-09-30: plan approved. Branch `docs/harmonisation-up-to-date`, stacked on
+  `fix/documentation-drift`.
+- 2026-09-30: item 1 done.
+  - Seven items changed and nothing else: `/api/harmonisation` matches the base branch
+    except `certificate-format`, `cryptosuite`, `exchange`, `governing-copy`,
+    `scope-grammar`, `smart-recommendations` and `timestamps`. Tiers and ladder are
+    unchanged.
+  - `cryptosuite` gains one sentence: the signatures reproduce the W3C's test vector.
+  - The open panel keeps its counts, one sentence on the correction and one on which
+    items take longest. The two scope paragraphs left it; their substance is in
+    `scope-grammar` and `scope-query`.
+  - `test_no_item_points_at_another_by_position`. Deliberate break: "the item below"
+    restored in `timestamps` failed it. Restored.
+
+## Git
+
+`docs/harmonisation-up-to-date`, stacked on `fix/documentation-drift`, into `develop`.
+Then `feature/harmonisation-map-and-filters`.

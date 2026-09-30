@@ -12,6 +12,9 @@ The second is the chapter's central claim, and it is the reason this file exists
 
 from __future__ import annotations
 
+import dataclasses
+import re
+
 from starlette.testclient import TestClient
 
 from vcqi.actors.harmonisation import (
@@ -105,6 +108,28 @@ class TestTheLadderAndTheItemsAgree:
         """
         open_items = [item for item in HARMONISATION_ITEMS if item.status == "open"]
         assert len(open_items) * 2 < len(HARMONISATION_ITEMS)
+
+    def test_no_item_points_at_another_by_position(self) -> None:
+        """An item names the item it means, because its neighbours are not fixed.
+
+        The page groups items by tier, not in the order they are written here, so "the
+        item below" in the source was already a different item on the page: the
+        timestamps item pointed at the event-log item that way and reached the one
+        about which copy governs. A filter would move them again.
+        """
+        positional = re.compile(
+            r"\b(?:item|items|panel|identifiers)\s+(?:above|below)\b"
+            r"|\babove this (?:one|list)\b|\bthe next item\b|\bthe previous item\b",
+            re.IGNORECASE,
+        )
+        found = [
+            f"{item.key}.{field.name}: {match.group(0)!r}"
+            for item in HARMONISATION_ITEMS
+            for field in dataclasses.fields(item)
+            if isinstance(getattr(item, field.name), str)
+            for match in positional.finditer(getattr(item, field.name))
+        ]
+        assert found == []
 
     def test_the_two_gaps_the_review_named_are_on_the_page(self) -> None:
         """Cryptographic event logs and long-term retrieval, both in the second tier.
