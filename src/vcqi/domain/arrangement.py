@@ -29,10 +29,10 @@ retrieval and no evidence. Where a registry is worth retrieving -- a CMC, an acc
 scope -- it is because the party being checked is *not* the party that published it.
 
 The standard identifiers are ISO URNs as RFC 5141 defines them, which makes them the one
-family of identifiers in this demonstration that is not invented here -- see chapter 11.
-They do not resolve, so the human title travels beside each one. The edition numbers are
-stated as best known and are exactly the sort of thing a real deployment has to pin
-against the ISO catalogue rather than against anyone's memory.
+family of identifiers in this demonstration that is not invented here -- see the
+harmonisation chapter. They do not resolve, so the human title travels beside each one.
+The edition numbers are stated as best known and are exactly the sort of thing a real
+deployment has to pin against the ISO catalogue rather than against anyone's memory.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
-<!-- 04-issuing.md -- chapter 3 in the rail; the NN- prefix is the position in the
-     CHAPTERS array, which counts the cautions. Rendered by chapterIssuing() in
-     ../../static/js/chapters.js.
+<!-- issuing.md -- rendered by chapterIssuing() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite
@@ -72,7 +72,7 @@ The second is named by the issuer's recognition, in `outputValidation`. It says 
 | Written by | whoever defines the type | the authority granting the recognition |
 | Answers | is this a well-formed document of its type? | is it within what its issuer is recognised for? |
 | The same for | every issuer of the type | one issuer |
-| Checked in chapter 4 | inside the first step, as *Document has the shape its type declares* | as its own step, *Document matches the schema its recognition names* |
+| Checked in [chapter](#verification) | inside the first step, as *Document has the shape its type declares* | as its own step, *Document matches the schema its recognition names* |
 
 Both references carry a digest of the schema they name, and both digests are signed: the first by the issuer, inside the credential, and the second by the recognising authority, inside the recognition. So neither schema can be loosened at its address afterwards: the verifier fetches it, and it no longer matches the digest. `credentialSchema` gives the same SHA-256 digest in two spellings, `digestSRI` and `digestMultibase`.
 
@@ -106,11 +106,11 @@ OIML naming the laboratories recognised to evaluate against R 46. The laboratory
 
 <!-- block: doc.scope-scs-0123 -->
 
-The signed scope behind SCS 0123: what Alpine Calibration may issue accredited calibration certificates for, row by row, with the conditions each row holds under. Chapter 5 is where a certificate is held against it.
+The signed scope behind SCS 0123: what Alpine Calibration may issue accredited calibration certificates for, row by row, with the conditions each row holds under. [Chapter](#scope) is where a certificate is held against it.
 
 <!-- block: doc.scope-sts-0456 -->
 
-The testing scope, STS 0456, behind the test report — electrical safety of household appliances. Its method table is deliberately not published in the document: the body answers questions about it instead, which chapter 5 makes something of.
+The testing scope, STS 0456, behind the test report — electrical safety of household appliances. Its method table is deliberately not published in the document: the body answers questions about it instead, which [chapter](#scope) makes something of.
 
 <!-- block: doc.scope-scesp-0789 -->
 
@@ -130,7 +130,7 @@ Check standard A. METAS calibrating a 10 kΩ resistor, serial `SR10K-0091`, dire
 
 <!-- block: doc.metas-check-b -->
 
-Check standard B, serial `SR10K-0092`. Same institute, same national standard, same day, same budget; only the resistor and the ratio measured against it differ. That is the whole reason the pair exists. The national standard's contribution is one uncertainty being counted twice, so it cancels when a customer takes the difference of the two results — and whether the customer can see that from what was sent is the subject of chapter 6. Put the canonical forms of A and B side by side and very little separates them.
+Check standard B, serial `SR10K-0092`. Same institute, same national standard, same day, same budget; only the resistor and the ratio measured against it differ. That is the whole reason the pair exists. The national standard's contribution is one uncertainty being counted twice, so it cancels when a customer takes the difference of the two results — and whether the customer can see that from what was sent is the subject of [chapter](#traceability). Put the canonical forms of A and B side by side and very little separates them.
 
 <!-- block: doc.metas-external-dcc -->
 
@@ -194,7 +194,7 @@ Only *As a UNTP credential* gets into UN/CEFACT's [UNTP Playground](https://test
 
 <!-- block: takeaway.untp-anchors -->
 
-Only the *UNTP identity anchor* files get into UN/CEFACT's [UNTP Playground](https://test.uncefact.org/test-untp-playground), which accepts UNTP's own credential types only and refuses the other two files at upload. There is one per recognised entity, because UNTP's Digital Identity Anchor names one entity where a W3C recognition lists several. Chapter 11 shows what the anchor keeps of the recognition and what it cannot hold.
+Only the *UNTP identity anchor* files get into UN/CEFACT's [UNTP Playground](https://test.uncefact.org/test-untp-playground), which accepts UNTP's own credential types only and refuses the other two files at upload. There is one per recognised entity, because UNTP's Digital Identity Anchor names one entity where a W3C recognition lists several. [Chapter](#harmonisation) shows what the anchor keeps of the recognition and what it cannot hold.
 
 <!-- block: takeaway.no-untp -->
 
@@ -202,4 +202,4 @@ None of these files gets into UN/CEFACT's [UNTP Playground](https://test.uncefac
 
 <!-- block: what-is-signed -->
 
-One of the types above is unlike everything else here. Certificate METAS-2026-0420, the one document under *Certificate by reference*, carries no measurement at all — no value, no Expanded Uncertainty, no budget. Its claims are a URL, two digests of a PTB/DKD DCC published elsewhere, and four facts of index about it. Put its data model beside the calibration certificate's: where one describes results with a value, an Expanded Uncertainty and a budget, the other describes an address and a digest. Then pick it and watch the canonical form: there is very little of it, because there is very little being said. Everything the certificate actually reports is in a document this credential vouches for and does not contain. Chapter 6 is where that trade is worked through.
+One of the types above is unlike everything else here. Certificate METAS-2026-0420, the one document under *Certificate by reference*, carries no measurement at all — no value, no Expanded Uncertainty, no budget. Its claims are a URL, two digests of a PTB/DKD DCC published elsewhere, and four facts of index about it. Put its data model beside the calibration certificate's: where one describes results with a value, an Expanded Uncertainty and a budget, the other describes an address and a digest. Then pick it and watch the canonical form: there is very little of it, because there is very little being said. Everything the certificate actually reports is in a document this credential vouches for and does not contain. [Chapter](#traceability) is where that trade is worked through.

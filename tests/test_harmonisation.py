@@ -121,11 +121,11 @@ class TestTheLadderAndTheItemsAgree:
     def test_the_retrieval_item_quotes_what_was_actually_measured(self) -> None:
         """It rests on a real count, and the count is produced by another chapter.
 
-        Chapter 10 verifies the conformity certificate for real and reports how many
-        distinct documents across how many hosts that took. This item writes those two
-        numbers into a sentence, and a sentence is not recomputed when the world grows.
-        Comparing against the live figures is the difference between a measurement and
-        a number that was true once.
+        The infrastructure chapter verifies the conformity certificate for real and
+        reports how many distinct documents across how many hosts that took. This item
+        writes those two numbers into a sentence, and a sentence is not recomputed when
+        the world grows. Comparing against the live figures is the difference between a
+        measurement and a number that was true once.
 
         The remaining count -- everything except the credential the holder presents --
         is checked too, because it is the whole point of the item: the credential is
@@ -142,11 +142,12 @@ class TestTheLadderAndTheItemsAgree:
 
 
 class TestTheMeasurandCoincidence:
-    """The claim chapter 11 is built on, kept honest by a test.
+    """The claim the harmonisation chapter is built on, kept honest by a test.
 
-    Chapter 5 decides whether a calibration may carry the CIPM MRA logo by comparing the
-    measurand on the certificate with the measurand on the published capability, and
-    ``domain/scope.py`` makes that comparison with ``==`` on a free string.
+    The scope chapter decides whether a calibration may carry the CIPM MRA logo by
+    comparing the measurand on the certificate with the measurand on the published
+    capability, and ``domain/scope.py`` makes that comparison with ``==`` on a free
+    string.
 
     It passes here because the CMC and the accreditation scope were written by one author
     in one afternoon. In a real deployment the CMC comes from the BIPM's KCDB and the
@@ -168,9 +169,9 @@ class TestTheMeasurandCoincidence:
         # Different organisations publish these two documents.
         assert cmc.institute != scope.body
 
-        # And yet the strings match exactly, which is what chapter 5 depends on. The
-        # scope says it a row at a time now, which changes nothing about the coincidence:
-        # there are simply more free strings that have to agree by luck.
+        # And yet the strings match exactly, which is what the scope chapter depends on.
+        # The scope says it a row at a time now, which changes nothing about the
+        # coincidence: there are simply more free strings that have to agree by luck.
         row = next(row for row in scope.as_rows() if row.measurand == "dc.resistance")
         assert cmc.measurand == row.measurand == "dc.resistance"
         assert cmc.unit == row.unit == "ohm"

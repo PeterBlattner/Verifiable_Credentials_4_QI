@@ -1,6 +1,6 @@
-<!-- 13-exchange.md -- chapter 12 in the rail; the NN- prefix is the position in the
-     CHAPTERS array, which counts the cautions. Rendered by chapterMoving() in
-     ../../static/js/chapters.js.
+<!-- exchange.md -- rendered by chapterMoving() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite
@@ -49,7 +49,7 @@ One: the credential is a file
 
 UN/CEFACT put the argument for this most sharply, and it is an argument from failure rather than from elegance. Fifty years of electronic data interchange digitised something like a tenth of cross-border trade, because a network of hubs and pipes only ever reaches the parties who joined it, and a commercial invoice is needed by the exporter, the importer, two customs authorities, banks, insurers, brokers and freight forwarders. The network never reaches all of them. So [stop building the network](https://unvtd.unece.org/architecture/portable-credentials/): sign the document, and let it travel with the consignment by email, file transfer, a USB drive or a QR code.
 
-**This demonstration was already built that way and had not noticed.** Every credential here is a signed file that verifies wherever it is found; the world dumps to 86 documents on disk and they verify from there. Chapter 10 computes the same property from the other end — the institute keeps three documents online while eight of its credentials travel unhosted — and calls it a hosting burden rather than an architecture.
+**This demonstration was already built that way and had not noticed.** Every credential here is a signed file that verifies wherever it is found; the world dumps to 86 documents on disk and they verify from there. [Chapter](#infrastructure) computes the same property from the other end — the institute keeps three documents online while eight of its credentials travel unhosted — and calls it a hosting burden rather than an architecture.
 
 Metrology has the oldest instance of the idea in existence, and it is not digital. **A calibration certificate already travels with the instrument.** The paper in the box is a portable credential: self-contained, checkable by whoever opens the box, and dependent on no service being reachable. What the cryptography adds is not the idea. It is that the copy in the box can now be checked.
 
@@ -69,7 +69,7 @@ The same verification, twice
 
 Both runs reach **{outcome}**. Handing the verifier everything it is allowed to accept second-hand removes {travelling} of the {baseline} retrievals and changes no verdict, which is the portable-credential claim holding up under measurement rather than in principle.
 
-What is left is the part that is not portable. And if the registries were signed — the one removable reason below — the residue would be {residue} documents of exactly two kinds: **{kinds}**. That is each organisation’s key and its revocation list, and nothing else. It is also, to the document, the hosting burden chapter 10 computed from the opposite direction. Neither chapter knew it was describing the same quantity.
+What is left is the part that is not portable. And if the registries were signed — the one removable reason below — the residue would be {residue} documents of exactly two kinds: **{kinds}**. That is each organisation’s key and its revocation list, and nothing else. It is also, to the document, the hosting burden [chapter](#infrastructure) computed from the opposite direction. Neither chapter knew it was describing the same quantity.
 
 Two kinds, and it is tempting to read that as one residue. It is not. A key must be **authentic**, and a copy of one from a year ago is still the key. A status list must be **fresh**, and a copy of one from a day ago is a day of undetected revocation. Only the second has a clock in it, and the next section is about what that clock costs.
 
@@ -83,11 +83,11 @@ Three: the document travels, and the issuer publishes a list
 
 <!-- block: three -->
 
-The portable argument has a hole in it that its own page does not mention. UN/CEFACT says a signed document can travel by email, file transfer, a USB drive or a QR code, and never once says what happens when it has to be withdrawn. UNTP, built on exactly that architecture, does say: a conformant implementation *MUST implement W3C VC Bitstring Status List for credential status management including revocation*, and every UNTP object is described as tamper-evident, issuer-identifiable and **revocable**. Two UN pages, one architecture, and only the second of them has a way to take something back. (Its schema then types the status index as a number where the W3C Recommendation it cites, and its own description of the member, say a string; chapter 11's probe carries the index the W3C way and records the refusal.)
+The portable argument has a hole in it that its own page does not mention. UN/CEFACT says a signed document can travel by email, file transfer, a USB drive or a QR code, and never once says what happens when it has to be withdrawn. UNTP, built on exactly that architecture, does say: a conformant implementation *MUST implement W3C VC Bitstring Status List for credential status management including revocation*, and every UNTP object is described as tamper-evident, issuer-identifiable and **revocable**. Two UN pages, one architecture, and only the second of them has a way to take something back. (Its schema then types the status index as a number where the W3C Recommendation it cites, and its own description of the member, say a string; [chapter](#harmonisation)'s probe carries the index the W3C way and records the refusal.)
 
 So there is a third arrangement between the two, and it is the one nearly every real deployment runs. The document still travels. Nobody talks to anybody — no protocol, no state, no challenge, nothing for the holder to consent to and no channel back to the issuer. But one document cannot be carried, because it is a claim about the present tense, and the verifier has to go and get it.
 
-Chapter 10’s rule survives this intact, and it is worth saying why rather than leaving it looking contradicted. **A status list is a file, not a question.** The issuer serves the same bytes to everyone who asks, is asked nothing, and answers nobody in particular. Verification is still a computation. A conversation is the section after this one.
+[Chapter](#infrastructure)’s rule survives this intact, and it is worth saying why rather than leaving it looking contradicted. **A status list is a file, not a question.** The issuer serves the same bytes to everyone who asks, is asked nothing, and answers nobody in particular. Verification is still a computation. A conversation is the section after this one.
 
 <!-- block: lists.title -->
 
@@ -217,7 +217,7 @@ And the exchange charges for it. State means a service, a store, an expiry polic
 
 <!-- block: claim.title -->
 
-Chapter 10’s claim, stated properly
+[Chapter](#infrastructure)’s claim, stated properly
 
 <!-- block: claim.hint -->
 
@@ -225,6 +225,6 @@ it was right, and for a reason it did not give
 
 <!-- block: claim -->
 
-Chapter 10 says a verifier operates nothing, and an earlier version of this chapter called that an overstatement. It is not one — it is a claim about the portable model, and under that model it is true. Checking a credential you already hold is free and works on a laptop at a border post with an intermittent connection — as long as the connection comes back before the status list in the cache goes stale, which is the one thing the middle model puts a clock on.
+[Chapter](#infrastructure) says a verifier operates nothing, and an earlier version of this chapter called that an overstatement. It is not one — it is a claim about the portable model, and under that model it is true. Checking a credential you already hold is free and works on a laptop at a border post with an intermittent connection — as long as the connection comes back before the status list in the cache goes stale, which is the one thing the middle model puts a clock on.
 
 What is true alongside it is that *asking* for a credential is not free. So the cost is a property of the architecture chosen, not of credentials: choose the portable model and a verifier really does operate nothing, at the price of never being able to ask and never being told that anything was withdrawn; add the list and it is told, at the price of one retrieval it cannot pre-ship; choose the exchange and it can ask, at the price of running something. The measurement above is what that choice actually costs in this world, and the residue — a key and a revocation list per organisation — is what none of the three can avoid.

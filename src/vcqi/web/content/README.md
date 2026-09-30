@@ -54,11 +54,20 @@ Changing the words inside a block is always safe.
 | *italic* | `*italic*` |
 | `code` or an identifier | `` `dc.resistance` `` |
 | a link | `[the text](https://example.org)` |
+| a reference to another chapter | `[chapter](#scope)`, or `[Chapter](#scope)` to start a sentence |
 | a new paragraph | leave a blank line |
 | a bullet list | lines beginning `- ` |
 | a numbered list | lines beginning `1. ` |
 | a small heading | `### Like this` |
 | a quotation | lines beginning `> ` |
+
+**Refer to another chapter by its id, never by its number.** Write
+`[chapter](#scope)` and the page shows "chapter N", linked to the chapter, with whatever
+number the chapter has at the time; on GitHub's preview it reads as a link saying
+"chapter". The id is the file's name without `.md`, and the list is in
+[`../../../../CONTENT.md`](../../../../CONTENT.md). A test fails on a number written by
+hand and on an id that is not a chapter, so a chapter can move without any sentence
+having to change. "The next chapter" is fine as it is.
 
 An example of code or JSON goes between two fence lines. The first reads ```` ```json ````
 and the last reads ```` ``` ````, and everything between them is shown exactly as written:
@@ -118,25 +127,27 @@ you are not left hunting:
 - **Labels on buttons, sliders and options.** They are short and tied to the code that
   reads them.
 - **The names and descriptions of the organisations, certificates and failure cases.**
-  Those are data rather than prose; they live in `src/vcqi/actors/`. The one exception is
-  the short note under each document chip in chapter 3, which *is* prose: those are the
-  `doc.` blocks in `chapters/04-issuing.md` and you can edit them like any other. The
-  labels on chapter 3's *type* chips are the titles of the data models, in
-  `src/vcqi/vc/datamodel.py`, because the box under the chips shows the same title.
-- **The deployment, harmonisation and portability tables** behind chapters 10, 11 and 12,
-  for the same reason — they are records with many fields, which a markdown file
-  expresses badly.
+  Those are data rather than prose; they live in `src/vcqi/actors/`. The one exception
+  is the short note under each document chip in the issuing chapter, which *is* prose:
+  those are the `doc.` blocks in `chapters/issuing.md` and you can edit them like any
+  other. The labels on the issuing chapter's *type* chips are the titles of the data
+  models, in `src/vcqi/vc/datamodel.py`, because the box under the chips shows the same
+  title.
+- **The deployment, harmonisation and portability tables** behind the infrastructure,
+  harmonisation and exchange chapters, for the same reason — they are records with many
+  fields, which a markdown file expresses badly. They refer to other chapters the same
+  way the prose does, `[chapter](#scope)`, and the page shows the number.
 - **A sentence built around a number the page has just worked out**, where the number is
   not a simple substitution. Those stay next to the calculation.
-- **Three comparison tables** — the signing-versus-encryption one in chapter 1, and the
-  two signature comparisons in chapter 6. They are assembled as table elements rather
-  than as words.
+- **Three comparison tables** — the signing-versus-encryption one in the keys chapter,
+  and the two signature comparisons in the traceability chapter. They are assembled as
+  table elements rather than as words.
 - **The repository's own documents**, `README.md` and `ARCHITECTURE.md`, which are edited
   where they are.
 - **The caution banner at the top of every page.** That one is in
   `../static/index.html`. It has to appear even when the server is unreachable and none of
   this has loaded, so it cannot come from here. The full statement behind it is
-  `chapters/00-cautions.md`, which you *can* edit — but the same words are also in the
+  `chapters/cautions.md`, which you *can* edit — but the same words are also in the
   repository's `README.md`, so a correction to one needs the same correction to the other
   or the site and the repository end up saying different things about how much to trust
   the work.

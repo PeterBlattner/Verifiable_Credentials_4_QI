@@ -1,6 +1,6 @@
-<!-- 12-harmonisation.md -- chapter 11 in the rail; the NN- prefix is the position in
-     the CHAPTERS array, which counts the cautions. Rendered by chapterHarmonisation()
-     in ../../static/js/chapters.js.
+<!-- harmonisation.md -- rendered by chapterHarmonisation() in ../../static/js/chapters.js.
+     To send a reader to another chapter, write [chapter](#scope), or [Chapter](#scope)
+     to start a sentence: the page shows the number the rail gives it.
 
      Each "block:" comment line below starts one block that the page asks for by
      name. Edit the words freely; renaming a key breaks the page, and the test suite
@@ -48,13 +48,13 @@ fetch both — the BIPM publishes one, the accreditation body the other
 
 <!-- block: one-string.body -->
 
-Both say `dc.resistance`, and chapter 5 decides whether a calibration may carry the CIPM MRA logo by comparing those two strings for equality. They match because one author wrote both files. Two organisations that had never spoken would not have produced the same string, and the comparison would fail — not because the laboratory was outside its scope, but because nobody had agreed a name for resistance.
+Both say `dc.resistance`, and [chapter](#scope) decides whether a calibration may carry the CIPM MRA logo by comparing those two strings for equality. They match because one author wrote both files. Two organisations that had never spoken would not have produced the same string, and the comparison would fail — not because the laboratory was outside its scope, but because nobody had agreed a name for resistance.
 
 The instinct is to conclude that the metrology vocabularies are missing and would have to be invented. That is wrong, and worth correcting carefully: the BIPM already publishes permanent digital identifiers for every SI unit through the [SI Digital Framework](https://si-digital-framework.org/SI?lang=en), resolvable CMC identifiers already exist through the [KCDB-CMC service](https://si-digital-framework.org/kcdb-cmc/), and identifiers for measurands are being worked on at ISO and IEC. The finding is not that no vocabulary exists. It is that one exists and this demonstration did not use it.
 
 <!-- block: one-test -->
 
-What follows is sorted by one test, and anything failing it was left out: **two conforming implementations that differ here cannot interoperate.** That is what separates a harmonisation need from a deployment gap, and chapter 9 has the deployment gaps already. The tiers are meant to be read in order, because the order is the argument.
+What follows is sorted by one test, and anything failing it was left out: **two conforming implementations that differ here cannot interoperate.** That is what separates a harmonisation need from a deployment gap, and [chapter](#implications) has the deployment gaps already. The tiers are meant to be read in order, because the order is the argument.
 
 How a list like this gets made is worth one paragraph, because the obvious method would have missed the newest items on it. The obvious method is to tabulate the recognition relationships across the whole quality infrastructure — who recognises whom, for what, under which arrangement — and read the common vocabulary off the table. That is a good exercise and it should be done. It would also have produced a scope with a quantity, a range and an uncertainty in it, which is exactly the model this demonstration started with and had to throw away. The grammars a real scope uses, and the rows that cannot be written down at all, became visible only when something had to decide a case and could not. A table of relationships and one chain built end to end find different problems, and neither finds the other's.
 
@@ -76,7 +76,7 @@ What is left, once the answered items are set aside, is a short list, and the pa
 
 Some of the rest is technical, and two of those arrived the same way: somebody read a published accreditation scope properly for the first time.
 
-A **calibration** scope is a table, and its coverage column uses three grammars that no specification defines — a list of fixed values, an interval with a strict bound, and a nominal with a tolerance — over rows that are keyed by more than the quantity, since a condition band decides which of two otherwise identical rows applies. Chapter 5 shows the verifier choosing among them.
+A **calibration** scope is a table, and its coverage column uses three grammars that no specification defines — a list of fixed values, an interval with a strict bound, and a nominal with a tolerance — over rows that are keyed by more than the quantity, since a condition band decides which of two otherwise identical rows applies. [Chapter](#scope) shows the verifier choosing among them.
 
 A **testing** scope is a table that cannot be handed over at all. It runs to fourteen pages, lists its methods as sets of equivalent designations, and marks some of its rows flexible — meaning they cover editions of a standard that did not exist when the scope was granted. That answer has to be derived rather than looked up, so the scope is asked rather than read, and nobody has agreed what asking looks like: not that the reply should be signed, and not that the date being asked about should be a parameter at all. The second of those is the one with teeth. A certificate is evidence about the day it was issued, and a register that only answers about today answers the wrong question in the direction that lets work through.
 
@@ -100,7 +100,7 @@ More arrives than the first run of this probe, against UNTP 0.6.0, suggested. A 
 
 What still does not arrive is the uncertainty. `Measure` holds a value, a unit and two tolerances, and a tolerance is a limit — UNTP's own example reads 10 kg + 0.1 kg — where an Expanded Uncertainty at k=2 is a coverage interval. Writing one into the other would restate a 95 % statement as a certainty, so the value travels rounded as the certificate reports it, and without its uncertainty. Three identifiers UNTP requires do not exist on this side: one for the measurand, which ISO and IEC are still defining; one for the scheme, since nothing here gives the CIPM MRA an identifier; and one for IEC 60335-1, which the certificate names by its designation. The unit arrives as a UNECE Recommendation 20 code, `OHM`, expanded against UN/CEFACT's code list — a second register beside the BIPM's.
 
-One layer up, the recognitions go the same way. UN/CEFACT's counterpart of a W3C recognition is the Digital Identity Anchor, in which a registrar says that a DID belongs to an entity in its register. So the BIPM's recognition of METAS and the Swiss Accreditation Service's recognition of the certification body are each expressed as an anchor too — one per entity, since an anchor names one where a recognition lists several. The entity arrives, with its registrar, its entry on the registrar's site and the capabilities it is recognised for, as a list of links. What does not arrive is the part a verifier acts on: what the entity is recognised to *do*, the `outputValidation` schemas a document issued under the recognition must satisfy — the check chapter 4 runs — and the validity of each recognised action. UNTP also wants a registration number and a first-registration date that no recognition here states, and its register types stop at accreditation, so the CIPM MRA has none.
+One layer up, the recognitions go the same way. UN/CEFACT's counterpart of a W3C recognition is the Digital Identity Anchor, in which a registrar says that a DID belongs to an entity in its register. So the BIPM's recognition of METAS and the Swiss Accreditation Service's recognition of the certification body are each expressed as an anchor too — one per entity, since an anchor names one where a recognition lists several. The entity arrives, with its registrar, its entry on the registrar's site and the capabilities it is recognised for, as a list of links. What does not arrive is the part a verifier acts on: what the entity is recognised to *do*, the `outputValidation` schemas a document issued under the recognition must satisfy — the check [chapter](#verification) runs — and the validity of each recognised action. UNTP also wants a registration number and a first-registration date that no recognition here states, and its register types stop at accreditation, so the CIPM MRA has none.
 
 One thing is carried and refused. The W3C Bitstring Status List Recommendation says a status index is an integer written as a string, and so does UNTP's own description of the member, but UNTP's schema types it as a number. The projection writes it the way W3C does, and the schema says so.
 

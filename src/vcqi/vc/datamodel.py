@@ -29,9 +29,9 @@ and what every type shares last. Validation never needs the network, and
 **Open, deliberately.** No schema here sets ``additionalProperties`` to false. A
 credential is JSON-LD and is meant to be extended, and the JSON Schema specification for
 credentials advises against closing a schema for exactly that reason. What keeps the
-schemas honest instead is a test: it walks every credential the world issues and fails if
-any member one carries is not declared here, so the box in chapter 3 cannot quietly leave
-a field out.
+schemas honest instead is a test: it walks every credential the world issues and fails
+if any member one carries is not declared here, so the box in the issuing chapter cannot
+quietly leave a field out.
 
 **The verifier knows which model belongs to which type.** ``DATA_MODEL_URLS`` is that
 knowledge. Without it an issuer could cite a permissive schema of its own and pass; with
@@ -73,7 +73,7 @@ JSON_SCHEMA_DIALECT: Final[str] = "https://json-schema.org/draft/2020-12/schema"
 
 #: The data model published for each credential type, in the order the chain runs: the
 #: arrangements at the top, then what they recognise, then the documents about somebody
-#: in particular. Chapter 3 offers the types in this order.
+#: in particular. The issuing chapter offers the types in this order.
 DATA_MODEL_URLS: Final[dict[str, str]] = {
     "RecognizedEntityCredential": f"{DATA_MODEL_BASE}/recognized-entity-credential.json",
     "AccreditationScopeCredential": (
@@ -186,11 +186,11 @@ def _optional(properties: dict[str, Any], *optional: str) -> dict[str, Any]:
 def _verifiable_credential() -> dict[str, Any]:
     """Return what every credential in this world has, whatever its type.
 
-    ``credentialSubject`` is required and not described: a recognition lists its subjects
-    in an array and every other type states one object, so the envelope cannot say more
-    than that one is there. ``proof`` is described and not required, so that a credential
-    before signing -- the first panel in chapter 3 -- satisfies the same model as the
-    credential after.
+    ``credentialSubject`` is required and not described: a recognition lists its
+    subjects in an array and every other type states one object, so the envelope cannot
+    say more than that one is there. ``proof`` is described and not required, so that a
+    credential before signing -- the first panel in the issuing chapter -- satisfies the
+    same model as the credential after.
 
     Returns:
         A JSON Schema subschema.
@@ -832,7 +832,8 @@ def _oiml_certificate() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]
 
 
 #: Per type: the chip label and the one line under it, and the builder of what is
-#: particular to the type. A title is a name, because chapter 3 puts it on a button.
+#: particular to the type. A title is a name, because the issuing chapter puts it on a
+#: button.
 _TYPES: Final[dict[str, tuple[str, str, Any]]] = {
     "RecognizedEntityCredential": (
         "Recognition",

@@ -30,7 +30,7 @@ What this module does not model, deliberately:
   national authority that would convert one into the other. See ``ARCHITECTURE.md``.
 - **Scheme A and Scheme B.** The OIML-CS has both. What distinguishes them was not
   established from a primary source while this was written, so nothing here depends on the
-  difference and chapter 11 says so rather than guessing.
+  difference and the harmonisation chapter says so rather than guessing.
 - **Utilizers and Associates.** Two of the scheme's four stakeholder categories, out of
   scope for the same reason the national layer is.
 
@@ -103,7 +103,8 @@ class Recommendation:
             one. Whether the uncertainty is *small enough* to support a verdict is a
             different question, and this demonstration does not add a step for it.
         machine_readable: Whether a machine-actionable form of the requirements exists.
-            ``False`` everywhere today, which is the point of the chapter 11 item.
+            ``False`` everywhere today, which is the point of the harmonisation
+            chapter's item.
     """
 
     number: str

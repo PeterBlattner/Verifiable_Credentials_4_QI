@@ -441,7 +441,7 @@ def project_calibration_certificate(
             "Partly carried: the endorsement names the recognition behind the issuer and "
             "assessmentLevel says authority-peer. The claim itself -- that this "
             "certificate carries the CIPM MRA logo -- has no member, so a verifier cannot "
-            "adjudicate it against the CMC as chapter 4 does.",
+            "adjudicate it against the CMC as [chapter](#verification) does.",
         ),
     ):
         if _has(source, member):
@@ -758,9 +758,10 @@ def project_recognition(source: dict[str, Any], subject: str | None) -> Projecti
         ),
         (
             "outputValidation",
-            "The schemas a document issued under the recognition must satisfy, pinned by "
-            "digest, have no member. They are what chapter 4 checks a certificate "
-            "against, so this is the part of a recognition a verifier can act on.",
+            "The schemas a document issued under the recognition must satisfy, pinned "
+            "by digest, have no member. They are what [chapter](#verification) checks "
+            "a certificate against, so this is the part of a recognition a verifier "
+            "can act on.",
         ),
         (
             "validFrom",
@@ -1142,9 +1143,9 @@ def _party(reference: Any) -> dict[str, Any] | None:
 def _criterion(capability: Any) -> dict[str, Any] | None:
     """Render the capability a calibration was issued within as an UNTP Criterion.
 
-    A CMC is what the certificate is checked against in chapter 4, through its
-    ``outputValidation`` schema, so it serves as the criterion. So does an accreditation
-    scope, which lists the laboratory's CMCs.
+    A CMC is what the certificate is checked against in the verification chapter,
+    through its ``outputValidation`` schema, so it serves as the criterion. So does an
+    accreditation scope, which lists the laboratory's CMCs.
 
     Args:
         capability: The ``capabilityReference`` member of the source credential.

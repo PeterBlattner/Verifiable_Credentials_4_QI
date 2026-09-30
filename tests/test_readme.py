@@ -18,12 +18,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from vcqi.web.app import app
-from vcqi.web.content import blocks_for
+from vcqi.web.content import CHAPTER_ORDER, UNNUMBERED, blocks_for
 
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
-SCRIPTS = ROOT / "src" / "vcqi" / "web" / "static" / "js"
-CHAPTERS_JS = (SCRIPTS / "chapters.js").read_text(encoding="utf-8")
 
 #: The number words the README uses, and only those, so a new one fails loudly.
 WORDS = {"three": 3, "five": 5, "eight": 8, "nine": 9, "eleven": 11, "thirteen": 13}
@@ -143,10 +141,7 @@ def test_the_chapter_list_is_the_chapters_in_order() -> None:
     """
     entries = re.findall(r"^(\d+)\. \*\*(.+?)\*\* — ", README, re.MULTILINE)
     assert entries, "the README no longer lists the chapters"
-    declared = re.findall(
-        r"^    id: '([a-z-]+)',\n(    unnumbered: true,\n)?", CHAPTERS_JS, re.MULTILINE
-    )
-    numbered = [chapter_id for chapter_id, unnumbered in declared if not unnumbered]
+    numbered = [chapter_id for chapter_id in CHAPTER_ORDER if chapter_id not in UNNUMBERED]
     expected = [
         (str(number), blocks_for(chapter_id)["title"]["text"])
         for number, chapter_id in enumerate(numbered)

@@ -6,12 +6,12 @@
 // content fetches outrun it and the harness reads the stage while the *previous* chapter
 // is still on it.
 //
-// That was caught in `ui-clicks.mjs`, once, as `FAILED: 4 inert control(s)` with chapter
-// 11's fourteen controls counted against chapter 12 and chapter 11 credited with none.
-// It could as easily have gone the other way and reported a clean run for a page it never
-// looked at. In `chapter-snapshot.mjs` the same race captures the spinner instead of the
-// chapter, which puts a difference into a baseline that nobody made -- or hides one that
-// somebody did.
+// That was caught in `ui-clicks.mjs`, once, as `FAILED: 4 inert control(s)` with the
+// harmonisation chapter's fourteen controls counted against the exchange chapter and
+// the harmonisation chapter credited with none. It could as easily have gone the other
+// way and reported a clean run for a page it never looked at. In `chapter-snapshot.mjs`
+// the same race captures the spinner instead of the chapter, which puts a difference
+// into a baseline that nobody made -- or hides one that somebody did.
 //
 // The conditions were always there to be read. In `show()` in app.js:
 //

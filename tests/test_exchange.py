@@ -369,9 +369,10 @@ class TestItRefusesWhatItShould:
 
         Every credential in this presentation is genuine and verifies perfectly, because
         credentials are public documents and anyone can obtain a copy. What the attacker
-        cannot do is sign an authentication proof as the laboratory. Chapter 2 makes this
-        point about credentials; it is the same point about presentations, and it is the
-        only thing standing between a public certificate and anyone claiming it.
+        cannot do is sign an authentication proof as the laboratory. The keys chapter
+        makes this point about credentials; it is the same point about presentations,
+        and it is the only thing standing between a public certificate and anyone
+        claiming it.
         """
         world = build_world()
         store = ExchangeStore()

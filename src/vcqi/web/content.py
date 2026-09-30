@@ -42,10 +42,16 @@ from vcqi.web.markdown import render, to_text
 __all__ = [
     "CONTENT_ROOT",
     "CHAPTERS_ROOT",
+    "CHAPTER_ORDER",
     "MISSING_PREFIX",
+    "UNNUMBERED",
+    "UNKNOWN_CHAPTER",
     "chapter_ids",
+    "chapter_number",
     "content_payload",
     "blocks_for",
+    "number_chapter_references",
+    "with_chapter_numbers",
 ]
 
 CONTENT_ROOT: Final[Path] = Path(__file__).parent / "content"
@@ -64,10 +70,44 @@ _BLOCK: Final = re.compile(
     r"^<!--\s*block:\s*([a-z0-9][a-z0-9.-]*)\s*-->\s*$", re.MULTILINE
 )
 
-#: ``01-orientation.md`` -> ``orientation``. The number is there so a directory listing
-#: reads in chapter order; the authoritative order is the CHAPTERS array in chapters.js,
-#: and a test asserts the two agree so the listing cannot lie.
-_FILENAME: Final = re.compile(r"^(\d+)-([a-z][a-z-]*)$")
+#: The chapters in the order the rail shows them, each in ``chapters/<id>.md``. The
+#: CHAPTERS array in chapters.js lists the same ids in the same order, because it holds
+#: the render functions, and a test holds the two together. This is where a chapter's
+#: number comes from, so moving a chapter is moving one line here and one there.
+#:
+#: The files used to carry their position as a prefix, ``08-break.md``, which was one
+#: more than the number a reader sees because the cautions come first. Every reference
+#: to a chapter was written by number, in twenty-odd places, so nothing could move
+#: (issue #73).
+CHAPTER_ORDER: Final[tuple[str, ...]] = (
+    "cautions",
+    "orientation",
+    "keys",
+    "graph",
+    "issuing",
+    "verification",
+    "scope",
+    "traceability",
+    "break",
+    "tamper",
+    "implications",
+    "infrastructure",
+    "harmonisation",
+    "exchange",
+)
+
+#: Shown first and outside the numbering. The cautions are read before anything else,
+#: and they are not a chapter anything refers a reader to.
+UNNUMBERED: Final[frozenset[str]] = frozenset({"cautions"})
+
+#: ``[chapter](#scope)`` or ``[Chapter](#scope)``: a reference to another chapter by id.
+#: On GitHub's preview of a file it reads as a link saying "chapter"; on the page it
+#: becomes "chapter 5", still a link, with the number the rail shows.
+_CHAPTER_REFERENCE: Final = re.compile(r"\[([Cc]hapter)\]\(#([a-z][a-z-]*)\)")
+
+#: What a reference to a chapter that does not exist renders as, visibly, in the way a
+#: missing block does. A test also fails on one.
+UNKNOWN_CHAPTER: Final[str] = "[unknown chapter: "
 
 
 def _kind(html: str) -> str:
@@ -115,27 +155,96 @@ def _chapter_files() -> list[tuple[int, str, Path]]:
     """Find the chapter content files.
 
     Returns:
-        One ``(order, chapter id, path)`` per file, sorted by the numeric prefix.
-        Files whose names do not match the convention are skipped rather than guessed
-        at; a test asserts the set matches the chapters the interface declares.
+        One ``(position, chapter id, path)`` per chapter in :data:`CHAPTER_ORDER` that
+        has a file. A file for a chapter not in the order is not served; a test asserts
+        the files and the order match.
     """
-    found: list[tuple[int, str, Path]] = []
-    if not CHAPTERS_ROOT.is_dir():
-        return found
-    for path in sorted(CHAPTERS_ROOT.glob("*.md")):
-        match = _FILENAME.match(path.stem)
-        if match:
-            found.append((int(match.group(1)), match.group(2), path))
-    return sorted(found)
+    return [
+        (position, chapter_id, CHAPTERS_ROOT / f"{chapter_id}.md")
+        for position, chapter_id in enumerate(CHAPTER_ORDER)
+        if (CHAPTERS_ROOT / f"{chapter_id}.md").is_file()
+    ]
 
 
 def chapter_ids() -> list[str]:
-    """Return the chapter ids that have content, in file order.
+    """Return the chapter ids that have content, in the order the rail shows them.
 
     Returns:
-        The ids, taken from the filenames.
+        The ids.
     """
     return [chapter_id for _, chapter_id, _ in _chapter_files()]
+
+
+def chapter_number(chapter_id: str) -> int:
+    """Return the number the rail shows for a chapter.
+
+    Args:
+        chapter_id: The chapter.
+
+    Returns:
+        Its position among the numbered chapters, counting from 0.
+
+    Raises:
+        ValueError: If there is no such chapter, or it is one the rail does not number.
+    """
+    numbered = [item for item in CHAPTER_ORDER if item not in UNNUMBERED]
+    if chapter_id not in numbered:
+        raise ValueError(f"no numbered chapter {chapter_id!r}")
+    return numbered.index(chapter_id)
+
+
+def _numbered(match: re.Match[str], *, link: bool) -> str:
+    """Render one chapter reference.
+
+    Args:
+        match: A match of :data:`_CHAPTER_REFERENCE`.
+        link: Whether to keep the reference a markdown link.
+
+    Returns:
+        ``[chapter 5](#scope)`` with a link, ``chapter 5`` without, or a visible marker
+        when the chapter does not exist.
+    """
+    word, chapter_id = match.groups()
+    try:
+        number = chapter_number(chapter_id)
+    except ValueError:
+        return f"{word} {UNKNOWN_CHAPTER}{chapter_id}]"
+    return f"[{word} {number}](#{chapter_id})" if link else f"{word} {number}"
+
+
+def number_chapter_references(markdown: str) -> str:
+    """Give every ``[chapter](#id)`` in a block the number the rail shows.
+
+    Args:
+        markdown: One block's markdown, before it is rendered.
+
+    Returns:
+        The markdown with ``[chapter](#scope)`` written as ``[chapter 5](#scope)``, so
+        it renders as a link saying "chapter 5".
+    """
+    return _CHAPTER_REFERENCE.sub(lambda match: _numbered(match, link=True), markdown)
+
+
+def with_chapter_numbers(value: Any) -> Any:
+    """Number the chapter references in plain text, wherever they sit in a payload.
+
+    For the editorial fields in ``actors/harmonisation.py``, ``actors/deployment.py``
+    and the UNTP probe's findings, which the page sets as text rather than HTML and
+    which therefore cannot carry a link.
+
+    Args:
+        value: A string, or lists and dictionaries of them, as a route returns.
+
+    Returns:
+        The same shape, with each ``[chapter](#scope)`` written as ``chapter 5``.
+    """
+    if isinstance(value, str):
+        return _CHAPTER_REFERENCE.sub(lambda match: _numbered(match, link=False), value)
+    if isinstance(value, list):
+        return [with_chapter_numbers(item) for item in value]
+    if isinstance(value, dict):
+        return {key: with_chapter_numbers(item) for key, item in value.items()}
+    return value
 
 
 _cache: dict[str, Any] | None = None
@@ -172,8 +281,12 @@ def content_payload() -> dict[str, Any]:
     for _, chapter_id, path in _chapter_files():
         rendered: dict[str, dict[str, str]] = {}
         for key, markdown in _parse(path.read_text(encoding="utf-8")).items():
-            html = render(markdown)
-            rendered[key] = {"html": html, "text": to_text(html), "kind": _kind(html)}
+            html = render(number_chapter_references(markdown))
+            # The text form is rendered from the plain-text references rather than
+            # stripped from the links, because stripping a tag leaves a space where it
+            # was: a title would read "Chapter 10 's claim".
+            text = to_text(render(with_chapter_numbers(markdown)))
+            rendered[key] = {"html": html, "text": text, "kind": _kind(html)}
         chapters[chapter_id] = rendered
 
     _cache = {"chapters": chapters}

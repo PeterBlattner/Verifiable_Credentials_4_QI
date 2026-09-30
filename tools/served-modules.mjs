@@ -6,9 +6,9 @@
 //
 // which tests the code and not the delivery. That gap let a real failure through. A
 // browser was serving a cached `app.js` beside a freshly fetched `chapters.js`, the two
-// disagreed about the render context, and chapter 0 showed "context.text is not a
-// function" — while `ui-clicks.mjs`, reading both files from disk, reported that every
-// control on every chapter responded. Twice.
+// disagreed about the render context, and the orientation chapter showed "context.text
+// is not a function" — while `ui-clicks.mjs`, reading both files from disk, reported
+// that every control on every chapter responded. Twice.
 //
 // So the bytes under test are now the bytes the server sends. Node cannot import an
 // http: URL without a flag that has come and gone between releases, so they are

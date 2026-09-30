@@ -181,8 +181,8 @@ class TestTheEnginesAgree:
     def test_the_correlation_matrix_agrees(self, name: str) -> None:
         """Correlation between a model's result and its own inputs agrees.
 
-        This is the mechanism chapter 6 rests on, so it is checked directly rather
-        than only through the certificates that use it.
+        This is the mechanism the traceability chapter rests on, so it is checked
+        directly rather than only through the certificates that use it.
         """
         mine, theirs, my_inputs, their_inputs = self._both(name)
         got = linprop.get_correlation([mine, *my_inputs])
