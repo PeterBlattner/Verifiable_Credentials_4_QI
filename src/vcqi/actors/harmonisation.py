@@ -19,9 +19,11 @@ chapter already, with a direction for each. Repeating them here would be padding
 is not written down anywhere else is who would have to agree each item, in which forum,
 and what happens when two bodies answer differently.
 
-The tiers are read in order rather than filtered. The ordering is itself the argument: the
-first tier is what makes the system work at all, the second is what cannot be decided later
-however much anyone would prefer to, and the third is what a deployment can do without.
+The tiers stay in order. The ordering is itself the argument: the first tier is what makes
+the system work at all, the second is what cannot be decided later however much anyone
+would prefer to, and the third is what a deployment can do without. A reader can narrow the
+list by topic or by status, and a filter only hides items: it never reorders them or moves
+one out of its tier.
 
 One thing this module gets wrong less than an earlier draft did. It is tempting to assume
 the metrology vocabularies are missing and must be invented. They are not. The BIPM
@@ -67,6 +69,8 @@ __all__ = [
     "NEXT_STEPS",
     "STATUSES",
     "TIERS",
+    "TOPICS",
+    "Topic",
     "items_in_tier",
 ]
 
@@ -134,6 +138,42 @@ TIERS: tuple[Tier, ...] = (
 
 
 @dataclass(frozen=True)
+class Topic:
+    """A subject the items can be browsed by, across the tiers.
+
+    Topics exist for finding an item, not for ranking one: the tier says how much an item
+    matters, and the topic says what it is about. An item may have two.
+
+    Attributes:
+        key: Short identifier, used by the items.
+        label: The name the chapter's filter shows.
+    """
+
+    key: str
+    label: str
+
+    def to_json(self) -> dict[str, Any]:
+        """Return the topic as the interface displays it.
+
+        Returns:
+            A JSON-compatible dictionary.
+        """
+        return {"key": self.key, "label": self.label}
+
+
+#: The topics, in the order the chapter offers them.
+TOPICS: tuple[Topic, ...] = (
+    Topic(key="signing", label="Signing and identifiers"),
+    Topic(key="status", label="Status and history"),
+    Topic(key="scope", label="Scope and capability"),
+    Topic(key="measurement", label="Measurement data"),
+    Topic(key="documents", label="Documents and exchange"),
+    Topic(key="legal", label="Legal metrology"),
+    Topic(key="arrangements", label="Arrangements and policy"),
+)
+
+
+@dataclass(frozen=True)
 class HarmonisationItem:
     """One thing that would have to be agreed across organisations.
 
@@ -151,6 +191,7 @@ class HarmonisationItem:
             reaches ``textContent`` and markup in one shows as angle brackets.
         consequence: What happens when two parties answer differently.
         forum: Who would have to agree it, and whether such a body exists.
+        topics: The keys of the :data:`TOPICS` it is about, one or two.
     """
 
     key: str
@@ -163,6 +204,7 @@ class HarmonisationItem:
     source: str
     consequence: str
     forum: str
+    topics: tuple[str, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         """Return the item as the interface displays it.
@@ -181,6 +223,7 @@ class HarmonisationItem:
             "source": self.source,
             "consequence": self.consequence,
             "forum": self.forum,
+            "topics": list(self.topics),
         }
 
 
@@ -191,6 +234,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="One cryptosuite, and one canonical form",
         status="available",
+        topics=("signing",),
         requirement=(
             "Every issuer signs, and every verifier checks, the same way. A verifier "
             "cannot be expected to implement each institute's preference, and a "
@@ -225,6 +269,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="One protocol for asking, not just one format for answering",
         status="partial",
+        topics=("documents",),
         requirement=(
             "Nearly every other item is about what a certificate says. This one is about "
             "how anybody comes to be holding it. Two organisations have to agree how a "
@@ -283,6 +328,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="One identifier method, and an agreed meaning for resolving it",
         status="partial",
+        topics=("signing",),
         requirement=(
             "What remains is the choice, and the trust placed in the very first fetch. "
             "Which method the arrangements adopt is unsettled, and whatever a verifier "
@@ -323,6 +369,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="How a chain crosses from one arrangement into the other",
         status="open",
+        topics=("arrangements",),
         requirement=(
             "A certificate of conformity can rest on an accreditation under the Global "
             "ACI arrangement and on a calibration traceable under the CIPM MRA. An OIML "
@@ -356,6 +403,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="What a status value means, not how it is encoded",
         status="partial",
+        topics=("status",),
         requirement=(
             "What is left is the institutional answer itself, not a way to write it "
             "down: who may set a suspension, when it takes effect, whether it reaches "
@@ -396,6 +444,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="What a verdict means, and who it is good enough for",
         status="open",
+        topics=("arrangements",),
         requirement=(
             "A relying party has to be able to say what it requires, separately from the "
             "verifier that checks it. Two things have to be agreed for that: a common "
@@ -440,6 +489,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="What the anchors' identifiers are, and how a verifier learns them",
         status="partial",
+        topics=("signing", "arrangements"),
         requirement=(
             "The mechanism is not the hard part and this item used to imply it was. What "
             "is left is who operates the list for the quality infrastructure, what it "
@@ -479,6 +529,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="What a document authorises, as distinct from what it attests",
         status="open",
+        topics=("legal",),
         requirement=(
             "A verifier has to be able to tell evidence from permission. An OIML "
             "certificate says a type was evaluated against a Recommendation and met it. "
@@ -522,6 +573,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="What identifies a type, rather than an instrument",
         status="open",
+        topics=("legal",),
         requirement=(
             "Everything else in this demonstration is about one physical object with a "
             "serial number. A type certificate covers a design, and the OIML-CS extends "
@@ -554,6 +606,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="Unit identifiers, which already exist",
         status="available",
+        topics=("measurement",),
         requirement=(
             "A unit has to mean the same thing to the issuer and to the verifier. That "
             "means a resolvable identifier, not a symbol in a free text field."
@@ -594,6 +647,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="Whose timestamps everybody accepts",
         status="partial",
+        topics=("signing",),
         requirement=(
             "Long-term validation needs a timestamp from an authority the eventual "
             "verifier trusts — possibly thirty years later, and probably in a different "
@@ -630,6 +684,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="Which copy governs",
         status="open",
+        topics=("documents",),
         requirement=(
             "When a calibration exists as both a standardised document and a credential, "
             "one of them has to be the one that counts. Not stating which is a decision "
@@ -669,6 +724,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="How long an identifier goes on meaning what it means",
         status="partial",
+        topics=("signing",),
         requirement=(
             "Somebody has to commit that an identifier still means the same organisation "
             "in 2050, and say what becomes of it when a body is renamed, merged or "
@@ -706,6 +762,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="A log of what was true, not a document saying what is true",
         status="partial",
+        topics=("status",),
         requirement=(
             "A verifier meeting a certificate in 2050 has to establish what was true in "
             "2026: which key the issuer held, whether the accreditation behind it was "
@@ -749,6 +806,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="Who still serves the documents a verification reads",
         status="partial",
+        topics=("documents",),
         requirement=(
             "Verifying a credential is not reading one file. Somebody has to undertake "
             "that the supporting documents are still retrievable decades later, and "
@@ -799,6 +857,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="Whether a recognition can be asked about in the past",
         status="open",
+        topics=("status",),
         requirement=(
             "A way to establish that an accreditation body was recognised, and for the "
             "right main scope, on the date a calibration was performed — not on the date "
@@ -839,6 +898,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="irreversible",
         title="What the unit of suspension is",
         status="open",
+        topics=("status",),
         requirement=(
             "An agreement that a recognition can be withdrawn from one organisation "
             "without being withdrawn from the others recorded beside it — either one "
@@ -877,6 +937,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="One digital representation of the SI",
         status="emerging",
+        topics=("measurement",),
         requirement=(
             "Quantities have to travel in a form both ends parse identically, including "
             "the awkward parts: prefixes, powers, and units that are ratios."
@@ -907,6 +968,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="Machine-actionable requirements, in the Recommendation itself",
         status="emerging",
+        topics=("legal",),
         requirement=(
             "A recognition bounds what an entity may issue by pointing at a schema. For "
             "an accreditation scope this project had to invent the schema, because the "
@@ -950,6 +1012,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="A certificate format with international standing",
         status="emerging",
+        topics=("documents",),
         requirement=(
             "One machine-readable calibration certificate that a body in another region "
             "will accept without a bilateral arrangement behind it."
@@ -1021,6 +1084,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="Measurand and quantity identifiers",
         status="emerging",
+        topics=("scope", "measurement"),
         requirement=(
             "A resolvable identifier for the measured quantity, so that a CMC and an "
             "accreditation scope can be compared by a machine rather than by a person "
@@ -1049,6 +1113,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="How a scope says what it covers",
         status="open",
+        topics=("scope",),
         requirement=(
             "A grammar for the coverage column of an accreditation scope. Not a "
             "vocabulary for the quantities -- that is the item on measurand identifiers "
@@ -1096,6 +1161,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="floor",
         title="How to ask a register what a scope covers",
         status="open",
+        topics=("scope",),
         requirement=(
             "A protocol for asking a register whether a scope covered a given standard "
             "on a given date, and for what the reply has to be. Three things have to be "
@@ -1148,6 +1214,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         tier="optional",
         title="How uncertainty travels, dependencies included",
         status="open",
+        topics=("measurement",),
         requirement=(
             "A registered identifier for each uncertainty representation, and at least "
             "one representation that carries dependency structure rather than a single "

@@ -46,7 +46,7 @@ from vcqi.actors.edit import (
     fields_for,
     read_path,
 )
-from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS
+from vcqi.actors.harmonisation import HARMONISATION_ITEMS, NEXT_STEPS, TIERS, TOPICS
 from vcqi.actors.interop import FORMS, export_document, untp_audit
 from vcqi.actors.exchange import (
     EXCHANGE_TTL_SECONDS,
@@ -1916,8 +1916,9 @@ def get_harmonisation() -> dict[str, Any]:
     same way it renders everything else.
 
     Returns:
-        The tiers in reading order, the items grouped under them, and the step ladder,
-        with every reference to another chapter carrying its number as plain text.
+        The tiers in reading order, the items grouped under them, the step ladder,
+        and the topics the items can be filtered by, with every reference to another
+        chapter carrying its number as plain text.
     """
     return with_chapter_numbers({
         "tiers": [
@@ -1930,6 +1931,7 @@ def get_harmonisation() -> dict[str, Any]:
             for tier in TIERS
         ],
         "nextSteps": [step.to_json() for step in NEXT_STEPS],
+        "topics": [topic.to_json() for topic in TOPICS],
     })
 
 

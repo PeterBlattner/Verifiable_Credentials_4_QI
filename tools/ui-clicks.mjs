@@ -127,7 +127,7 @@ const MINIMUM_CONTROLS = {
   infrastructure: 16,
   // Two chips in the one-string panel and one per probed document in the UNTP probe:
   // two certificates and, since change set 30, two recognitions.
-  harmonisation: 6,
+  harmonisation: 64,
   exchange: 7,
 };
 

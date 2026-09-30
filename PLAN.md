@@ -135,9 +135,9 @@ Taken with Peter:
 ## Checklist
 
 - [x] 1. PR 1: findings 1 to 8, and a test that no item points at another by position
-- [ ] 2. PR 2: topics on the items, the map, the filters, collapsed items and probe
-- [ ] 3. PR 2: tests, the click-harness floor, docs
-- [ ] 4. Verification
+- [x] 2. PR 2: topics on the items, the map, the filters, collapsed items and probe
+- [x] 3. PR 2: tests, the click-harness floor, docs
+- [x] 4. Verification
 
 ## Progress log
 
@@ -154,6 +154,36 @@ Taken with Peter:
     `scope-grammar` and `scope-query`.
   - `test_no_item_points_at_another_by_position`. Deliberate break: "the item below"
     restored in `timestamps` failed it. Restored.
+- 2026-09-30: items 2 to 4 done, on `feature/harmonisation-map-and-filters`, stacked on
+  the first.
+  - **Data.** `Topic` and `TOPICS` (seven), and `topics` on every item, one or two each.
+    `/api/harmonisation` serves them. The served text is otherwise identical to the
+    first PR.
+  - **Page.**
+    - The status badges became filter chips, beside "All 24". Topic chips sit over a
+      five-column map.
+    - A filter re-renders the list and a note says what is shown, so each press changes
+      the page's text; `ui-clicks.mjs` counts nothing else as a response. Tiers keep
+      their headings and order, and an empty tier says so.
+    - Items show title, status, topics, the rungs that advance them and the first
+      paragraph of the consequence. "Show the details" inserts the six fields and
+      removes them again. A map row opens its item.
+    - The UNTP probe moved after the list and collapsed behind a summary.
+  - **First load: 3,777 words, where it was 10,683.** Measured as the stage text in a
+    DOM against both versions of the page.
+  - **Harness.** `ui-clicks.mjs`: 64 controls, all respond. The floor went from 6 to 64.
+    Deliberate break: a floor of 65 reported "LOST CONTROLS — 64 of at least 65".
+    Restored.
+  - **What the harness no longer reaches.** It used to click the probe's four document
+    chips, which are now behind the toggle, the page's last control, so the harness
+    never reaches them. A one-off DOM check covered them, along with the filters, tier
+    order, combined filters, empty tiers, opening and closing an item, a map row, and a
+    reference's number. All passed, and the check was deleted.
+  - **Tests.** `TestTopics`: each item has one or two known topics, every topic is used
+    once, and the route serves them. Deliberate break: one item's topics emptied failed
+    exactly the first. Restored.
+  - Full suite: 878 pass, 46 skipped. `chapter-snapshot.mjs harmonisation` is identical
+    twice, with nothing missing. `--dump` is byte-identical.
 
 ## Git
 

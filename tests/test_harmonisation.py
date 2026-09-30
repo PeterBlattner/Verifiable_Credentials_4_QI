@@ -22,6 +22,7 @@ from vcqi.actors.harmonisation import (
     NEXT_STEPS,
     STATUSES,
     TIERS,
+    TOPICS,
     items_in_tier,
 )
 from vcqi.domain.accreditation import scope_by_id
@@ -164,6 +165,32 @@ class TestTheLadderAndTheItemsAgree:
         assert f"{trace['distinct']} distinct documents" in retrieval.demonstrated
         assert f"{trace['hostCount']} hosts" in retrieval.demonstrated
         assert f"other {trace['distinct'] - 1}" in retrieval.demonstrated
+
+
+class TestTopics:
+    """The topics the chapter filters by, which cut across the tiers without reordering."""
+
+    def test_every_item_has_one_or_two_known_topics(self) -> None:
+        """An item with no topic would vanish under every filter but "All topics"."""
+        keys = {topic.key for topic in TOPICS}
+        for item in HARMONISATION_ITEMS:
+            assert 1 <= len(item.topics) <= 2, item.key
+            assert set(item.topics) <= keys, item.key
+
+    def test_every_topic_is_used_and_named_once(self) -> None:
+        """A topic with no items would offer the reader an empty page."""
+        keys = [topic.key for topic in TOPICS]
+        assert len(keys) == len(set(keys))
+        used = {key for item in HARMONISATION_ITEMS for key in item.topics}
+        assert used == set(keys)
+
+    def test_the_chapter_is_served_its_topics(self) -> None:
+        """The page builds its filter from these, so they have to arrive."""
+        with TestClient(app) as client:
+            body = client.get("/api/harmonisation").json()
+        assert [topic["key"] for topic in body["topics"]] == [topic.key for topic in TOPICS]
+        served = {item["key"]: item["topics"] for tier in body["tiers"] for item in tier["items"]}
+        assert served == {item.key: list(item.topics) for item in HARMONISATION_ITEMS}
 
 
 class TestTheMeasurandCoincidence:

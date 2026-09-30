@@ -64,7 +64,7 @@ How much of this is actually open
 
 <!-- block: open.hint -->
 
-counted from the items below, not asserted
+counted from the items, not asserted — press a count to list only those
 
 <!-- block: open.body -->
 
@@ -74,6 +74,22 @@ An earlier version of this page filed seven items under *nothing exists yet*, an
 
 The open items that will take longest are not technical. What a document authorises as distinct from what it attests, how three arrangements compose when no two of them share a technical body, which copy of a certificate governs, and what a verdict is good enough for are questions about who decides, and no specification can answer them on anyone's behalf.
 
+<!-- block: map.title -->
+
+All of it at a glance
+
+<!-- block: map.hint -->
+
+pick a topic, or press an item to open it in the list below
+
+<!-- block: filter.none -->
+
+Nothing matches both filters. Pick another topic, or show every status.
+
+<!-- block: filter.empty-tier -->
+
+Nothing in this tier matches.
+
 <!-- block: probe.title -->
 
 One of them tried rather than argued
@@ -82,9 +98,13 @@ One of them tried rather than argued
 
 two certificates and two recognitions really projected, validated and expanded, against pinned UNTP
 
+<!-- block: probe.summary -->
+
+Two of this demonstration's certificates and the two recognitions behind them, expressed in UN/CEFACT's formats, validated against the published UNTP schemas and run through the UNTP Playground. The envelope now reaches calibration. What stops at the border is the uncertainty and the identifiers: the parts that make a measurement comparable rather than merely reported.
+
 <!-- block: probe.body -->
 
-The certificate-format item below weighs one mature format without international standing against one with standing. That is a claim, and a claim on a page like this is worth more once somebody has run it. So two of this demonstration's certificates are expressed in UN/CEFACT's Digital Conformity Credential, validated against the published UNTP schema and expanded against the published contexts — a calibration certificate, which the format was not built for, and a certificate of conformity, which it was.
+The certificate-format item weighs one mature format without international standing against one with standing. That is a claim, and a claim on a page like this is worth more once somebody has run it. So two of this demonstration's certificates are expressed in UN/CEFACT's Digital Conformity Credential, validated against the published UNTP schema and expanded against the published contexts — a calibration certificate, which the format was not built for, and a certificate of conformity, which it was.
 
 The rule the projection follows is the only thing that makes the result mean anything: **where UNTP requires something the certificate does not state, it is left out and the reason recorded, never filled in with a plausible value.** Where the certificate states something UNTP refuses, it is carried anyway and the refusal recorded. Where the projection supplies a value the certificate does not literally state — a code from one of UNTP's lists — that is recorded too, as a judgement. The schema complaining is the finding rather than a fault to be tidied away.
 
