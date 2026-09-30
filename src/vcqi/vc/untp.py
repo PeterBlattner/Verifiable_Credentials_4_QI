@@ -18,7 +18,7 @@ judgement, so nothing in the output is unaccounted for. :class:`Finding` has the
 kinds.
 
 What the probe finds, against UNTP 0.7.0. It was run against 0.6.0 first, and change sets
-24 and 28 of PLAN.md have both results:
+24 and 28 of docs/history/PLAN-2026.md have both results:
 
 * The envelope reaches calibration. ``attestationType`` includes ``calibration``;
   ``conformance`` is optional, so a calibration is no longer forced into a verdict it

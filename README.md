@@ -338,6 +338,8 @@ tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_w3c_ve
              test_pipeline.py  test_portability.py  test_untp.py  test_harmonisation.py
              test_exchange.py  test_web.py  test_linprop_equivalence.py
   vectors/   the W3C's ecdsa-jcs-2019 test vector, unchanged
+docs/history/  PLAN-2026.md, the change sets that built this, and firstPrompt.md, the
+               question it started from. PLAN.md holds only the change set under way.
 ```
 
 `CONTENT.md` says where the words are and how to change them without touching code. The

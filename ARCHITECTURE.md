@@ -750,8 +750,8 @@ checking anything, and has none for `ecdsa-jcs-2019`, so it never reached the si
 Its JSON-LD step failed too, on UNTP 0.6.0 itself, whose schema fills in type names its
 own context never defines. The 0.7.0 projections of both certificates, run on
 30 September, passed that step and reported at the schema step exactly the findings the
-projection records, and nothing else. Change sets 24 and 28 of PLAN.md have both runs and
-what followed from them.
+projection records, and nothing else. Change sets 24 and 28 of
+`docs/history/PLAN-2026.md` have both runs and what followed from them.
 
 The Playground will not check a signature made here in any form this project should
 adopt, and the reason is in VCkit rather than here. Its Data Integrity path is configured
@@ -810,16 +810,16 @@ to something, so a misspelling passes there, and is reported here. It was writte
 same hand as the projection, so a clean result is necessary for the Playground's step to
 pass and no substitute for running it.
 
-What it found is in the harmonisation chapter and in change sets 24 and 28 of PLAN.md. In
-short, against 0.7.0: the envelope reaches calibration -- `attestationType` enumerates
-`calibration`, `conformance` is optional, the topic vocabulary has
-`metrology-and-measurement`, conditions have a member -- and what does not arrive is the
-uncertainty, since `Measure` is closed and offers only tolerances, together with the
-identifiers UNTP requires for the measurand, the scheme and a standard. `assessmentLevel`
-has no code for the CIPM MRA; reading 0.6.0's undefined `GlobalMRA` as one was this
-project's mistake and is withdrawn. And UNTP types the status index as an integer where
-the W3C Recommendation, and UNTP's own description of it, say a string: the projection
-writes it the W3C way and records the conflict.
+What it found is in the harmonisation chapter and in change sets 24 and 28 of
+`docs/history/PLAN-2026.md`. In short, against 0.7.0: the envelope reaches calibration
+-- `attestationType` enumerates `calibration`, `conformance` is optional, the topic
+vocabulary has `metrology-and-measurement`, conditions have a member -- and what does
+not arrive is the uncertainty, since `Measure` is closed and offers only tolerances,
+together with the identifiers UNTP requires for the measurand, the scheme and a
+standard. `assessmentLevel` has no code for the CIPM MRA; reading 0.6.0's undefined
+`GlobalMRA` as one was this project's mistake and is withdrawn. And UNTP types the
+status index as an integer where the W3C Recommendation, and UNTP's own description of
+it, say a string: the projection writes it the W3C way and records the conflict.
 
 The projection keeps the source credential's `id`, although it makes different claims
 under a different issuer identifier. That is the trade the portable copy already makes,

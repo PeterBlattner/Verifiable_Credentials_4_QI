@@ -4,7 +4,7 @@ Everything this demonstration signs is checked by the verifier written beside th
 so a misreading of the specification shared by both would pass unnoticed in both. The
 UNTP Playground was tried as an outside check and cannot give one: its verifier has no
 suite for any W3C Recommendation cryptosuite, and its enveloped-JWT route rejects a
-``did:key`` issuer (PLAN.md, change set 29).
+``did:key`` issuer (docs/history/PLAN-2026.md, change set 29).
 
 The Recommendation itself can. VC Data Integrity ECDSA Cryptosuites v1.0 (W3C
 Recommendation, 15 May 2025), Appendix A.5, publishes the computation for

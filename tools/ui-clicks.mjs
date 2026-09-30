@@ -115,7 +115,7 @@ const MINIMUM_CONTROLS = {
   // and twelve while the chapter opened on the four calibration certificates.
   // The loop below clicks by position, so it now exercises every type chip and reaches
   // no document chip: by the time it gets there the last type is selected and its one
-  // document is already pressed. The change set 26 notes in PLAN.md record the jsdom pass
+  // document is already pressed. The change set 26 notes in docs/history/PLAN-2026.md record the jsdom pass
   // that clicked those instead.
   issuing: 13,
   verification: 2,

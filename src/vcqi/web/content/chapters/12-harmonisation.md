@@ -134,7 +134,7 @@ against the pinned W3C and UNTP contexts, checked offline
 
 <!-- block: probe.expands -->
 
-Every type and property in both documents expands against the pinned contexts. That is this project's own check standing in for the Playground's JSON-LD step, written by the same hand as the projection; what the Playground itself says is recorded in PLAN.md.
+Every type and property in both documents expands against the pinned contexts. That is this project's own check standing in for the Playground's JSON-LD step, written by the same hand as the projection; what the Playground itself says is recorded in the project's history, `docs/history/PLAN-2026.md`.
 
 <!-- block: probe.unaccounted -->
 
