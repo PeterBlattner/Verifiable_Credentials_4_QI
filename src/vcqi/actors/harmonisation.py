@@ -37,8 +37,9 @@ exists yet*. Five of them were answered, or half answered, in specifications tha
 published while this was being written: did:webvh for rotation and withdrawal, Bitstring
 Status List for what a status value means, ETSI trusted lists for distributing anchors, and
 did:webvh again for what becomes of an identifier when an organisation moves. The reviewer's
-own estimate was that only about a fifth of the list needed a long argument. Recounting from
-the items themselves puts it near a quarter, and the chapter now counts rather than asserts.
+own estimate was that only about a fifth of the list needed a long argument. The chapter
+now counts the open items from these records instead of stating a share, because the share
+moves every time an item is added.
 
 So the ``exists`` field on those items opens by saying what the first draft got wrong. That
 is deliberate and it should stay: a page about what nobody has agreed yet is exactly the
@@ -201,7 +202,9 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "the exact bytes being hashed, and that a production system should "
             "canonicalize the RDF graph instead. The demonstration is proposing "
             "something it does not itself recommend, which is worth knowing before "
-            "anyone treats it as a template."
+            "anyone treats it as a template. What it does, it does as specified: signing "
+            "the W3C's own example with the W3C's key reproduces the published signature "
+            "byte for byte."
         ),
         exists=(
             "W3C Data Integrity, with a registry of cryptosuites. The standard exists; "
@@ -223,7 +226,7 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         title="One protocol for asking, not just one format for answering",
         status="partial",
         requirement=(
-            "Every item above this one is about what a certificate says. This is about "
+            "Nearly every other item is about what a certificate says. This one is about "
             "how anybody comes to be holding it. Two organisations have to agree how a "
             "presentation is requested, what a request may ask for, how the answer is "
             "bound to the request so it cannot be replayed, and what a refusal looks "
@@ -606,7 +609,8 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         exists=(
             "RFC 3161 and the ETSI archival profiles define the mechanism thoroughly. "
             "Neither says whose timestamps a national metrology institute should accept "
-            "— and the item below changes how much of this a timestamp has to carry, "
+            "— and the item on event logs changes how much of this a timestamp has to "
+            "carry, "
             "because an issuer keeping a witnessed log of its own key history answers "
             "was this key valid then without any third party being asked."
         ),
@@ -640,11 +644,13 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "than about how to write it down."
         ),
         demonstrated=(
-            f"Every calibration certificate here carries a PTB/DKD DCC "
+            f"Every calibration certificate here but one carries a PTB/DKD DCC "
             f"{DCC_SCHEMA_VERSION}, with quantities in D-SI {SI_VERSION}, alongside a "
-            "readable credential subject, and the pipeline checks the two agree. "
-            "ARCHITECTURE.md sets out the three available answers and favours making the "
-            "document the subject."
+            "readable credential subject, and the pipeline checks the two agree. The "
+            "exception, METAS-2026-0420, points at its document instead of carrying it, "
+            "so its measurement exists in one copy only, and the four facts of index the "
+            "credential restates are never compared with it. ARCHITECTURE.md sets out "
+            "the three available answers and favours making the document the subject."
         ),
         exists="",
         source="",
@@ -933,8 +939,8 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "verifier comparing their certificates would have no way to notice."
         ),
         forum=(
-            "The OIML, in a sub-group that already exists. Like the unit identifiers "
-            "above, this is closer to adoption than to agreement — which is why it sits "
+            "The OIML, in a sub-group that already exists. Like the unit identifiers, "
+            "this is closer to adoption than to agreement — which is why it sits "
             "in this tier rather than the first: the certificate works today with an "
             "invented schema, it just cannot be checked against the real requirement."
         ),
@@ -949,16 +955,25 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
             "will accept without a bilateral arrangement behind it."
         ),
         demonstrated=(
-            f"The PTB/DKD DCC {DCC_SCHEMA_VERSION} is carried by every calibration "
-            "certificate here, as a subset rather than a conformant document, and with "
-            "its signature slot unused.\n\n"
+            f"Every calibration certificate here but one carries the PTB/DKD DCC "
+            f"{DCC_SCHEMA_VERSION} inside it, as a subset rather than a conformant "
+            "document, with its signature slot unused. The exception, METAS-2026-0420, "
+            "points at the DKD's own published example at 3.4.0-rc.2 instead, and that "
+            "document fills the slot: a ds:Signature that proves the bytes and names "
+            "nobody, shown passing beside the credential's proof in "
+            "[chapter](#traceability).\n\n"
             "The other candidate was tried rather than described. A calibration "
             "certificate and a certificate of conformity are both really projected into "
-            "UN/CEFACT's Digital Conformity Credential, UNTP 0.7.0, really validated "
-            "against the published schema and expanded against the published contexts, "
-            "both vendored here so the answer cannot change without a visible diff. The "
-            "panel above this list reports what the mapping could not carry, what it "
-            "supplied by judgement, and what the validator says about the result."
+            "UN/CEFACT's Digital Conformity Credential, UNTP 0.7.0, and the two "
+            "recognitions behind them into its Digital Identity Anchor. All four are "
+            "validated against the published schemas and expanded against the published "
+            "contexts, both vendored here so the answer cannot change without a visible "
+            "diff, and all four have been through the UNTP Playground: every term "
+            "expanded, and the schema errors were exactly the findings the projection "
+            "records. The Playground could check none of the signatures, because it has "
+            "no suite for ecdsa-jcs-2019. The UNTP probe panel on this page reports what "
+            "the mapping could not carry, what it supplied by judgement, and what the "
+            "validator says about the result."
         ),
         exists=(
             "The PTB/DKD DCC is much the most mature candidate for a calibration "
@@ -1036,7 +1051,8 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         status="open",
         requirement=(
             "A grammar for the coverage column of an accreditation scope. Not a "
-            "vocabulary for the quantities -- that is the item above -- but a way to "
+            "vocabulary for the quantities -- that is the item on measurand identifiers "
+            "-- but a way to "
             "write down the shapes a scope actually uses, so that two implementations "
             "reading the same published table select the same row."
         ),

@@ -70,17 +70,9 @@ counted from the items below, not asserted
 
 Of {total} items, **{open}** — about {share}% — have nothing to read yet. The rest have a specification, a register or a deployed mechanism behind them, and the work is adoption or a choice rather than invention.
 
-That balance is a correction. The first version of this page filed seven items under *nothing exists yet*, and a reviewer who works on these specifications pointed out that five of them had answers — some published while this was being written, some still moving through as pull requests. The items below now open by saying what the earlier draft got wrong, which is left visible on purpose: a page about unsolved problems goes stale by overstating them, and one shown correction is a cheap warning that there are probably others.
+An earlier version of this page filed seven items under *nothing exists yet*, and a reviewer who works on these specifications showed that five of them had answers. Those items still open by saying what the first draft got wrong, on purpose: a page about unsolved problems goes stale by overstating them.
 
-What is left, once the answered items are set aside, is a short list, and the part of it that will take longest is not technical at all: what a document authorises as distinct from what it attests, how three arrangements compose when no two of them share a technical body, which copy of a certificate governs, and whether anyone can undertake that an identifier still means the same organisation in thirty years. The last of those cannot be settled by evidence until something has been running for thirty years. Theories are available. Data is not.
-
-Some of the rest is technical, and two of those arrived the same way: somebody read a published accreditation scope properly for the first time.
-
-A **calibration** scope is a table, and its coverage column uses three grammars that no specification defines — a list of fixed values, an interval with a strict bound, and a nominal with a tolerance — over rows that are keyed by more than the quantity, since a condition band decides which of two otherwise identical rows applies. [Chapter](#scope) shows the verifier choosing among them.
-
-A **testing** scope is a table that cannot be handed over at all. It runs to fourteen pages, lists its methods as sets of equivalent designations, and marks some of its rows flexible — meaning they cover editions of a standard that did not exist when the scope was granted. That answer has to be derived rather than looked up, so the scope is asked rather than read, and nobody has agreed what asking looks like: not that the reply should be signed, and not that the date being asked about should be a parameter at all. The second of those is the one with teeth. A certificate is evidence about the day it was issued, and a register that only answers about today answers the wrong question in the direction that lets work through.
-
-Nothing about either is exotic. Both are the first page of one scope in one field. They are unagreed because a scope has always been a document for a person to read, and nobody has had to say what a row means to a machine or what a machine may ask about one.
+The open items that will take longest are not technical. What a document authorises as distinct from what it attests, how three arrangements compose when no two of them share a technical body, which copy of a certificate governs, and what a verdict is good enough for are questions about who decides, and no specification can answer them on anyone's behalf.
 
 <!-- block: probe.title -->
 
@@ -134,7 +126,7 @@ against the pinned W3C and UNTP contexts, checked offline
 
 <!-- block: probe.expands -->
 
-Every type and property in both documents expands against the pinned contexts. That is this project's own check standing in for the Playground's JSON-LD step, written by the same hand as the projection; what the Playground itself says is recorded in the project's history, `docs/history/PLAN-2026.md`.
+Every type and property in all four documents expands against the pinned contexts. That is this project's own check, written by the same hand as the projection, so the documents were also run through the UNTP Playground: its JSON-LD step expanded all four, and its schema step reported exactly the errors above and nothing else. The runs are recorded in `docs/history/PLAN-2026.md`.
 
 <!-- block: probe.unaccounted -->
 
