@@ -49,8 +49,8 @@ const CREDENTIAL_LABELS = {
 const MAIN_CREDENTIALS = Object.keys(CREDENTIAL_LABELS);
 
 // The forms a credential can leave this page in, and why a reader would want each. The
-// first two apply to every document; the third only to the two an UNTP projection is
-// defined for, which is why UNTP_PROJECTED exists and why tests/test_web.py checks it
+// first two apply to every document; the third only to the documents the UNTP probe
+// runs over, which is why UNTP_PROJECTED exists and why tests/test_web.py checks it
 // against what /api/untp actually offers.
 const EXPORT_FORMS = [
   { key: 'native', label: 'As issued', hint: 'The credential exactly as this world publishes it' },
@@ -66,10 +66,27 @@ const EXPORT_FORMS = [
   },
 ];
 
-const UNTP_PROJECTED = ['metas-calibration', 'cab-conformity'];
+const UNTP_PROJECTED = ['metas-calibration', 'cab-conformity', 'bipm-recognition', 'sas-recognition'];
 
-function exportForms(name) {
-  return EXPORT_FORMS.filter((form) => form.key !== 'untp' || UNTP_PROJECTED.includes(name));
+// A recognition lists several entities and a UNTP Digital Identity Anchor names one, so
+// its UNTP form is one file per entity, each link carrying the entity it anchors.
+function exportForms(name, credential) {
+  const forms = EXPORT_FORMS.filter((form) => form.key !== 'untp' || UNTP_PROJECTED.includes(name));
+  const types = (credential && credential.type) || [];
+  if (!types.includes('RecognizedEntityCredential')) return forms;
+  const entities = [].concat((credential && credential.credentialSubject) || []);
+  return forms.flatMap((form) =>
+    form.key !== 'untp'
+      ? [form]
+      : entities
+          .filter((entity) => entity && entity.id)
+          .map((entity) => ({
+            key: 'untp',
+            subject: entity.id,
+            label: `As a UNTP identity anchor: ${entity.name || entity.id}`,
+            hint: `Projected into UN/CEFACT’s Digital Identity Anchor for ${entity.name || entity.id}`,
+          }))
+  );
 }
 
 // ---------------------------------------------------------------- the cautions
@@ -762,11 +779,15 @@ async function chapterIssuing(context) {
         el('p', { class: 'muted', style: 'margin-top: 12px;', text: t.text('deterministic') }),
       ]),
       panel(`4. ${t.text('finished.title')}`, t.text('finished.hint'), jsonView(data.credential.proof, context.inspect)),
-      takeaway(name, exportForms(name), data.credential),
+      takeaway(name, exportForms(name, data.credential), data.credential),
       // Which of those files the UNTP Playground takes. Since its 0.4.0 it refuses every
       // type that is not UNTP's at upload, so for most documents the answer is none, and
       // a reader who tries finds out from one error and no steps run.
-      UNTP_PROJECTED.includes(name) ? t.callout('takeaway.untp') : t.callout('takeaway.no-untp')
+      !UNTP_PROJECTED.includes(name)
+        ? t.callout('takeaway.no-untp')
+        : (data.credential.type || []).includes('RecognizedEntityCredential')
+          ? t.callout('takeaway.untp-anchors')
+          : t.callout('takeaway.untp')
     );
   }
 
@@ -2424,7 +2445,20 @@ async function untpProbe(context, t) {
             ),
           ])
         : null,
-      takeaway(entry.name, exportForms(entry.name).filter((form) => form.key === 'untp'), null),
+      takeaway(
+        entry.name,
+        entry.subject
+          ? [
+              {
+                key: 'untp',
+                subject: entry.subject,
+                label: 'As a UNTP identity anchor',
+                hint: 'Projected into UN/CEFACT’s Digital Identity Anchor for this entity',
+              },
+            ]
+          : exportForms(entry.name).filter((form) => form.key === 'untp'),
+        null
+      ),
     ].filter(Boolean));
   }
 

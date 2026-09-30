@@ -800,6 +800,27 @@ under a different issuer identifier. That is the trade the portable copy already
 and it is recorded here rather than solved: minting a new identifier would be a statement
 about a document nobody published.
 
+The recognitions are probed too, one layer up (change set 30). Their UNTP counterpart is
+the Digital Identity Anchor, in which a registrar attests that a DID belongs to an entity
+in its register, and `project_recognition` expresses each entity a recognition lists as
+an anchor of its own, validated against the vendored DIA schema. An anchor names one
+entity where a recognition lists several, so the anchor's `id` is the recognition's with
+the entity's DID as fragment -- a derived identifier, recorded as a limitation like the
+one above. The probe runs over the BIPM's recognition of METAS and the Swiss
+Accreditation Service's recognition of the certification body, the same pairing of the
+case UNTP was not built for with the case it was.
+
+What arrives is the entity, its registrar, its entry on the registrar's site, and the
+capabilities it is recognised for, as a list of addresses. What does not is everything
+a verifier acts on: what the entity is recognised to do, the `outputValidation` schemas
+pinned by digest that chapter 4 checks a certificate against, and each action's own
+validity. So the W3C recognition keeps the part that makes it machine-checkable, and the
+UNTP anchor is a directory entry. UNTP also requires a registration number and a
+first-registration date that no recognition states. Its register types stop at
+`accreditation`, which fits the SAS's recognition and is recorded as a judgement there;
+for the CIPM MRA and the Global ACI MRA, which are peer recognition, it is left out and
+recorded.
+
 ### A data model is not a permission
 
 Every credential of the eight types names its data model in `credentialSchema`: a JSON

@@ -21,9 +21,10 @@
      type, in the order the type chips are, and a note is only ever read beside the
      other documents of its own type.
 
-     The two "takeaway." blocks are the note under the "Take it away" row. The first is
-     shown for the two documents that have a UNTP form, listed in UNTP_PROJECTED in
-     chapters.js, and the second for every other document. -->
+     The three "takeaway." blocks are the note under the "Take it away" row: "untp" for
+     the certificates with a UNTP form, "untp-anchors" for the recognitions with one
+     (both listed in UNTP_PROJECTED in chapters.js), and "no-untp" for every other
+     document. -->
 
 <!-- block: title -->
 
@@ -191,9 +192,13 @@ The proof configuration, plus the signature it covers
 
 Only *As a UNTP credential* gets into UN/CEFACT's [UNTP Playground](https://test.uncefact.org/test-untp-playground). Since its release 0.4.0 the Playground accepts UNTP's own credential types only, and it refuses the other two files at upload, before it checks anything. They are for a verifier that takes any W3C credential.
 
+<!-- block: takeaway.untp-anchors -->
+
+Only the *UNTP identity anchor* files get into UN/CEFACT's [UNTP Playground](https://test.uncefact.org/test-untp-playground), which accepts UNTP's own credential types only and refuses the other two files at upload. There is one per recognised entity, because UNTP's Digital Identity Anchor names one entity where a W3C recognition lists several. Chapter 11 shows what the anchor keeps of the recognition and what it cannot hold.
+
 <!-- block: takeaway.no-untp -->
 
-None of these files gets into UN/CEFACT's [UNTP Playground](https://test.uncefact.org/test-untp-playground). Since its release 0.4.0 the Playground accepts UNTP's own credential types only, and it refuses anything else at upload, before it checks anything. Two documents here have a UNTP form: Calibration certificate METAS-2026-0417 and Certificate of conformity CPC-2026-0055. These files are for a verifier that takes any W3C credential.
+None of these files gets into UN/CEFACT's [UNTP Playground](https://test.uncefact.org/test-untp-playground). Since its release 0.4.0 the Playground accepts UNTP's own credential types only, and it refuses anything else at upload, before it checks anything. Four documents here have a UNTP form: Calibration certificate METAS-2026-0417 and Certificate of conformity CPC-2026-0055, as Digital Conformity Credentials, and the BIPM recognition of national metrology institutes and the Accreditation body recognition of laboratories, as one Digital Identity Anchor per recognised entity. These files are for a verifier that takes any W3C credential.
 
 <!-- block: what-is-signed -->
 
