@@ -4757,7 +4757,7 @@ Taken with Peter:
       and the harmonisation floor
 - [x] 5. Prose: chapter 3's notes, chapter 11's probe text
 - [x] 6. Tests, docs
-- [ ] 7. Peter runs both anchors through the Playground; table below
+- [x] 7. Peter runs both anchors through the Playground; table below
 
 ## Progress log
 
@@ -4802,20 +4802,34 @@ Taken with Peter:
     twice, is identical, with no `.content-missing`. Chapter 3 opens on the BIPM
     recognition with an anchor link for METAS and one for PTB.
   - Both anchor exports are in `temp/` for the Playground run.
+- 2026-09-30: item 7, the Playground run.
+  - Peter ran both anchors through the Playground 0.4.2; the reports are
+    `temp/untp-test-report-*-recognition-untp-*.json`. Both files are identical to what
+    `GET /api/export/{name}?form=untp&subject=…` serves.
+  - The Playground detected `DigitalIdentityAnchor` 0.7.0 and validated against
+    `https://untp.unece.org/artefacts/schema/v0.7.0/dia/DigitalIdentityAnchor.json`.
+  - The prediction held step for step. Step 5 reports exactly the blocking findings, the
+    same members the offline check reports: four for METAS, three for the CAB. Step 6
+    passes for both, so the anchors expand for the Playground's own JSON-LD processor as
+    they do for `vc/jsonld_terms.py`.
+  - Step 4 is the same `NotFoundError` as for every signature made here (change set 29).
+  - The change set is complete. All four probed documents have now been through the
+    Playground, and every schema error any of them raises is a finding the projection
+    records and can explain.
 
 ## The Playground run of the anchors
 
-To be filled in from an actual run.
+Run on 2026-09-30 against Playground 0.4.2, UNTP 0.7.0.
 
 | Step | METAS (bipm-recognition) | CAB (sas-recognition) |
 |---|---|---|
-| 1. Proof Type Detection | | |
-| 2. VCDM Version Detection | | |
-| 3. VCDM Schema Validation | | |
-| 4. Credential Verification | | |
-| 5. UNTP Schema Validation | | |
-| 6. JSON-LD Expansion and Context Validation | | |
-| 7. Extension Schema Validation | | |
+| 1. Proof Type Detection | pass, embedded | pass, embedded |
+| 2. VCDM Version Detection | pass, v2 | pass, v2 |
+| 3. VCDM Schema Validation | pass | pass |
+| 4. Credential Verification | fail: `NotFoundError`, no suite for `ecdsa-jcs-2019` | same |
+| 5. UNTP Schema Validation | fail: `statusListIndex` not an integer; `registeredId`, `registeredDate` and `registerType` required | fail: `statusListIndex` not an integer; `registeredId` and `registeredDate` required |
+| 6. JSON-LD Expansion and Context Validation | pass | pass |
+| 7. Extension Schema Validation | not run | not run |
 
 Expected going in:
 - 1–3 pass;
