@@ -340,6 +340,7 @@ tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_w3c_ve
   vectors/   the W3C's ecdsa-jcs-2019 test vector, unchanged
 docs/history/  PLAN-2026.md, the change sets that built this, and firstPrompt.md, the
                question it started from. PLAN.md holds only the change set under way.
+docs/extensions/  proposals that are designed but not built, such as iecee-cb-scheme.md
 ```
 
 `CONTENT.md` says where the words are and how to change them without touching code. The
@@ -363,6 +364,11 @@ building it once and then reverting it. It has been deleted rather than left to 
 the code: most of it was about the national layer, which is not being built. It is still in
 git history if the argument is wanted — `git show ba1c144:LEGAL-METROLOGY.md`, with the
 reference implementation at `bf4b24d` and `bea1372`.
+
+A fourth arrangement, the **IECEE CB Scheme**, is proposed but not built. In it, NCBs and
+CB Testing Laboratories are recognised after peer assessment, and a CB Test Certificate is
+accepted in another country without retesting. The design, the code it would touch and the
+facts still to confirm are in `docs/extensions/iecee-cb-scheme.md`.
 
 [dcc]: https://www.ptb.de/dcc/
 [unclib]: https://www.metas.admin.ch/en/metas-unclib
