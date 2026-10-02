@@ -3,189 +3,21 @@
 The change set being worked on now, with its checklist and progress log. When one is
 finished it moves to `docs/history/`, so this file stays short enough to read.
 
-- `docs/history/PLAN-2026.md`: change sets 1 to 33, from the first demonstrator to the
-  XML-signature profile check, each with its context, decisions and progress log.
+- `docs/history/PLAN-2026.md`: change sets 1 to 35, from the first demonstrator to the
+  browsable harmonisation chapter, each with its context, decisions and progress log.
 - `docs/history/firstPrompt.md`: the question the project started from.
 
-# Change set 34 - documentation that cannot drift from the code (#73)
+# Nothing under way
 
-## Context
+Change set 35 was the last, released in #107. Two issues are left for later by decision,
+not by oversight, and the next change set is likely to be one of them:
 
-Issue #73, found at 12be858. The README said 23 failure cases where `tamper.py` had 24;
-the comment above `/api/keys/*` still leans on "the server binds to localhost"; and the
-prose writes chapter numbers by hand, which is why the files' prefixes and the numbers a
-reader sees differ by one (`08-break.md` is chapter 7) and why the cautions page could
-not take a number. The root cause the issue names is volume: README, ARCHITECTURE.md,
-PLAN.md and the chapters run to tens of thousands of words.
+- #74, a claims ledger: what long-term validation and a failed resolution would need,
+  and which of it belongs in the demonstration.
+- #75, the machine-readable CMC and scope encoding tried against real KCDB entries and
+  accreditation scopes, with practitioners.
 
-Already done before this change set: the count was corrected in #84 and has been tested
-since #96.
+One extension is designed and not built:
 
-## Decisions
-
-Taken with Peter:
-- **Chapters are referred to by id.** Prose writes `[chapter](#scope)`, and the number is
-  rendered when the page is served, as a link to the chapter. Files are named by id. The
-  order is declared once, and a test keeps `chapters.js` in step with it.
-- **History is archived, not deleted.** Change sets 1 to 33 went to
-  `docs/history/PLAN-2026.md` and `firstPrompt.md` to `docs/history/`. The root PLAN.md
-  keeps the current change set, so the plan-in-the-root workflow is unchanged.
-- **The README's figures are tested against the code**, as the failure-case count
-  already is.
-
-## Checklist
-
-- [x] 1. Archive: change sets 1 to 33 and `firstPrompt.md` into `docs/history/`, and the
-      references to them repointed
-- [x] 2. The localhost comment above `/api/keys/*` in `web/app.py`
-- [x] 3. Tests for the README's figures
-- [x] 4. Chapter references by id, and files named by id
-- [x] 5. Docs: CONTENT.md, `web/content/README.md`, README.md, ARCHITECTURE.md
-- [x] 6. Verification: the full suite, the click harness, the chapter snapshot
-
-## Progress log
-
-- 2026-09-30: agreed in conversation. Peter chose references by id and a live PLAN.md
-  with the history archived. Branch `fix/documentation-drift` from `develop`.
-- 2026-09-30: items 1 to 3 done.
-  - The archive went in two commits: the move alone, then the new PLAN.md, so git sees a
-    rename and `git log --follow docs/history/PLAN-2026.md` keeps all 48 commits.
-  - `tests/test_readme.py` checks the README's figures: 86 documents; thirteen
-    organisations and three arrangements; eight types; five editable documents; eleven
-    checks, 98 retrievals and 35 distinct documents; 20 of 35 that can travel; nine
-    status lists and 1,179,648 positions; and the chapter list.
-    - Not checked: the breakdown of the 20 by kind, which the audit does not report.
-    - Deliberate break: 86 changed to 85 and eleven to nine failed exactly those two.
-- 2026-09-30: items 4 to 6 done.
-  - **The order.** `CHAPTER_ORDER` and `UNNUMBERED` in `web/content.py`, with
-    `chapter_number`. The files are `chapters/<id>.md`, renamed with `git mv`.
-  - **The syntax.** `[chapter](#scope)` or `[Chapter](#scope)`.
-    - The prose gets `[chapter 5](#scope)`, rendered as a link; following one in a DOM
-      lands on the chapter the rail numbers the same.
-    - `with_chapter_numbers` gives plain text for `/api/harmonisation`,
-      `/api/infrastructure` and `/api/untp`.
-    - The text form of a block is rendered from the plain-text references. Stripping
-      the link left a space, so a title read "Chapter 10 's claim", which the
-      plain-text-slot test caught.
-    - An unknown id renders a visible `[unknown chapter: …]` marker.
-  - **Every reference, reviewed against its context.**
-    - 55 reader-facing references became links by id; they already pointed where
-      today's numbering says.
-    - About 110 in code, tests, tools and documents became names ("the scope chapter").
-    - Three were wrong when written, because the order had changed since: JCS "so
-      chapter 2 can show the bytes" (issuing), and "chapter 2's lesson" in `xmldsig.py`
-      and `test_exchange.py` (keys). One anecdote in `ui-clicks.mjs` now says "one
-      chapter", since the numbering on 5 September cannot be trusted.
-  - **Wrapping.** A script re-wrapped only the paragraphs the renaming pushed past 88
-    columns. It mangled one `//:` comment in `ui-clicks.mjs`, which the syntax check
-    caught and which was restored.
-  - **Code unchanged.** Every changed Python file has the same syntax tree as on
-    `develop` with strings blanked, except the three meant to change (`app.py`,
-    `content.py`, `test_content.py`). Served editorial text is identical once rendered.
-  - **Tests.** The number prefix test is replaced by: files equal the order; `CHAPTERS`
-    in `chapters.js` equals the order and the unnumbered set; no number written by
-    hand in the package, tests, tools or first-time documents; every id is a numbered
-    chapter; the rendering; and CONTENT.md's table.
-    - Deliberate breaks, each restored: "chapter 11" written by hand; `#harmonization`;
-      `break` and `tamper` swapped in the order. Each failed exactly its tests.
-  - Full suite: 874 pass, 46 skipped (859 before). `ui-clicks.mjs`: every control
-    responds. `--dump` is byte-identical.
-
-## Git
-
-Branch `fix/documentation-drift` from `develop`, into `develop`.
-
-# Change set 35 - the harmonisation chapter, up to date and browsable
-
-## Context
-
-Peter found the harmonisation chapter very long and asked whether it is still up to date,
-and how its points could be presented by priority or by topic. The chapter is long mostly
-outside its markdown file: the 24 items in `actors/harmonisation.py` run to about 6,700
-words, and `chapterHarmonisation()` renders every one of them fully expanded.
-
-Review, every claim checked against the code. Out of date:
-1. `certificate-format` said every calibration certificate carries DCC 3.3.0 "with its
-   signature slot unused". METAS-2026-0420 points at the signed 3.4.0-rc.2 example.
-2. The same item named only two certificates. The two recognitions are also projected
-   (Digital Identity Anchors, #94), and all four have been through the Playground.
-3. `governing-copy` said every certificate carries a DCC that is checked against the
-   subject, which is not true of the pointer certificate.
-4. `exchange` opened "Every item above this one", with one item above it.
-5. `timestamps` pointed at the event-log item as "the item below" and reached
-   `governing-copy`. `scope-grammar`'s "the item above" meant `measurands`.
-6. The open panel called what is left "a short list" and named six items, one of them
-   not open. The count is 10 of 24.
-7. The module docstring gave the open share as "near a quarter".
-8. `probe.expands` said "both documents" of a probe over four, and deferred the
-   Playground's result to the history.
-
-Seven later-tier items are advanced by no rung of the ladder. That is by design: the
-ladder has to reach the first tier.
-
-## Decisions
-
-Taken with Peter:
-- **A map, filters and collapsed items**, with the tier order kept as the default.
-- **The open panel rewritten short.**
-- **Two pull requests**, the content first because the prose is his.
-- **Branch.** The first PR is stacked on `fix/documentation-drift` (#73), because that
-  branch renames the chapter file and rewrites its references. So #73's PR merges first.
-
-## Checklist
-
-- [x] 1. PR 1: findings 1 to 8, and a test that no item points at another by position
-- [x] 2. PR 2: topics on the items, the map, the filters, collapsed items and probe
-- [x] 3. PR 2: tests, the click-harness floor, docs
-- [x] 4. Verification
-
-## Progress log
-
-- 2026-09-30: plan approved. Branch `docs/harmonisation-up-to-date`, stacked on
-  `fix/documentation-drift`.
-- 2026-09-30: item 1 done.
-  - Seven items changed and nothing else: `/api/harmonisation` matches the base branch
-    except `certificate-format`, `cryptosuite`, `exchange`, `governing-copy`,
-    `scope-grammar`, `smart-recommendations` and `timestamps`. Tiers and ladder are
-    unchanged.
-  - `cryptosuite` gains one sentence: the signatures reproduce the W3C's test vector.
-  - The open panel keeps its counts, one sentence on the correction and one on which
-    items take longest. The two scope paragraphs left it; their substance is in
-    `scope-grammar` and `scope-query`.
-  - `test_no_item_points_at_another_by_position`. Deliberate break: "the item below"
-    restored in `timestamps` failed it. Restored.
-- 2026-09-30: items 2 to 4 done, on `feature/harmonisation-map-and-filters`, stacked on
-  the first.
-  - **Data.** `Topic` and `TOPICS` (seven), and `topics` on every item, one or two each.
-    `/api/harmonisation` serves them. The served text is otherwise identical to the
-    first PR.
-  - **Page.**
-    - The status badges became filter chips, beside "All 24". Topic chips sit over a
-      five-column map.
-    - A filter re-renders the list and a note says what is shown, so each press changes
-      the page's text; `ui-clicks.mjs` counts nothing else as a response. Tiers keep
-      their headings and order, and an empty tier says so.
-    - Items show title, status, topics, the rungs that advance them and the first
-      paragraph of the consequence. "Show the details" inserts the six fields and
-      removes them again. A map row opens its item.
-    - The UNTP probe moved after the list and collapsed behind a summary.
-  - **First load: 3,777 words, where it was 10,683.** Measured as the stage text in a
-    DOM against both versions of the page.
-  - **Harness.** `ui-clicks.mjs`: 64 controls, all respond. The floor went from 6 to 64.
-    Deliberate break: a floor of 65 reported "LOST CONTROLS — 64 of at least 65".
-    Restored.
-  - **What the harness no longer reaches.** It used to click the probe's four document
-    chips, which are now behind the toggle, the page's last control, so the harness
-    never reaches them. A one-off DOM check covered them, along with the filters, tier
-    order, combined filters, empty tiers, opening and closing an item, a map row, and a
-    reference's number. All passed, and the check was deleted.
-  - **Tests.** `TestTopics`: each item has one or two known topics, every topic is used
-    once, and the route serves them. Deliberate break: one item's topics emptied failed
-    exactly the first. Restored.
-  - Full suite: 878 pass, 46 skipped. `chapter-snapshot.mjs harmonisation` is identical
-    twice, with nothing missing. `--dump` is byte-identical.
-
-## Git
-
-`docs/harmonisation-up-to-date`, stacked on `fix/documentation-drift`, into `develop`.
-Then `feature/harmonisation-map-and-filters`.
+- The IECEE CB Scheme as a fourth arrangement, in `docs/extensions/iecee-cb-scheme.md`.
+  Its IECEE facts come from secondary sources and need confirming before a build.
