@@ -31,6 +31,8 @@ The three organisations at the top are the roots of trust: one for metrology, on
 
 The three arrangements are separate, and the interesting part is where they are not. **Helvetia Testing** is accredited by SAS under ISO/IEC 17025 *and* recognised by OIML to perform type evaluation — one laboratory, one identifier, two arrangements above it, and neither of them aware the other exists. Filter to one arrangement to see its shape; the rest dims rather than disappearing, because a document resting on two of them at once is the thing worth looking at.
 
+**The same pattern would carry a fourth arrangement.** Nothing in Recognized Entities is specific to metrology or accreditation. The IECEE CB Scheme for electrotechnical products would fit the same way: the IECEE recognises National Certification Bodies after peer assessment rather than accreditation, Confoederatio as a Swiss NCB recognises Helvetia Testing as its CB Testing Laboratory, and the CB Test Certificate it issues for the kettle could be accepted by a certification body in the importing country without retesting. Before that body relies on the certificate, a verifier would check that the laboratory belongs to the NCB that issued it and that the importing country's national differences were tested. None of this is built here; [the proposal](https://github.com/PeterBlattner/Verifiable_Credentials_4_QI/blob/main/docs/extensions/iecee-cb-scheme.md) records how it would be.
+
 Click any organisation to see the identifier it signs with and what it has issued. Click any edge to read the credential behind it.
 
 <!-- block: detail.title -->

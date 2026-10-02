@@ -16,3 +16,8 @@ not by oversight, and the next change set is likely to be one of them:
   and which of it belongs in the demonstration.
 - #75, the machine-readable CMC and scope encoding tried against real KCDB entries and
   accreditation scopes, with practitioners.
+
+One extension is designed and not built:
+
+- The IECEE CB Scheme as a fourth arrangement, in `docs/extensions/iecee-cb-scheme.md`.
+  Its IECEE facts come from secondary sources and need confirming before a build.
