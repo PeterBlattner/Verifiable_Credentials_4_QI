@@ -1,7 +1,7 @@
 # Verifiable Credentials across the accreditation chain
 
 A summary for experts of the Global Accreditation Cooperation (Global ACI), prepared by
-METAS on 4 October 2026 from the VC-QI demonstrator.
+Peter (with support from Claude) on 4 October 2026 from the VC-QI demonstrator.
 
 It answers two questions:
 
@@ -12,7 +12,7 @@ It answers two questions:
 
 ## What this is based on
 
-The METAS demonstrator builds a complete quality-infrastructure chain from W3C
+The demonstrator builds a complete quality-infrastructure chain from W3C
 Verifiable Credentials 2.0, signed with W3C Data Integrity, with `did:web` identifiers,
 Bitstring Status Lists for revocation and suspension, and the W3C Recognized Entities
 pattern for recognitions. It models three arrangements: the CIPM MRA, the Global ACI
