@@ -40,7 +40,9 @@ work.
 
 **The underlying specification is still moving.** Recognized Entities v1.0 is a W3C
 Working Draft, described by the Working Group as experimental and not fit for production
-deployment. Anything here may already be out of date.
+deployment. UN/CEFACT's Digital Identity Anchor, its counterpart in UNTP, is also still a
+draft, and experts from both communities are working to align the two. Anything here may
+already be out of date.
 
 **No warranty.** The content is provided as-is, for educational purposes only, with no
 assurance of correctness or fitness for any purpose. Do not rely on it for any decision
