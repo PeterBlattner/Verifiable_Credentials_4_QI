@@ -63,17 +63,21 @@ signatories and a peer evaluation cycle measured in years, this is an archive qu
 not a throughput question.
 
 **Question 2: can members issue credentials for their CABs and certificates?** Yes. The
-demonstrator does this end to end. A signatory accreditation body issues:
+demonstrator does this end to end. In it, a signatory accreditation body issues:
 
-- a recognition of each accredited CAB: who it is, its accreditation number, for which
-  main scope, valid when, issued after checking that the CAB controls the DID it is
-  recognised under;
+- a recognition of each accredited CAB: who it is, for which main scope, valid when, and
+  a reference to its accreditation scope;
 - the accreditation scope itself as a signed credential, which the CAB's certificates
   cite and pin by content digest;
 - a status list, so that a suspension takes effect at the next check without any
   certificate being recalled or reissued;
 - for testing scopes with flexible rows, a query service that answers "did this scope
   cover standard X on date D" with a signed answer.
+
+A deployment would add two things the demonstrator does not have: the accreditation
+number as a structured identifier of the CAB (today it travels only as the identifier of
+the scope), and a check, before the recognition is issued, that the CAB controls the DID
+it is recognised under (today that is checked only when a credential is handed over).
 
 The CABs then issue their own certificates (calibration certificates, test reports,
 certificates of conformity) as credentials. A recipient checks the certificate, whether
