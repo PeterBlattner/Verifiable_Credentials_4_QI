@@ -341,6 +341,7 @@ tests/       test_jcs.py  test_ecdsa_p256.py  test_dataintegrity.py  test_w3c_ve
 docs/history/  PLAN-2026.md, the change sets that built this, and firstPrompt.md, the
                question it started from. PLAN.md holds only the change set under way.
 docs/extensions/  proposals that are designed but not built, such as iecee-cb-scheme.md
+docs/briefings/   summaries for outside readers, such as global-aci-verifiable-credentials.md
 ```
 
 `CONTENT.md` says where the words are and how to change them without touching code. The
