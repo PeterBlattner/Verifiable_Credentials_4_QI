@@ -1064,6 +1064,21 @@ compares pairs, it weighs only the grant the chain rests on, and where a credent
 recognises nobody it is **not added at all** rather than passing -- a certificate grants
 nothing, and reporting a pass would claim a comparison that never happened.
 
+**The check is about scope, not actions.** It never asks whether a body in the middle of
+the chain was recognised for the action being checked at the end. Global ACI recognises the
+accreditation body to `accredit`, and the body recognises the laboratory to `issue`, so a
+rule that required every link to carry the leaf's action would reject the most ordinary
+chain here. Only the leaf's action is compared, by the `action` step.
+
+**`mainScope` is this project's property, and a placeholder.** W3C Recognized Entities says
+what an entity may *do* and has nowhere to say what it is recognised *for*; UNTP's Digital
+Identity Anchor has a `registrationScope`, a list of links. Both are drafts that experts
+from the two communities are aligning, and where scope goes is part of that, so the name
+here should follow whatever they settle on. `harmonisation.recognition-scope` is the item.
+Its neighbour, `registered-id`, records the other absence a later review found: no
+recognition states the accreditation number as an identifier of the body. The number
+travels only as the identifier of the scope a recognition points at.
+
 `domain/arrangement.py` publishes none of this as a retrievable document, which breaks
 the pattern `KcdbCmcEntry` and `AccreditationScope` set and is worth saying why. Those two
 are worth fetching because the party being checked is not the party that published them: a
