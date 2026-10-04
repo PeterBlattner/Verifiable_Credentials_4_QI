@@ -277,6 +277,9 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
         must_add=(
             "An HSM and the ceremony around it.",
             "A status list, republished whenever a signatory is suspended.",
+            "A check, before a signatory is recognised, that it controls the identifier "
+            "it is recognised under, and a record that the check was made. A recognition "
+            "binds an identifier to an organisation only as firmly as that check.",
             "A statement of what became of the identifiers of the two organisations it "
             "replaced, and whether what they signed still verifies. No other role on "
             "this page has to answer that, and this one had to answer it in its first "
@@ -339,6 +342,10 @@ DEPLOYMENT_PROFILES: tuple[DeploymentProfile, ...] = (
             "Retention of when each row entered and left a scope, since a register that "
             "only knows today's scope cannot answer about the day a report was issued.",
             "A status list, so a suspension takes effect without reissuing anything.",
+            "The same identifier check for every body it accredits, made before the "
+            "recognition is issued and kept on record. The demonstration checks control "
+            "only when a credential is handed over, which is too late to say what the "
+            "recognition was based on.",
         ),
         hardest_part=(
             "Undertaking to still answer. A signed document can be archived by anybody "

@@ -525,6 +525,47 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
     ),
     HarmonisationItem(
+        key="registered-id",
+        tier="floor",
+        title="A registered number a certificate can be compared with",
+        status="partial",
+        topics=("signing", "scope"),
+        requirement=(
+            "A recognition names an organisation by its identifier, and a certificate "
+            "names its accreditation by a number printed on it. Somebody has to agree "
+            "where that number goes in a recognition, and that it travels with the scheme "
+            "that issued it, because an accreditation number is unique only inside the "
+            "register that assigned it. A bare string cannot say whose number it is."
+        ),
+        demonstrated=(
+            "No recognition here states a registered number. The accreditation number, "
+            "SCS 0123 and its two siblings, reaches a credential only as the identifier of "
+            "the scope a recognition points at, so a verifier can match a certificate to "
+            "its scope and has nothing to compare with the number on the paper. The UNTP "
+            "probe on this page meets the same absence from the other side: each anchor it "
+            "builds from a recognition leaves registeredId out, and says why."
+        ),
+        exists=(
+            "Half of it. UN/CEFACT's Digital Identity Anchor requires a registeredId, "
+            "unique within its register, and an idScheme naming the scheme the registrar "
+            "operates, which is the value-and-scheme pair this item asks for. W3C "
+            "Recognized Entities has no member for it. Both are drafts, and experts from "
+            "the two communities are working to align them, so the name a deployment uses "
+            "today may not be the one that is agreed."
+        ),
+        source="https://untp.unece.org/artefacts/schema/v0.7.0/dia/DigitalIdentityAnchor.json",
+        consequence=(
+            "Each ecosystem names the number differently, and a verifier that wants to "
+            "compare the accreditation number printed on a certificate with the "
+            "recognition behind it has to know every spelling. Most will not compare at "
+            "all."
+        ),
+        forum=(
+            "The Global ACI arrangement for what an accreditation number is and which "
+            "register issues it, and the W3C and UN/CEFACT alignment for where it goes."
+        ),
+    ),
+    HarmonisationItem(
         key="legal-effect",
         tier="floor",
         title="What a document authorises, as distinct from what it attests",
@@ -1210,6 +1251,57 @@ HARMONISATION_ITEMS: tuple[HarmonisationItem, ...] = (
         ),
     ),
     HarmonisationItem(
+        key="recognition-scope",
+        tier="floor",
+        title="Where a recognition says what it is recognised for",
+        status="open",
+        topics=("scope", "arrangements"),
+        requirement=(
+            "A recognition has to say what an organisation is recognised for: a main "
+            "scope, an accreditation scope, a set of standards or of CMCs. That is a "
+            "different statement from what it may do, which is what a recognised action "
+            "carries, and it needs a member of its own that two implementations fill the "
+            "same way. Each entry should point at the scope as its owner publishes it, "
+            "pinned by digest so that it cannot be swapped quietly, and the scope it "
+            "points at has to be machine-readable or nothing downstream can be checked "
+            "against it."
+        ),
+        demonstrated=(
+            "Every recognised action here carries a mainScope, a property this project "
+            "invented: the activity and the standard it rests on, the pair the arrangement "
+            "recognises. A recognition from the accreditation body also points at the "
+            "accreditation scope through a capabilityReference, invented too, and pinned "
+            "by digest.\n\n"
+            "The chain check built on them is about scope rather than actions. It refuses "
+            "a link that grants a main scope its issuer does not hold, and it never asks "
+            "whether a body in the middle of the chain was recognised for the action being "
+            "checked. That is deliberate: the accreditation body is recognised to accredit "
+            "and the laboratory to issue, so a rule that required every link to carry the "
+            "action at the end would reject the most ordinary chain on this page."
+        ),
+        exists=(
+            "Nothing agreed. W3C Recognized Entities models what an entity may do, with an "
+            "optional schema its output must satisfy, and has no member for what it is "
+            "recognised for. UN/CEFACT's Digital Identity Anchor carries a "
+            "registrationScope, a list of links, which is closer and says nothing about "
+            "how the scope behind a link is written. Both are drafts, experts from the two "
+            "communities are working to align them, and where scope goes is part of that."
+        ),
+        source="https://www.w3.org/TR/vc-recognized-entities-1.0/",
+        consequence=(
+            "Every arrangement invents its own property, and a chain that crosses from one "
+            "into another fails on a name rather than on a scope. A verifier that checks "
+            "only actions passes a body working outside what it was recognised for, "
+            "because the action is the same and the scope was never compared."
+        ),
+        forum=(
+            "The Global ACI arrangement, whose main scopes are the clearest case of a "
+            "recognition that is about scope, taking the accreditation case into the W3C "
+            "and UN/CEFACT alignment rather than waiting for its result. The CIPM MRA and "
+            "the OIML have the same need, for CMCs and for Recommendations."
+        ),
+    ),
+    HarmonisationItem(
         key="uncertainty-transport",
         tier="optional",
         title="How uncertainty travels, dependencies included",
@@ -1353,15 +1445,19 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "and that is the half most easily forgotten: how a scope states the levels a "
             "row covers is a first-tier choice, and two members reading the same "
             "published table differently do not interoperate however well their keys "
-            "agree."
+            "agree. The same goes for where a recognition carries the scope it grants and "
+            "the number it was registered under, which the drafts a profile would borrow "
+            "from have not agreed either."
         ),
         unblocks=(
             "cryptosuite",
             "did-method",
             "status-meaning",
             "anchors",
+            "registered-id",
             "scope-grammar",
             "scope-query",
+            "recognition-scope",
         ),
     ),
     NextStep(
@@ -1394,7 +1490,7 @@ NEXT_STEPS: tuple[NextStep, ...] = (
             "so creating somewhere for the conversation to happen is the actual first "
             "step, and it is an institutional one rather than a technical one."
         ),
-        unblocks=("chain-crossing", "anchors"),
+        unblocks=("chain-crossing", "anchors", "recognition-scope"),
     ),
     NextStep(
         order=7,
